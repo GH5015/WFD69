@@ -7,12 +7,13 @@ public class Player {
     private String id;
     private String name;
     private String nationality;
-    private String position;
+    private Position primaryPosition;
+    private Position secondaryPosition;
     private int age;
     private TechnicalAttributes technicalAttributes;
     private int overall;
     private int potential;
-    private double salary;
+    double salary;
 
     private int seasonGoals = 0, seasonAssists = 0, seasonYellowCards = 0, seasonRedCards = 0;
 
@@ -63,12 +64,13 @@ public class Player {
         return getMonthlySalary() * 12L;
     }
 
-    public Player(String name, String nationality, String position, int age,
+    public Player(String name, String nationality, Position primaryPosition, Position secondaryPosition, int age,
                   TechnicalAttributes technicalAttributes, int potential, double salary) {
         this.id = UUID.randomUUID().toString();
         this.name = name;
         this.nationality = nationality;
-        this.position = position;
+        this.primaryPosition = primaryPosition;
+        this.secondaryPosition = secondaryPosition;
         this.age = age;
         this.technicalAttributes = technicalAttributes != null ? technicalAttributes : new TechnicalAttributes();
         this.potential = potential;
@@ -77,10 +79,10 @@ public class Player {
     }
 
     public void calculateOverall() {
-        this.overall = calculateOverallForPosition(this.position);
+        this.overall = calculateOverallForPosition(this.primaryPosition);
     }
 
-    public int calculateOverallForPosition(String targetPos) {
+    public int calculateOverallForPosition(Position targetPos) {
         if (targetPos == null || technicalAttributes == null) {
             return this.overall;
         }
@@ -92,44 +94,42 @@ public class Player {
         int dri = technicalAttributes.getDrible();
         int gk  = technicalAttributes.getGoleiro();
 
-        String pos = targetPos.toUpperCase();
-
-        switch (pos) {
-            case "GK":
+        switch (targetPos) {
+            case GK:
                 return (int) Math.round(gk * 0.76 + fis * 0.12 + pas * 0.12);
 
-            case "CB":
+            case CB:
                 return (int) Math.round(def * 0.45 + fis * 0.30 + pas * 0.15 + atk * 0.05 + dri * 0.05);
 
-            case "LB":
-            case "RB":
+            case LB:
+            case RB:
                 return (int) Math.round(def * 0.30 + pas * 0.25 + fis * 0.25 + atk * 0.10 + dri * 0.10);
 
-            case "LWB":
-            case "RWB":
+            case LWB:
+            case RWB:
                 return (int) Math.round(pas * 0.25 + atk * 0.20 + def * 0.20 + fis * 0.20 + dri * 0.15);
 
-            case "CDM":
+            case CDM:
                 return (int) Math.round(pas * 0.30 + def * 0.30 + fis * 0.25 + dri * 0.10 + atk * 0.05);
 
-            case "CM":
+            case CM:
                 return (int) Math.round(pas * 0.35 + atk * 0.20 + def * 0.15 + fis * 0.15 + dri * 0.15);
 
-            case "CAM":
+            case CAM:
                 return (int) Math.round(pas * 0.30 + atk * 0.25 + dri * 0.25 + fis * 0.10 + def * 0.10);
 
-            case "LM":
-            case "RM":
+            case LM:
+            case RM:
                 return (int) Math.round(pas * 0.25 + dri * 0.25 + atk * 0.20 + fis * 0.20 + def * 0.10);
 
-            case "LW":
-            case "RW":
+            case LW:
+            case RW:
                 return (int) Math.round(atk * 0.30 + dri * 0.30 + fis * 0.20 + pas * 0.15 + def * 0.05);
 
-            case "CF":
+            case CF:
                 return (int) Math.round(atk * 0.35 + dri * 0.20 + pas * 0.20 + fis * 0.15 + def * 0.10);
 
-            case "ST":
+            case ST:
                 return (int) Math.round(atk * 0.45 + fis * 0.25 + pas * 0.15 + dri * 0.10 + def * 0.05);
 
             default:
@@ -137,22 +137,28 @@ public class Player {
         }
     }
 
-    public int getEffectiveOverallForPosition(String targetPos) {
-        if (targetPos == null || this.position == null) {
+    public int getEffectiveOverallForPosition(Position targetPos) {
+        if (targetPos == null || this.primaryPosition == null) {
             return this.overall;
         }
 
-        boolean targetIsGK = targetPos.equalsIgnoreCase("GK");
-        boolean playerIsGK = this.position.equalsIgnoreCase("GK");
+        boolean targetIsGK = targetPos.isGoalkeeper();
+        boolean playerIsGK = this.primaryPosition.isGoalkeeper();
 
         int base;
 
         if (playerIsGK != targetIsGK) {
+            // Penalidade severa por colocar um jogador de linha no gol ou vice-versa
             base = Math.max(15, (int) (this.overall * 0.25f));
-        } else if (this.position.equalsIgnoreCase(targetPos)) {
+        } else if (this.primaryPosition == targetPos) {
+            // 100% na posição primária
             base = this.overall;
+        } else if (this.secondaryPosition == targetPos) {
+            // 95% do OVR na posição secundária
+            base = (int) Math.round(calculateOverallForPosition(targetPos) * 0.95);
         } else {
-            base = (int) (calculateOverallForPosition(targetPos) * 0.85f);
+            // 85% para posições totalmente improvisadas
+            base = (int) Math.round(calculateOverallForPosition(targetPos) * 0.85);
         }
 
         if (fatigue >= 60) {
@@ -164,15 +170,15 @@ public class Player {
     }
 
     public int getPositionWeight() {
-        if (position.equalsIgnoreCase("GK")) return 1;
-        if (position.matches("(?i)CB|RB|LB|RWB|LWB")) return 2;
-        if (position.matches("(?i)CDM|CM|CAM|RM|LM")) return 3;
+        if (primaryPosition.isGoalkeeper()) return 1;
+        if (primaryPosition.name().matches("CB|RB|LB|RWB|LWB")) return 2;
+        if (primaryPosition.name().matches("CDM|CM|CAM|RM|LM")) return 3;
         return 4;
     }
 
     public void applyMatchFatigue() {
         int loss = 25 + (int) (Math.random() * 20);
-        if (position.equalsIgnoreCase("GK")) loss = 10;
+        if (primaryPosition.isGoalkeeper()) loss = 10;
         this.fatigue = Math.max(0, this.fatigue - loss);
     }
 
@@ -240,9 +246,10 @@ public class Player {
     public String getId() { return id; }
     public String getName() { return name; }
     public String getNationality() { return nationality; }
-    public String getPosition() { return position; }
+    public Position getPrimaryPosition() { return primaryPosition; }
+    public Position getSecondaryPosition() { return secondaryPosition; }
     public int getOverall() { return overall; }
-    public int getEffectiveOverall() { return getEffectiveOverallForPosition(position); }
+    public int getEffectiveOverall() { return getEffectiveOverallForPosition(primaryPosition); }
     public int getPotential() { return potential; }
     public double getSalary() { return salary; }
     public int getFatigue() { return fatigue; }
