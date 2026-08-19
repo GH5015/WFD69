@@ -159,30 +159,33 @@ public final class CareerOverlay extends WidgetGroup {
         return (nextGlobal == userMatch) && dateReached;
     }
 
-    public static void advanceOneDay(Main game, Club club) {
-        Match userMatch = game.league.getNextMatchForClub(club);
+   public static void advanceOneDay(Main game, Club club) {
+    Match userMatch = game.league.getNextMatchForClub(club);
 
-        // Se não há mais partidas para o clube na fase atual, transiciona de fase
-        if (userMatch == null) {
-            game.league.checkAndAdvanceStage();
-            return;
-        }
-
-        // Se já está no dia do jogo -> abre a Tela de Pré-Jogo
-        if (isMatchDay(game, club)) {
-            game.setScreen(new PreMatchScreen(game, userMatch, club));
-            return;
-        }
-
-        // Avança 1 dia
-        game.league.advanceDateOneDay();
-
-        // Recupera fadiga dos atletas
-        recoverAllPlayers(game, 1);
-
-        // Processa os jogos neutros que caem neste dia
-        processDueMatches(game, club);
+    if (userMatch == null) {
+        game.league.checkAndAdvanceStage();
+        return;
     }
+
+    if (isMatchDay(game, club)) {
+        game.setScreen(new PreMatchScreen(game, userMatch, club));
+        return;
+    }
+
+    // Avança a data da liga
+    game.league.advanceDateOneDay();
+
+    // Evolução diária do conhecimento dos olheiros
+    if (game.draftScoutManager != null) {
+        game.draftScoutManager.advanceDay();
+    }
+
+    // Recuperação física do elenco
+    recoverAllPlayers(game, 1);
+
+    // Simulação dos demais jogos da rodada
+    processDueMatches(game, club);
+}
 
     private static void processDueMatches(Main game, Club playerClub) {
         Match due = game.league.getNextMatch();
