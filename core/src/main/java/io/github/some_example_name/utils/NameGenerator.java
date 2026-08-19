@@ -1,0 +1,21 @@
+package io.github.some_example_name.utils;
+
+import java.util.Random;
+
+public class NameGenerator {
+    private static final String[] FIRST_NAMES = {
+        "Carlos", "José", "Mário", "Roberto", "Wilson", "Ricardo", "Paulo", "Fernando", "Antônio", "Luiz",
+        "João", "Edson", "Gilberto", "Ademir", "Jair", "Gerson", "Tostão", "Rivellino", "Clodoaldo", "Piazza"
+    };
+
+    private static final String[] LAST_NAMES = {
+        "Silva", "Santos", "Oliveira", "Souza", "Pereira", "Costa", "Rodrigues", "Almeida", "Nascimento", "Lopes",
+        "Barbosa", "Martins", "Araújo", "Cardoso", "Ribeiro", "Mendes", "Fernandes", "Carvalho", "Gomes", "Teixeira"
+    };
+
+    private static final Random RANDOM = new Random();
+
+    public static String generateName() {
+        return FIRST_NAMES[RANDOM.nextInt(FIRST_NAMES.length)] + " " + LAST_NAMES[RANDOM.nextInt(LAST_NAMES.length)];
+    }
+}
