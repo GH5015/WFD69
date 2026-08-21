@@ -8,26 +8,30 @@ public class ContractGenerator {
     public static void generateInitialContract(Player player, int currentYear) {
         int years = calculateContractLength(player);
 
+        // Se o salário ainda não foi atribuído no construtor (está <= 0), 
+        // sincroniza com a fórmula do método financeiro getMonthlySalary()
+        if (player.getSalary() <= 0) {
+            player.setSalary(player.getMonthlySalary());
+        }
+
         player.setContractYears(years);
         player.setContractEndYear(currentYear + years);
     }
 
     private static int calculateContractLength(Player player) {
         int age = player.getAge();
-        int potentialGap = player.getPotential() - player.getOverall(); // Margem de evolução
+        int potentialGap = player.getPotential() - player.getOverall();
 
-        // Jogadores Jovens (Até 22 anos)
+        // Promessas e Jovens (Até 22 anos)
         if (age <= 22) {
-            // Alta promessa (ex: POT 90+ com margem de crescimento alta): contrato longo (4-5 anos)
             if (player.getPotential() >= 85 || potentialGap >= 12) {
-                return randomBetween(4, 5);
+                return randomBetween(4, 5); // Segura o ativo por mais tempo
             }
             return randomBetween(2, 4);
         }
 
-        // Jogadores no auge (23 a 29 anos)
+        // Jogadores no Auge (23 a 29 anos)
         if (age <= 29) {
-            // Estrelas ou titulares consolidados
             if (player.getOverall() >= 80) {
                 return randomBetween(3, 5);
             }
