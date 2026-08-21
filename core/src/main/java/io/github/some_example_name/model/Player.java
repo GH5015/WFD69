@@ -52,13 +52,17 @@ public class Player {
      * Bônus = 1% para cada ponto de Potencial acima do OVR
      */
     public long getMonthlySalary() {
-        double baseSalary = 6000.0 * Math.exp(0.11 * (this.overall - 60));
+        // Se já tiver um salário negociado salvo em 'salary', utiliza-o
+        if (this.salary > 0) {
+            return Math.round(this.salary);
+        }
 
+        // Caso contrário, calcula pela fórmula de regulamento WFL 1969
+        double baseSalary = 6000.0 * Math.exp(0.11 * (this.overall - 60));
         int potentialDiff = Math.max(0, this.potential - this.overall);
         double potentialBonus = 1.0 + (potentialDiff * 0.01);
 
         double finalMonthlySalary = baseSalary * potentialBonus;
-
         return Math.max(6000L, Math.round(finalMonthlySalary));
     }
 
