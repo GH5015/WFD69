@@ -15,6 +15,11 @@ public class Player {
     private int potential;
     double salary;
 
+    // --- VÍNCULO DE CLUB E CONTRATO ---
+    private Club currentClub; 
+    private int contractYears;
+    private int contractEndYear;
+
     private int seasonGoals = 0, seasonAssists = 0, seasonYellowCards = 0, seasonRedCards = 0;
 
     // --- CAMPOS PARA CARTÕES NA PARTIDA EM ANDAMENTO ---
@@ -76,6 +81,29 @@ public class Player {
         this.potential = potential;
         this.salary = salary;
         calculateOverall();
+    }
+
+    // --- LÓGICA DE GERENCIAMENTO DE CONTRATO E TRANSFERÊNCIA ---
+
+    /**
+     * Transfere o jogador para um novo clube mantendo os termos do contrato ativos.
+     */
+    public void transferTo(Club newClub) {
+        if (this.currentClub != null) {
+            this.currentClub.getSquad().remove(this);
+        }
+        this.currentClub = newClub;
+        if (newClub != null && !newClub.getSquad().contains(this)) {
+            newClub.getSquad().add(this);
+        }
+    }
+
+    public boolean isFreeAgent(int currentYear) {
+        return currentClub == null || contractEndYear <= currentYear;
+    }
+
+    public int getRemainingContractYears(int currentYear) {
+        return Math.max(0, contractEndYear - currentYear);
     }
 
     public void calculateOverall() {
@@ -148,16 +176,12 @@ public class Player {
         int base;
 
         if (playerIsGK != targetIsGK) {
-            // Penalidade severa por colocar um jogador de linha no gol ou vice-versa
             base = Math.max(15, (int) (this.overall * 0.25f));
         } else if (this.primaryPosition == targetPos) {
-            // 100% na posição primária
             base = this.overall;
         } else if (this.secondaryPosition == targetPos) {
-            // 95% do OVR na posição secundária
             base = (int) Math.round(calculateOverallForPosition(targetPos) * 0.95);
         } else {
-            // 85% para posições totalmente improvisadas
             base = (int) Math.round(calculateOverallForPosition(targetPos) * 0.85);
         }
 
@@ -227,7 +251,6 @@ public class Player {
         this.injuryType = type;
     }
 
-    // Métodos utilitários compatíveis com a Engine de Partida
     public void setInjuryDuration(int matches) {
         injure(matches, "Muscular");
     }
@@ -243,6 +266,13 @@ public class Player {
     public boolean canPlay() { return !isSuspended() && !isInjured(); }
 
     // Getters & Setters
+    public Club getCurrentClub() { return currentClub; }
+    public void setCurrentClub(Club currentClub) { this.currentClub = currentClub; }
+    public int getContractYears() { return contractYears; }
+    public void setContractYears(int contractYears) { this.contractYears = contractYears; }
+    public int getContractEndYear() { return contractEndYear; }
+    public void setContractEndYear(int contractEndYear) { this.contractEndYear = contractEndYear; }
+    
     public String getId() { return id; }
     public String getName() { return name; }
     public String getNationality() { return nationality; }
@@ -252,6 +282,7 @@ public class Player {
     public int getEffectiveOverall() { return getEffectiveOverallForPosition(primaryPosition); }
     public int getPotential() { return potential; }
     public double getSalary() { return salary; }
+    public void setSalary(double salary) { this.salary = salary; }
     public int getFatigue() { return fatigue; }
     public int getAge() { return age; }
     public void setAge(int age) { this.age = age; }
