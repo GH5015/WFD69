@@ -6,6 +6,7 @@ public class DraftPick {
     private Club originalOwner;
     private Club currentOwner;
     private int projectedPosition = 15; // Valor padrão (ex: meio de tabela / 15º lugar)
+    private double projectedPositionConfidence = 0.35;
 
     public DraftPick() {
     }
@@ -61,6 +62,14 @@ public class DraftPick {
 
     public void setProjectedPosition(int projectedPosition) {
         this.projectedPosition = projectedPosition;
+    }
+
+    public double getProjectedPositionConfidence() {
+        return projectedPositionConfidence;
+    }
+
+    public void setProjectedPositionConfidence(double confidence) {
+        this.projectedPositionConfidence = Math.max(0.0, Math.min(1.0, confidence));
     }
 
     @Override

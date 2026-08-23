@@ -23,6 +23,8 @@ public class Match {
     private int homePossession = 50, awayPossession = 50;
     private double homeXG = 0, awayXG = 0;
     private float homeMomentum = 0.5f, awayMomentum = 0.5f;
+    private double accumulatedHomePossession = 0;
+    private int possessionSamples = 0;
 
     // Estatísticas de Faltas e Expulsões
     private int homeFouls = 0, awayFouls = 0;
@@ -73,9 +75,15 @@ public class Match {
     public void setPlayed(boolean played) { this.played = played; }
     public void setHomeGoals(int g) { this.homeGoals = g; }
     public void setAwayGoals(int g) { this.awayGoals = g; }
-    public void addHomeShot(boolean onTarget) { homeShots++; if(onTarget) homeShotsOnTarget++; homeXG += (onTarget ? 0.15 : 0.03); }
-    public void addAwayShot(boolean onTarget) { awayShots++; if(onTarget) awayShotsOnTarget++; awayXG += (onTarget ? 0.15 : 0.03); }
-    public void setPossession(int hP) { this.homePossession = hP; this.awayPossession = 100 - hP; }
+    public void addHomeShot(boolean onTarget) { homeShots++; if(onTarget) homeShotsOnTarget++; }
+    public void addAwayShot(boolean onTarget) { awayShots++; if(onTarget) awayShotsOnTarget++; }
+    public void setPossession(int hP) {
+        int safePossession = Math.max(0, Math.min(100, hP));
+        accumulatedHomePossession += safePossession;
+        possessionSamples++;
+        this.homePossession = (int) Math.round(accumulatedHomePossession / possessionSamples);
+        this.awayPossession = 100 - this.homePossession;
+    }
     public void setMomentum(float hM) { this.homeMomentum = hM; this.awayMomentum = 1.0f - hM; }
     public void setDate(Date date) { this.date = date; }
     public void setStage(String stage) { this.stage = stage; }

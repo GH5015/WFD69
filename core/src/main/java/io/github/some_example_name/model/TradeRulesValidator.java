@@ -1,7 +1,5 @@
 package io.github.some_example_name.model;
 
-import java.util.List;
-
 public class TradeRulesValidator {
 
     public static final int MIN_ROSTER_SIZE = 23;
@@ -21,9 +19,43 @@ public class TradeRulesValidator {
      * Valida se a troca cumpre o regulamento do campeonato para ambos os clubes.
      */
     public static ValidationResult validateRules(TradeOffer offer) {
+        return validateRules(offer, -1);
+    }
+
+    /**
+     * @param currentSeasonYear use a season year to also prevent players whose
+     *                          contracts have expired from being traded.
+     */
+    public static ValidationResult validateRules(TradeOffer offer, int currentSeasonYear) {
+        if (offer == null || offer.getUserClub() == null || offer.getTargetClub() == null) {
+            return new ValidationResult(false, "A proposta precisa ter dois clubes válidos.");
+        }
+        if (offer.getUserClub() == offer.getTargetClub()) {
+            return new ValidationResult(false, "Um clube não pode negociar consigo mesmo.");
+        }
+
+        if (offer.getUserAssetCount() == 0 || offer.getTargetAssetCount() == 0) {
+            return new ValidationResult(false, "Cada clube deve enviar ao menos um ativo na troca.");
+        }
+        if (offer.getUserAssetCount() > TradeOffer.MAX_ASSETS_PER_SIDE
+            || offer.getTargetAssetCount() > TradeOffer.MAX_ASSETS_PER_SIDE) {
+            return new ValidationResult(false, "Cada clube pode incluir no máximo "
+                + TradeOffer.MAX_ASSETS_PER_SIDE + " ativos na proposta.");
+        }
+
         // --- 1. VALIDAÇÃO DO TAMANHO DO ELENCO (ROSTER LIMITS) ---
         Club userClub = offer.getUserClub();
         Club targetClub = offer.getTargetClub();
+
+        ValidationResult userAssets = validateOwnership(
+            userClub, offer.getUserPlayers(), offer.getUserPicks(), currentSeasonYear
+        );
+        if (!userAssets.isValid) return userAssets;
+
+        ValidationResult targetAssets = validateOwnership(
+            targetClub, offer.getTargetPlayers(), offer.getTargetPicks(), currentSeasonYear
+        );
+        if (!targetAssets.isValid) return targetAssets;
 
         int userPostTradeCount = userClub.getSquad().size()
             - offer.getUserPlayers().size()
@@ -65,5 +97,29 @@ public class TradeRulesValidator {
         }
 
         return new ValidationResult(true, "Regras aprovadas.");
+    }
+
+    private static ValidationResult validateOwnership(
+        Club club,
+        Iterable<Player> players,
+        Iterable<DraftPick> picks,
+        int currentSeasonYear
+    ) {
+        for (Player player : players) {
+            if (player == null || player.getCurrentClub() != club || !club.getSquad().contains(player)) {
+                return new ValidationResult(false, "Há um jogador que não pertence mais ao " + club.getName() + ".");
+            }
+            if (currentSeasonYear >= 0 && player.isFreeAgent(currentSeasonYear)) {
+                return new ValidationResult(false, player.getName() + " está com o contrato expirado e não pode ser negociado.");
+            }
+        }
+
+        for (DraftPick pick : picks) {
+            if (pick == null || pick.getCurrentOwner() != club || !club.getDraftPicks().contains(pick)) {
+                return new ValidationResult(false, "Há uma escolha de draft que não pertence mais ao " + club.getName() + ".");
+            }
+        }
+
+        return new ValidationResult(true, "Ativos válidos.");
     }
 }

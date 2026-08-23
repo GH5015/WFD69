@@ -4,615 +4,1769 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
+import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.SeasonHistory;
+import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
 import java.text.NumberFormat;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class ClubProfileScreen implements Screen {
+
     private final Main game;
     private final Club club;
-    private Stage stage;
+
+    private final Stage stage;
+
     private Texture logoTexture;
-    private Texture kitTexture;
     private Texture starTexture;
 
-    private final Map<String, Drawable> solidDrawableCache = new HashMap<>();
-
     private String activeTab = "RESUMO";
-    private boolean isSummaryExpanded = true;
 
-    private final Color COLOR_BG_PANEL = new Color(0.06f, 0.06f, 0.07f, 0.98f);
-    private final Color COLOR_CARD_BG = new Color(0.12f, 0.12f, 0.14f, 1f);
-    private final Color COLOR_INNER_BG = new Color(0.08f, 0.08f, 0.09f, 1f);
-    private final Color COLOR_DIVIDER  = new Color(0.22f, 0.22f, 0.25f, 1f);
+    public ClubProfileScreen(
+        Main game,
+        Club club
+    ) {
 
-    public ClubProfileScreen(Main game, Club club) {
         this.game = game;
         this.club = club;
-        this.stage = new Stage(new ScreenViewport());
 
-        try {
-            logoTexture = new Texture(Gdx.files.internal(club.getLogoPath()));
-        } catch (Exception e) {
-            logoTexture = new Texture(Gdx.files.internal("libgdx.png"));
-        }
+        this.stage =
+            new Stage(
+                new ScreenViewport()
+            );
 
-        try {
-            if (Gdx.files.internal("uniforme_santos.png").exists()) {
-                kitTexture = new Texture(Gdx.files.internal("uniforme_santos.png"));
-            } else {
-                kitTexture = null;
-            }
-        } catch (Exception e) {
-            kitTexture = null;
-        }
+        logoTexture =
+            loadTextureOrNull(
+                club.getLogoPath()
+            );
 
-        try {
-            if (Gdx.files.internal("Icons8/icons8-estrela-48.png").exists()) {
-                starTexture = new Texture(Gdx.files.internal("Icons8/icons8-estrela-48.png"));
-            } else {
-                starTexture = null;
-            }
-        } catch (Exception e) {
-            starTexture = null;
-        }
+        starTexture =
+            loadTextureOrNull(
+                "Icons8/icons8-estrela-48.png"
+            );
     }
 
-    private Drawable getSolidDrawable(Color color) {
-        String key = color.toString();
-        if (solidDrawableCache.containsKey(key)) {
-            return solidDrawableCache.get(key);
-        }
-
-        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixmap.setColor(color);
-        pixmap.fill();
-        Texture texture = new Texture(pixmap);
-        pixmap.dispose();
-
-        Drawable drawable = new TextureRegionDrawable(new TextureRegion(texture));
-        solidDrawableCache.put(key, drawable);
-        return drawable;
-    }
+    // =========================================================
+    // SHOW
+    // =========================================================
 
     @Override
     public void show() {
-        Gdx.input.setInputProcessor(stage);
+
+        Gdx.input.setInputProcessor(
+            stage
+        );
+
         refreshUI();
     }
 
+    // =========================================================
+    // UI
+    // =========================================================
+
     private void refreshUI() {
+
         stage.clear();
 
-        Stack root = new Stack();
-        root.setFillParent(true);
-        stage.addActor(root);
+        Stack root =
+            new Stack();
 
-        root.add(new Image(game.background));
-        NavigationDrawer.attach(stage, game, club, "PERFIL");
+        root.setFillParent(
+            true
+        );
 
-        Table outerTable = new Table();
-        outerTable.top().padTop(20).padBottom(20);
+        stage.addActor(
+            root
+        );
 
-        Table content = new Table();
-        content.background(getSolidDrawable(COLOR_BG_PANEL));
-        content.pad(25);
+        root.add(
+            new Image(
+                game.background
+            )
+        );
 
-        content.add(createHeaderTable()).growX().padBottom(18).row();
-        content.add(createTabsBar()).growX().padBottom(18).row();
+        Table page =
+            ScreenUI.createPage(
+                true
+            );
 
-        Table tabContent = new Table();
-        if (activeTab.equals("RESUMO")) {
-            tabContent.add(createResumoTab()).growX().row();
-        } else if (activeTab.equals("HISTÓRIA")) {
-            tabContent.add(createHistoriaTab()).growX().row();
-        } else if (activeTab.equals("INFRAESTRUTURA")) {
-            tabContent.add(createInfraestruturaTab()).growX().row();
-        }
+        // =====================================================
+        // HEADER
+        // =====================================================
 
-        content.add(tabContent).growX().row();
-        outerTable.add(content).width(1080).center();
+        Table header =
+            ScreenUI.createHeader(
+                game.skin,
+                "PERFIL DO CLUBE",
+                club.getConference() != null
+                    ? club.getConference().toUpperCase()
+                    : ""
+            );
 
-        ScrollPane scroll = new ScrollPane(outerTable, game.skin);
-        scroll.setFadeScrollBars(false);
-        root.add(scroll);
-    }
+        page
+            .add(header)
+            .growX()
+            .height(
+                ScreenUI.HEADER_HEIGHT
+            )
+            .padBottom(10f)
+            .row();
 
-    private Table createHeaderTable() {
-        Table table = new Table();
-        table.background(getSolidDrawable(COLOR_CARD_BG));
-        table.pad(15);
+        // =====================================================
+        // IDENTIDADE DO CLUBE
+        // =====================================================
 
-        Label title = new Label(club.getName().toUpperCase(), game.skin, "font-title");
-        title.setFontScale(1.6f);
-        title.setColor(StyleFactory.GOLD);
+        page
+            .add(
+                createIdentityPanel()
+            )
+            .growX()
+            .height(105f)
+            .padBottom(10f)
+            .row();
 
-        String countryStr = (club.getCountry() != null) ? club.getCountry() : "Brasil";
-        Label subTitle = new Label("Fundado: 1969  •  País: " + countryStr + " (BR)", game.skin, "font-bold");
-        subTitle.setFontScale(0.70f);
-        subTitle.setColor(Color.WHITE);
+        // =====================================================
+        // ABAS
+        // =====================================================
 
-        table.add(title).center().row();
-        table.add(subTitle).center().padTop(4);
+        page
+            .add(
+                createTabs()
+            )
+            .growX()
+            .height(48f)
+            .padBottom(10f)
+            .row();
 
-        return table;
-    }
+        // =====================================================
+        // CONTEÚDO
+        // =====================================================
 
-    private Table createTabsBar() {
-        Table bar = new Table();
-        String[] tabs = {"RESUMO", "HISTÓRIA", "INFRAESTRUTURA"};
+        Table tabContent =
+            new Table();
 
-        for (String tab : tabs) {
-            TextButton btn = new TextButton(tab, game.skin);
-            btn.getLabel().setFontScale(0.68f);
+        if (
+            "RESUMO".equals(
+                activeTab
+            )
+        ) {
 
-            if (tab.equals(activeTab)) {
-                btn.setColor(StyleFactory.GOLD);
-                btn.getLabel().setColor(Color.BLACK);
-            } else {
-                btn.setColor(COLOR_CARD_BG);
-                btn.getLabel().setColor(Color.WHITE);
-            }
+            tabContent.add(
+                createSummaryTab()
+            ).grow();
 
-            btn.addListener(new ClickListener() {
-                @Override
-                public void clicked(InputEvent event, float x, float y) {
-                    activeTab = tab;
-                    refreshUI();
-                }
-            });
+        } else if (
+            "HISTÓRIA".equals(
+                activeTab
+            )
+        ) {
 
-            bar.add(btn).width(210).height(42).padRight(12);
-        }
-        return bar;
-    }
+            tabContent.add(
+                createHistoryTab()
+            ).grow();
 
-    private Table createResumoTab() {
-        Table resumoTable = new Table();
-        Table mainGrid = new Table();
-        mainGrid.defaults().top();
-
-        Table leftCol = new Table();
-        leftCol.background(getSolidDrawable(COLOR_CARD_BG));
-        leftCol.pad(18);
-
-        Image logoImg = new Image(new TextureRegionDrawable(logoTexture));
-        logoImg.setScaling(Scaling.fit);
-        leftCol.add(logoImg).width(220).height(170).center().padBottom(15).row();
-
-        leftCol.add(createDivider()).growX().padBottom(15).row();
-
-        Label kitTitle = new Label("UNIFORME CASA", game.skin, "font-bold");
-        kitTitle.setFontScale(0.65f);
-        kitTitle.setColor(StyleFactory.GOLD);
-        leftCol.add(kitTitle).left().padBottom(8).row();
-
-        Table kitBox = new Table();
-        kitBox.background(getSolidDrawable(COLOR_INNER_BG));
-
-        if (kitTexture != null) {
-            Image kitImg = new Image(new TextureRegionDrawable(kitTexture));
-            kitImg.setScaling(Scaling.fit);
-            kitBox.add(kitImg).width(180).height(150).pad(10);
         } else {
-            Label kitDesc = new Label("Titular 1969", game.skin);
-            kitDesc.setFontScale(0.65f);
-            kitBox.add(kitDesc).pad(20);
+
+            tabContent.add(
+                createInfrastructureTab()
+            ).grow();
         }
 
-        leftCol.add(kitBox).growX().padBottom(15).row();
-        leftCol.add(createDivider()).growX().padBottom(15).row();
+        page
+            .add(tabContent)
+            .grow()
+            .row();
 
-        Label presTitle = new Label("PRESIDENTE / MANAGER", game.skin, "font-bold");
-        presTitle.setFontScale(0.60f);
-        presTitle.setColor(StyleFactory.GOLD);
-        leftCol.add(presTitle).left().row();
+        root.add(
+            page
+        );
 
-        Label presName = new Label("Você (Manager)", game.skin, "font-bold");
-        presName.setFontScale(0.70f);
-        presName.setColor(Color.WHITE);
-        leftCol.add(presName).left().row();
+        NavigationDrawer.attach(
+            stage,
+            game,
+            club,
+            "PERFIL",
+            true
+        );
 
-        Label presSince = new Label("Desde: 1969", game.skin);
-        presSince.setFontScale(0.58f);
-        presSince.setColor(Color.LIGHT_GRAY);
-        leftCol.add(presSince).left().padBottom(5);
+    }
 
-        mainGrid.add(leftCol).width(300).padRight(18);
+    // =========================================================
+    // IDENTIDADE
+    // =========================================================
 
-        Table rightCol = new Table();
-        rightCol.background(getSolidDrawable(COLOR_CARD_BG));
-        rightCol.pad(22).left();
+    private Table createIdentityPanel() {
 
-        Label infoTitle = new Label("INFORMAÇÕES GERAIS", game.skin, "font-title");
-        infoTitle.setFontScale(0.78f);
-        infoTitle.setColor(StyleFactory.GOLD);
-        rightCol.add(infoTitle).left().padBottom(12).row();
+        Table panel =
+            ScreenUI.createPanel();
 
-        int rep = Math.max(1, Math.min(5, club.getReputation()));
-        int overall = (int) (club.getOverall() > 0 ? club.getOverall() : 70);
-        int capacity = club.getStadiumCapacity() > 0 ? club.getStadiumCapacity() : 15000;
+        if (
+            logoTexture != null
+        ) {
 
-        long fanbase = (long) (Math.pow(rep, 2.2) * 95_000L) + ((long) capacity * 12L) + ((long) overall * 3_500L);
-        double conversionRate = 0.035 + (rep * 0.005);
-        long shirts = (long) (fanbase * conversionRate) + (long) (Math.pow(overall, 2) * 6.5);
+            Image logo =
+                new Image(
+                    new TextureRegionDrawable(
+                        logoTexture
+                    )
+                );
 
-        NumberFormat fmt = NumberFormat.getInstance(new Locale("pt", "BR"));
+            logo.setScaling(
+                Scaling.fit
+            );
 
-        Table infoGrid = new Table();
-        infoGrid.defaults().left().padBottom(8);
-
-        infoGrid.add(new Label("Reputação:", game.skin, "font-bold")).width(180);
-        infoGrid.add(createStarsWidget(rep)).row();
-
-        infoGrid.add(new Label("Torcida Estimada:", game.skin, "font-bold"));
-        infoGrid.add(new Label(fmt.format(fanbase) + " torcedores", game.skin)).row();
-
-        infoGrid.add(new Label("Camisas Vendidas:", game.skin, "font-bold"));
-        infoGrid.add(new Label(fmt.format(shirts) + " / ano", game.skin)).row();
-
-        rightCol.add(infoGrid).growX().padBottom(18).row();
-        rightCol.add(createDivider()).growX().padBottom(18).row();
-
-        Label stadiumTitle = new Label("ESTÁDIO", game.skin, "font-title");
-        stadiumTitle.setFontScale(0.78f);
-        stadiumTitle.setColor(StyleFactory.GOLD);
-        rightCol.add(stadiumTitle).left().padBottom(12).row();
-
-        Table stadiumGrid = new Table();
-        stadiumGrid.defaults().left().padBottom(8);
-
-        stadiumGrid.add(new Label("Nome:", game.skin, "font-bold")).width(180);
-        stadiumGrid.add(new Label(club.getStadium(), game.skin)).row();
-
-        stadiumGrid.add(new Label("Capacidade:", game.skin, "font-bold"));
-        stadiumGrid.add(new Label(fmt.format(club.getStadiumCapacity()) + " pessoas", game.skin)).row();
-
-        stadiumGrid.add(new Label("Gramado:", game.skin, "font-bold"));
-        Label lawn = new Label("Excelente", game.skin);
-        lawn.setColor(Color.GREEN);
-        stadiumGrid.add(lawn).row();
-
-        rightCol.add(stadiumGrid).growX().padBottom(18).row();
-        rightCol.add(createDivider()).growX().padBottom(18).row();
-
-        Label rivalsTitle = new Label("RIVAIS REGIONAIS", game.skin, "font-title");
-        rivalsTitle.setFontScale(0.78f);
-        rivalsTitle.setColor(StyleFactory.GOLD);
-        rightCol.add(rivalsTitle).left().padBottom(12).row();
-
-        Label rivalsList = new Label("• Rio Imperial FC     • Atlético Guanabara     • Serrano EC", game.skin);
-        rivalsList.setFontScale(0.65f);
-        rivalsList.setColor(Color.LIGHT_GRAY);
-        rightCol.add(rivalsList).left().row();
-
-        mainGrid.add(rightCol).growX();
-        resumoTable.add(mainGrid).growX().row();
-
-        Table accordion = new Table();
-        accordion.background(getSolidDrawable(COLOR_CARD_BG));
-        accordion.pad(15);
-
-        Table accordionHeader = new Table();
-        Label accTitle = new Label("Resumo e Filosofia do Clube", game.skin, "font-bold");
-        accTitle.setFontScale(0.70f);
-        accTitle.setColor(StyleFactory.GOLD);
-
-        Label accIcon = new Label(isSummaryExpanded ? "▲" : "▼", game.skin, "font-bold");
-        accIcon.setColor(Color.WHITE);
-
-        accordionHeader.add(accTitle).left().expandX();
-        accordionHeader.add(accIcon).right();
-
-        accordionHeader.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                isSummaryExpanded = !isSummaryExpanded;
-                refreshUI();
-            }
-        });
-
-        accordion.add(accordionHeader).growX().row();
-
-        if (isSummaryExpanded) {
-            accordion.add(createDivider()).growX().padTop(8).padBottom(8).row();
-            String descText = "O " + club.getName() + " é um clube de grande tradição no cenário nacional. " +
-                "A equipe manda seus jogos no estádio " + club.getStadium() + " e prioriza como filosofia " +
-                "\"" + club.getPhilosophy() + "\". Atualmente, adota uma postura tática " + club.getMentality() + ".";
-
-            Label descLabel = new Label(descText, game.skin);
-            descLabel.setWrap(true);
-            descLabel.setFontScale(0.62f);
-            descLabel.setColor(Color.WHITE);
-            accordion.add(descLabel).growX().padTop(5);
+            panel
+                .add(logo)
+                .width(130f)
+                .height(78f)
+                .padRight(18f);
         }
 
-        resumoTable.add(accordion).growX().padTop(18).row();
+        Table identity =
+            new Table();
 
-        return resumoTable;
+        identity.left();
+
+        Label clubName =
+            new Label(
+                club.getName().toUpperCase(),
+                game.skin,
+                "font-title"
+            );
+
+        clubName.setFontScale(
+            0.90f
+        );
+
+        clubName.setColor(
+            StyleFactory.GOLD
+        );
+
+        identity
+            .add(clubName)
+            .left()
+            .row();
+
+        String country =
+            club.getCountry() != null
+                ? club.getCountry()
+                : "N/D";
+
+        Label sub =
+            new Label(
+                country +
+                    "  •  " +
+                    "WFL  •  " +
+                    "Desde 1969",
+                game.skin
+            );
+
+        sub.setFontScale(
+            0.62f
+        );
+
+        sub.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        identity
+            .add(sub)
+            .left()
+            .padTop(3f)
+            .row();
+
+        Label stadium =
+            new Label(
+                club.getStadium() +
+                    "  •  " +
+                    formatNumber(
+                        club.getStadiumCapacity()
+                    ) +
+                    " lugares",
+                game.skin
+            );
+
+        stadium.setFontScale(
+            0.60f
+        );
+
+        stadium.setColor(
+            StyleFactory.CREME_AGED
+        );
+
+        identity
+            .add(stadium)
+            .left()
+            .padTop(5f);
+
+        panel
+            .add(identity)
+            .left()
+            .expandX();
+
+        // =====================================================
+        // OVERALL
+        // =====================================================
+
+        Table overallBox =
+            ScreenUI.createStatusBox(
+                game.skin,
+                "OVERALL",
+                String.valueOf(
+                    (int) Math.round(
+                        club.getOverall()
+                    )
+                ),
+                StyleFactory.GOLD
+            );
+
+        panel
+            .add(overallBox)
+            .width(180f)
+            .height(52f)
+            .padRight(8f);
+
+        // =====================================================
+        // ELENCO
+        // =====================================================
+
+        Table squadBox =
+            ScreenUI.createStatusBox(
+                game.skin,
+                "ELENCO",
+                club.getSquad().size() + "/26",
+                club.getSquad().size() >= 23
+                    ? ScreenUI.SUCCESS
+                    : ScreenUI.WARNING
+            );
+
+        panel
+            .add(squadBox)
+            .width(180f)
+            .height(52f);
+
+        return panel;
     }
 
-    // ==========================================
-    // ABA HISTÓRIA DINÂMICA
-    // ==========================================
-    private Table createHistoriaTab() {
-        Table historiaTable = new Table();
-        historiaTable.top().left();
+    // =========================================================
+    // TABS
+    // =========================================================
 
-        Table topStats = new Table();
-        topStats.background(getSolidDrawable(COLOR_CARD_BG));
-        topStats.pad(15);
+    private Table createTabs() {
 
-        int seasonsCount = club.getSeasonHistories().size() + 1;
-        String valFormatted = String.format(new Locale("pt", "BR"), "€ %.2f M", club.getBudget() > 0 ? club.getBudget() : 1.20);
+        Table tabs =
+            new Table();
 
-        topStats.add(createMiniStatBox("TÍTULOS", String.valueOf(club.getTitlesCount()), StyleFactory.GOLD)).expandX().fillX();
-        topStats.add(createMiniStatBox("TEMPORADAS", seasonsCount + "ª (" + club.getCurrentYear() + ")", Color.WHITE)).expandX().fillX();
-        topStats.add(createMiniStatBox("VALOR DO CLUBE", valFormatted, Color.GREEN)).expandX().fillX();
-        topStats.add(createMiniStatBox("MAIOR INVICTO", club.getMaxUnbeatenStreak() + " jogos", Color.LIGHT_GRAY)).expandX().fillX();
-        topStats.add(createMiniStatBox("MAIOR VITÓRIA", club.getBiggestWin(), Color.WHITE)).expandX().fillX();
+        String[] names = {
+            "RESUMO",
+            "HISTÓRIA",
+            "INFRAESTRUTURA"
+        };
 
-        historiaTable.add(topStats).growX().padBottom(18).row();
+        for (
+            String tab :
+            names
+        ) {
 
-        Table grid = new Table();
-        grid.defaults().top();
+            TextButton button =
+                ScreenUI.createInteractiveButton(
+                    tab,
+                    game.skin
+                );
 
-        Table leftCol = new Table();
+            boolean selected =
+                tab.equals(
+                    activeTab
+                );
 
-        Table statsCard = new Table();
-        statsCard.background(getSolidDrawable(COLOR_CARD_BG));
-        statsCard.pad(18);
+            button.getLabel()
+                .setFontScale(
+                    0.62f
+                );
 
-        Label statsTitle = new Label("ESTATÍSTICAS HISTÓRICAS", game.skin, "font-title");
-        statsTitle.setFontScale(0.78f);
-        statsTitle.setColor(StyleFactory.GOLD);
-        statsCard.add(statsTitle).left().padBottom(12).row();
+            button.setColor(
+                selected
+                    ? StyleFactory.GOLD
+                    : StyleFactory.METAL_DARK
+            );
 
-        Table statsGrid = new Table();
-        statsGrid.defaults().pad(5).growX();
+            button.getLabel()
+                .setColor(
+                    selected
+                        ? Color.BLACK
+                        : Color.WHITE
+                );
 
-        int saldo = club.getGoalDifference();
-        String saldoText = (saldo > 0 ? "+" : "") + saldo;
+            button.addListener(
+                new ClickListener() {
 
-        statsGrid.add(createStatCell("Jogos Totais", String.valueOf(club.getTotalGames()), Color.WHITE));
-        statsGrid.add(createStatCell("Aproveitamento", club.getWinPercentage() + "%", Color.WHITE)).row();
+                    @Override
+                    public void clicked(
+                        InputEvent event,
+                        float x,
+                        float y
+                    ) {
 
-        statsGrid.add(createStatCell("Vitórias", String.valueOf(club.getTotalWins()), Color.GREEN));
-        statsGrid.add(createStatCell("Empates", String.valueOf(club.getTotalDraws()), Color.YELLOW)).row();
+                        activeTab =
+                            tab;
 
-        statsGrid.add(createStatCell("Derrotas", String.valueOf(club.getTotalLosses()), new Color(0.9f, 0.3f, 0.3f, 1f)));
-        statsGrid.add(createStatCell("Saldo de Gols", saldoText, saldo >= 0 ? StyleFactory.GOLD : Color.RED)).row();
-
-        statsGrid.add(createStatCell("Gols Marcados", String.valueOf(club.getGoalsFor()), Color.WHITE));
-        statsGrid.add(createStatCell("Gols Sofridos", String.valueOf(club.getGoalsAgainst()), Color.LIGHT_GRAY)).row();
-
-        statsCard.add(statsGrid).growX().row();
-        leftCol.add(statsCard).growX().padBottom(18).row();
-
-        Table recordsCard = new Table();
-        recordsCard.background(getSolidDrawable(COLOR_CARD_BG));
-        recordsCard.pad(18);
-
-        Label recordsTitle = new Label("RECORDES DO CLUBE", game.skin, "font-title");
-        recordsTitle.setFontScale(0.78f);
-        recordsTitle.setColor(StyleFactory.GOLD);
-        recordsCard.add(recordsTitle).left().padBottom(12).row();
-
-        recordsCard.add(createRecordRow("Maior Artilheiro", club.getTopScorerName(), club.getTopScorerGoals() + " gols")).growX().padBottom(8).row();
-        recordsCard.add(createDivider()).growX().padBottom(8).row();
-        recordsCard.add(createRecordRow("Mais Jogos", club.getMostGamesPlayerName(), club.getMostGamesCount() + " jogos")).growX().padBottom(8).row();
-        recordsCard.add(createDivider()).growX().padBottom(8).row();
-        recordsCard.add(createRecordRow("Mais Assistências", club.getTopAssisterName(), club.getTopAssisterCount() + " assist.")).growX();
-
-        leftCol.add(recordsCard).growX();
-        grid.add(leftCol).width(500).padRight(18);
-
-        Table seasonsCard = new Table();
-        seasonsCard.background(getSolidDrawable(COLOR_CARD_BG));
-        seasonsCard.pad(18);
-
-        Label seasonsTitle = new Label("HISTÓRICO DE TEMPORADAS", game.skin, "font-title");
-        seasonsTitle.setFontScale(0.78f);
-        seasonsTitle.setColor(StyleFactory.GOLD);
-        seasonsCard.add(seasonsTitle).left().padBottom(12).row();
-
-        Table headerRow = new Table();
-        headerRow.background(getSolidDrawable(COLOR_INNER_BG));
-        headerRow.pad(8);
-        headerRow.add(new Label("ANO", game.skin, "font-bold")).width(100).left();
-        headerRow.add(new Label("LIGA", game.skin, "font-bold")).width(140).center();
-        headerRow.add(new Label("COPA", game.skin, "font-bold")).width(140).center();
-        seasonsCard.add(headerRow).growX().padBottom(6).row();
-
-        Table seasonsTable = new Table();
-        seasonsTable.top().defaults().pad(6);
-
-        addSeasonRow(seasonsTable, String.valueOf(club.getCurrentYear()), "Em Andamento", "Em Andamento", true);
-
-        for (SeasonHistory history : club.getSeasonHistories()) {
-            addSeasonRow(seasonsTable, String.valueOf(history.getYear()), history.getLigaResult(), history.getCopaResult(), false);
-        }
-
-        ScrollPane seasonScroll = new ScrollPane(seasonsTable, game.skin);
-        seasonScroll.setFadeScrollBars(false);
-        seasonsCard.add(seasonScroll).growX().height(330);
-
-        grid.add(seasonsCard).growX();
-        historiaTable.add(grid).growX();
-
-        return historiaTable;
-    }
-
-    private void addSeasonRow(Table table, String year, String liga, String copa, boolean isCurrent) {
-        Table row = new Table();
-        row.pad(8);
-        row.background(getSolidDrawable(COLOR_INNER_BG));
-
-        Label yearLbl = new Label(year, game.skin, "font-bold");
-        yearLbl.setFontScale(0.65f);
-
-        Label ligaLbl = new Label(liga, game.skin);
-        ligaLbl.setFontScale(0.65f);
-        if (isCurrent || liga.contains("🥇")) ligaLbl.setColor(StyleFactory.GOLD);
-
-        Label copaLbl = new Label(copa, game.skin);
-        copaLbl.setFontScale(0.65f);
-        if (isCurrent || copa.contains("🥇")) copaLbl.setColor(StyleFactory.GOLD);
-
-        row.add(yearLbl).width(100).left();
-        row.add(ligaLbl).width(140).center();
-        row.add(copaLbl).width(140).center();
-
-        table.add(row).growX().row();
-    }
-
-    private Table createStarsWidget(int rating) {
-        Table starsTable = new Table();
-        for (int i = 0; i < 5; i++) {
-            if (starTexture != null) {
-                Image starImg = new Image(new TextureRegionDrawable(starTexture));
-                starImg.setScaling(Scaling.fit);
-                if (i < rating) {
-                    starImg.setColor(StyleFactory.GOLD);
-                } else {
-                    starImg.setColor(new Color(0.25f, 0.25f, 0.25f, 0.8f));
+                        refreshUI();
+                    }
                 }
-                starsTable.add(starImg).width(26).height(26).padRight(4);
+            );
+
+            tabs
+                .add(button)
+                .width(220f)
+                .height(42f)
+                .padRight(8f);
+        }
+
+        tabs
+            .add()
+            .expandX();
+
+        return tabs;
+    }
+
+    // =========================================================
+    // RESUMO
+    // =========================================================
+
+    private Table createSummaryTab() {
+
+        Table root =
+            new Table();
+
+        root.top();
+
+        // =====================================================
+        // COLUNA ESQUERDA
+        // =====================================================
+
+        Table left =
+            ScreenUI.createPanel();
+
+        left.top();
+
+        Label overviewTitle =
+            ScreenUI.createSectionTitle(
+                game.skin,
+                "IDENTIDADE"
+            );
+
+        left
+            .add(overviewTitle)
+            .left()
+            .padBottom(12f)
+            .row();
+
+        if (
+            logoTexture != null
+        ) {
+
+            Image logo =
+                new Image(
+                    new TextureRegionDrawable(
+                        logoTexture
+                    )
+                );
+
+            logo.setScaling(
+                Scaling.fit
+            );
+
+            left
+                .add(logo)
+                .width(240f)
+                .height(150f)
+                .center()
+                .padBottom(14f)
+                .row();
+        }
+
+        left
+            .add(
+                ScreenUI.createDivider()
+            )
+            .growX()
+            .height(1f)
+            .padBottom(14f)
+            .row();
+
+        left
+            .add(
+                createInfoRow(
+                    "REPUTAÇÃO",
+                    createStarsWidget(
+                        normalizeReputation()
+                    )
+                )
+            )
+            .growX()
+            .padBottom(10f)
+            .row();
+
+        left
+            .add(
+                createTextInfoRow(
+                    "FILOSOFIA",
+                    club.getPhilosophy()
+                )
+            )
+            .growX()
+            .padBottom(10f)
+            .row();
+
+        left
+            .add(
+                createTextInfoRow(
+                    "MENTALIDADE",
+                    club.getMentality()
+                )
+            )
+            .growX()
+            .padBottom(10f)
+            .row();
+
+        left
+            .add(
+                createTextInfoRow(
+                    "FORMAÇÃO",
+                    club.getFormation() != null
+                        ? club.getFormation().getName()
+                        : "Não definida"
+                )
+            )
+            .growX()
+            .row();
+
+        root
+            .add(left)
+            .width(340f)
+            .growY()
+            .padRight(12f);
+
+        // =====================================================
+        // COLUNA DIREITA
+        // =====================================================
+
+        Table right =
+            new Table();
+
+        right.top();
+
+        // =====================================================
+        // CARDS
+        // =====================================================
+
+        Table stats =
+            new Table();
+
+        stats.add(
+            createBigStat(
+                "OVERALL",
+                String.valueOf(
+                    (int) Math.round(
+                        club.getOverall()
+                    )
+                ),
+                StyleFactory.GOLD
+            )
+        ).growX().uniformX().padRight(8f);
+
+        stats.add(
+            createBigStat(
+                "JOGADORES",
+                String.valueOf(
+                    club.getSquad().size()
+                ),
+                Color.WHITE
+            )
+        ).growX().uniformX().padRight(8f);
+
+        stats.add(
+            createBigStat(
+                "ESTÁDIO",
+                compactNumber(
+                    club.getStadiumCapacity()
+                ),
+                StyleFactory.SOFT_YELLOW
+            )
+        ).growX().uniformX();
+
+        right
+            .add(stats)
+            .growX()
+            .padBottom(12f)
+            .row();
+
+        // =====================================================
+        // INFORMAÇÕES GERAIS
+        // =====================================================
+
+        Table info =
+            ScreenUI.createPanel();
+
+        info.top();
+
+        info
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "INFORMAÇÕES GERAIS"
+                )
+            )
+            .left()
+            .colspan(2)
+            .padBottom(12f)
+            .row();
+
+        addInfoLine(
+            info,
+            "País",
+            club.getCountry()
+        );
+
+        addInfoLine(
+            info,
+            "Conferência",
+            club.getConference()
+        );
+
+        addInfoLine(
+            info,
+            "Estádio",
+            club.getStadium()
+        );
+
+        addInfoLine(
+            info,
+            "Capacidade",
+            formatNumber(
+                club.getStadiumCapacity()
+            )
+        );
+
+        addInfoLine(
+            info,
+            "Filosofia",
+            club.getPhilosophy()
+        );
+
+        addInfoLine(
+            info,
+            "Mentalidade",
+            club.getMentality()
+        );
+
+        right
+            .add(info)
+            .growX()
+            .padBottom(12f)
+            .row();
+
+        // =====================================================
+        // DESTAQUES DO ELENCO
+        // =====================================================
+
+        right
+            .add(
+                createSquadHighlights()
+            )
+            .grow()
+            .row();
+
+        root
+            .add(right)
+            .grow();
+
+        return root;
+    }
+
+    private Table createSquadHighlights() {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "DESTAQUES DO ELENCO"
+                )
+            )
+            .left()
+            .colspan(4)
+            .padBottom(10f)
+            .row();
+
+        Table header =
+            ScreenUI.createTableHeaderRow();
+
+        addTableHeader(
+            header,
+            "POS",
+            70f,
+            Align.center
+        );
+
+        addTableHeader(
+            header,
+            "JOGADOR",
+            250f,
+            Align.left
+        );
+
+        addTableHeader(
+            header,
+            "OVR",
+            70f,
+            Align.center
+        );
+
+        addTableHeader(
+            header,
+            "IDADE",
+            70f,
+            Align.center
+        );
+
+        panel
+            .add(header)
+            .growX()
+            .colspan(4)
+            .height(44f)
+            .row();
+
+        List<Player> players =
+            new ArrayList<>(
+                club.getSquad()
+            );
+
+        players.sort(
+            Comparator
+                .comparingInt(
+                    Player::getOverall
+                )
+                .reversed()
+        );
+
+        int limit =
+            Math.min(
+                6,
+                players.size()
+            );
+
+        for (
+            int i = 0;
+            i < limit;
+            i++
+        ) {
+
+            Player p =
+                players.get(i);
+
+            Table row =
+                ScreenUI.createRow(
+                    i
+                );
+
+            Table badge =
+                ScreenUI.createBadge(
+                    game.skin,
+                    p.getPosition(),
+                    StyleFactory.getPositionColor(
+                        p.getPosition()
+                    )
+                );
+
+            row
+                .add(badge)
+                .width(70f)
+                .height(30f);
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        p.getName(),
+                        Color.WHITE,
+                        Align.left
+                    )
+                )
+                .width(250f)
+                .padLeft(8f);
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        String.valueOf(
+                            p.getOverall()
+                        ),
+                        StyleFactory.SOFT_YELLOW,
+                        Align.center
+                    )
+                )
+                .width(70f);
+
+            row
+                .add(
+                    ScreenUI.createValueLabel(
+                        game.skin,
+                        String.valueOf(
+                            p.getAge()
+                        ),
+                        ScreenUI.MUTED_TEXT,
+                        Align.center
+                    )
+                )
+                .width(70f);
+
+            panel
+                .add(row)
+                .growX()
+                .colspan(4)
+                .height(48f)
+                .row();
+        }
+
+        return panel;
+    }
+
+    // =========================================================
+    // HISTÓRIA
+    // =========================================================
+
+    private Table createHistoryTab() {
+
+        Table root =
+            new Table();
+
+        root.top();
+
+        Table quickStats =
+            new Table();
+
+        quickStats.add(
+            createBigStat(
+                "JOGOS",
+                String.valueOf(
+                    club.getTotalGames()
+                ),
+                Color.WHITE
+            )
+        ).growX().uniformX().padRight(8f);
+
+        quickStats.add(
+            createBigStat(
+                "VITÓRIAS",
+                String.valueOf(
+                    club.getTotalWins()
+                ),
+                ScreenUI.SUCCESS
+            )
+        ).growX().uniformX().padRight(8f);
+
+        quickStats.add(
+            createBigStat(
+                "EMPATES",
+                String.valueOf(
+                    club.getTotalDraws()
+                ),
+                ScreenUI.WARNING
+            )
+        ).growX().uniformX().padRight(8f);
+
+        quickStats.add(
+            createBigStat(
+                "DERROTAS",
+                String.valueOf(
+                    club.getTotalLosses()
+                ),
+                ScreenUI.DANGER
+            )
+        ).growX().uniformX();
+
+        root
+            .add(quickStats)
+            .growX()
+            .padBottom(12f)
+            .row();
+
+        Table lower =
+            new Table();
+
+        // =====================================================
+        // RECORDES
+        // =====================================================
+
+        Table records =
+            ScreenUI.createPanel();
+
+        records.top();
+
+        records
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "RECORDES"
+                )
+            )
+            .left()
+            .colspan(2)
+            .padBottom(12f)
+            .row();
+
+        addRecord(
+            records,
+            "Maior invencibilidade",
+            club.getMaxUnbeatenStreak() +
+                " jogos"
+        );
+
+        addRecord(
+            records,
+            "Maior vitória",
+            club.getBiggestWin()
+        );
+
+        addRecord(
+            records,
+            "Maior artilheiro",
+            club.getTopScorerName() +
+                " • " +
+                club.getTopScorerGoals() +
+                " gols"
+        );
+
+        addRecord(
+            records,
+            "Mais jogos",
+            club.getMostGamesPlayerName() +
+                " • " +
+                club.getMostGamesCount()
+        );
+
+        addRecord(
+            records,
+            "Mais assistências",
+            club.getTopAssisterName() +
+                " • " +
+                club.getTopAssisterCount()
+        );
+
+        int saldo =
+            club.getGoalDifference();
+
+        addRecord(
+            records,
+            "Saldo histórico",
+            (saldo > 0 ? "+" : "") +
+                saldo
+        );
+
+        lower
+            .add(records)
+            .width(430f)
+            .growY()
+            .padRight(12f);
+
+        // =====================================================
+        // TEMPORADAS
+        // =====================================================
+
+        Table seasons =
+            ScreenUI.createPanel();
+
+        seasons.top();
+
+        seasons
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "HISTÓRICO DE TEMPORADAS"
+                )
+            )
+            .left()
+            .padBottom(12f)
+            .row();
+
+        Table table =
+            new Table();
+
+        Table tableHeader =
+            ScreenUI.createTableHeaderRow();
+
+        addTableHeader(
+            tableHeader,
+            "ANO",
+            90f,
+            Align.center
+        );
+
+        addTableHeader(
+            tableHeader,
+            "LIGA",
+            200f,
+            Align.center
+        );
+
+        addTableHeader(
+            tableHeader,
+            "COPA",
+            200f,
+            Align.center
+        );
+
+        table
+            .add(tableHeader)
+            .growX()
+            .height(44f)
+            .row();
+
+        addSeasonRow(
+            table,
+            club.getCurrentYear(),
+            "Em andamento",
+            "Em andamento",
+            0
+        );
+
+        int index =
+            1;
+
+        for (
+            SeasonHistory history :
+            club.getSeasonHistories()
+        ) {
+
+            addSeasonRow(
+                table,
+                history.getYear(),
+                history.getLigaResult(),
+                history.getCopaResult(),
+                index++
+            );
+        }
+
+        ScrollPane scroll =
+            new ScrollPane(
+                table,
+                game.skin
+            );
+
+        scroll.setFadeScrollBars(
+            false
+        );
+
+        seasons
+            .add(scroll)
+            .grow();
+
+        lower
+            .add(seasons)
+            .grow();
+
+        root
+            .add(lower)
+            .grow()
+            .row();
+
+        return root;
+    }
+
+    // =========================================================
+    // INFRA
+    // =========================================================
+
+    private Table createInfrastructureTab() {
+
+        Table root =
+            new Table();
+
+        root.top();
+
+        Table cards =
+            new Table();
+
+        cards.add(
+            createInfrastructureCard(
+                "CENTRO DE TREINAMENTO",
+                3,
+                "Estrutura responsável pelo desenvolvimento técnico e físico."
+            )
+        ).grow().uniformX().padRight(10f);
+
+        cards.add(
+            createInfrastructureCard(
+                "CATEGORIAS DE BASE",
+                2,
+                "Formação e descoberta de novos jogadores."
+            )
+        ).grow().uniformX().padRight(10f);
+
+        cards.add(
+            createInfrastructureCard(
+                "DEPARTAMENTO MÉDICO",
+                4,
+                "Recuperação física e tratamento de lesões."
+            )
+        ).grow().uniformX();
+
+        root
+            .add(cards)
+            .growX()
+            .height(235f)
+            .padBottom(12f)
+            .row();
+
+        Table stadium =
+            ScreenUI.createPanel();
+
+        stadium.top();
+
+        stadium
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "ESTÁDIO"
+                )
+            )
+            .left()
+            .colspan(2)
+            .padBottom(12f)
+            .row();
+
+        addInfoLine(
+            stadium,
+            "Nome",
+            club.getStadium()
+        );
+
+        addInfoLine(
+            stadium,
+            "Capacidade",
+            formatNumber(
+                club.getStadiumCapacity()
+            ) +
+                " pessoas"
+        );
+
+        addInfoLine(
+            stadium,
+            "Condição do gramado",
+            "Excelente"
+        );
+
+        addInfoLine(
+            stadium,
+            "Clube",
+            club.getName()
+        );
+
+        root
+            .add(stadium)
+            .growX()
+            .row();
+
+        return root;
+    }
+
+    // =========================================================
+    // HELPERS
+    // =========================================================
+
+    private Table createBigStat(
+        String title,
+        String value,
+        Color valueColor
+    ) {
+
+        Table card =
+            ScreenUI.createPanel();
+
+        Label titleLabel =
+            new Label(
+                title,
+                game.skin,
+                "font-bold"
+            );
+
+        titleLabel.setFontScale(
+            0.52f
+        );
+
+        titleLabel.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        Label valueLabel =
+            new Label(
+                value,
+                game.skin,
+                "font-title"
+            );
+
+        valueLabel.setFontScale(
+            0.78f
+        );
+
+        valueLabel.setColor(
+            valueColor
+        );
+
+        card
+            .add(titleLabel)
+            .center()
+            .row();
+
+        card
+            .add(valueLabel)
+            .center()
+            .padTop(4f);
+
+        return card;
+    }
+
+    private Table createInfrastructureCard(
+        String title,
+        int rating,
+        String description
+    ) {
+
+        Table card =
+            ScreenUI.createPanel();
+
+        card.top();
+
+        Label titleLabel =
+            ScreenUI.createSectionTitle(
+                game.skin,
+                title
+            );
+
+        titleLabel.setAlignment(
+            Align.center
+        );
+
+        card
+            .add(titleLabel)
+            .center()
+            .padBottom(14f)
+            .row();
+
+        card
+            .add(
+                createStarsWidget(
+                    rating
+                )
+            )
+            .center()
+            .padBottom(14f)
+            .row();
+
+        Label desc =
+            new Label(
+                description,
+                game.skin
+            );
+
+        desc.setWrap(
+            true
+        );
+
+        desc.setAlignment(
+            Align.center
+        );
+
+        desc.setFontScale(
+            0.58f
+        );
+
+        desc.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        card
+            .add(desc)
+            .width(280f)
+            .center();
+
+        return card;
+    }
+
+    private Table createStarsWidget(
+        int rating
+    ) {
+
+        Table stars =
+            new Table();
+
+        rating =
+            Math.max(
+                0,
+                Math.min(
+                    5,
+                    rating
+                )
+            );
+
+        for (
+            int i = 0;
+            i < 5;
+            i++
+        ) {
+
+            if (
+                starTexture != null
+            ) {
+
+                Image star =
+                    new Image(
+                        new TextureRegionDrawable(
+                            starTexture
+                        )
+                    );
+
+                star.setScaling(
+                    Scaling.fit
+                );
+
+                star.setColor(
+                    i < rating
+                        ? StyleFactory.GOLD
+                        : Color.valueOf(
+                        "4D514D"
+                    )
+                );
+
+                stars
+                    .add(star)
+                    .size(22f)
+                    .padRight(3f);
+
             } else {
-                Label star = new Label("*", game.skin, "font-title");
-                star.setFontScale(1.1f);
-                star.setColor(i < rating ? StyleFactory.GOLD : Color.DARK_GRAY);
-                starsTable.add(star).padRight(4);
+
+                Label star =
+                    new Label(
+                        i < rating
+                            ? "★"
+                            : "☆",
+                        game.skin,
+                        "font-bold"
+                    );
+
+                star.setColor(
+                    i < rating
+                        ? StyleFactory.GOLD
+                        : Color.GRAY
+                );
+
+                stars
+                    .add(star)
+                    .padRight(3f);
             }
         }
-        return starsTable;
+
+        return stars;
     }
 
-    private Table createInfraestruturaTab() {
-        Table t = new Table();
-        t.background(getSolidDrawable(COLOR_CARD_BG));
-        t.pad(25);
-        Label title = new Label("CENTRO DE TREINAMENTO E INFRAESTRUTURA", game.skin, "font-title");
-        title.setColor(StyleFactory.GOLD);
-        t.add(title).padBottom(15).row();
+    private Table createInfoRow(
+        String title,
+        Table value
+    ) {
 
-        Table grid = new Table();
-        grid.defaults().left().pad(6);
-        grid.add(new Label("Nível do CT:", game.skin, "font-bold")).width(200);
-        grid.add(createStarsWidget(3)).row();
-        grid.add(new Label("Categorias de Base:", game.skin, "font-bold"));
-        grid.add(createStarsWidget(2)).row();
-        grid.add(new Label("Departamento Médico:", game.skin, "font-bold"));
-        grid.add(createStarsWidget(4)).row();
+        Table row =
+            new Table();
 
-        t.add(grid);
-        return t;
-    }
+        Label label =
+            ScreenUI.createSubtitle(
+                game.skin,
+                title
+            );
 
-    private Table createMiniStatBox(String title, String value, Color valueColor) {
-        Table box = new Table();
+        row
+            .add(label)
+            .left()
+            .expandX();
 
-        Label titleLbl = new Label(title, game.skin, "font-bold");
-        titleLbl.setFontScale(0.52f);
-        titleLbl.setColor(Color.LIGHT_GRAY);
+        row
+            .add(value)
+            .right();
 
-        Label valLbl = new Label(value, game.skin, "font-title");
-        valLbl.setFontScale(0.85f);
-        valLbl.setColor(valueColor);
-
-        box.add(titleLbl).row();
-        box.add(valLbl).padTop(2);
-        return box;
-    }
-
-    private Table createStatCell(String labelText, String valueText, Color valueColor) {
-        Table cell = new Table();
-        cell.background(getSolidDrawable(COLOR_INNER_BG));
-        cell.pad(8);
-
-        Label lbl = new Label(labelText, game.skin);
-        lbl.setFontScale(0.58f);
-        lbl.setColor(Color.LIGHT_GRAY);
-
-        Label val = new Label(valueText, game.skin, "font-bold");
-        val.setFontScale(0.72f);
-        val.setColor(valueColor);
-
-        cell.add(lbl).left().expandX();
-        cell.add(val).right();
-        return cell;
-    }
-
-    private Table createRecordRow(String category, String name, String stat) {
-        Table row = new Table();
-
-        Label catLbl = new Label(category, game.skin, "font-bold");
-        catLbl.setFontScale(0.58f);
-        catLbl.setColor(StyleFactory.GOLD);
-
-        Label nameLbl = new Label(name, game.skin, "font-bold");
-        nameLbl.setFontScale(0.70f);
-        nameLbl.setColor(Color.WHITE);
-
-        Label statLbl = new Label(stat, game.skin);
-        statLbl.setFontScale(0.65f);
-        statLbl.setColor(Color.LIGHT_GRAY);
-
-        row.add(catLbl).left().row();
-        row.add(nameLbl).left().expandX();
-        row.add(statLbl).right();
         return row;
     }
 
-    private Table createDivider() {
-        Table line = new Table();
-        line.background(getSolidDrawable(COLOR_DIVIDER));
-        return line;
+    private Table createTextInfoRow(
+        String title,
+        String value
+    ) {
+
+        Table row =
+            new Table();
+
+        row
+            .add(
+                ScreenUI.createSubtitle(
+                    game.skin,
+                    title
+                )
+            )
+            .left()
+            .expandX();
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    value != null
+                        ? value
+                        : "N/D",
+                    Color.WHITE,
+                    Align.right
+                )
+            )
+            .right();
+
+        return row;
     }
 
+    private void addInfoLine(
+        Table table,
+        String key,
+        String value
+    ) {
+
+        table
+            .add(
+                ScreenUI.createSubtitle(
+                    game.skin,
+                    key.toUpperCase()
+                )
+            )
+            .width(180f)
+            .left()
+            .padBottom(9f);
+
+        table
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    value != null
+                        ? value
+                        : "N/D",
+                    Color.WHITE,
+                    Align.left
+                )
+            )
+            .left()
+            .expandX()
+            .padBottom(9f)
+            .row();
+    }
+
+    private void addRecord(
+        Table table,
+        String key,
+        String value
+    ) {
+
+        table
+            .add(
+                ScreenUI.createSubtitle(
+                    game.skin,
+                    key.toUpperCase()
+                )
+            )
+            .left()
+            .expandX()
+            .padBottom(12f);
+
+        table
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    value != null
+                        ? value
+                        : "N/D",
+                    StyleFactory.CREME_AGED,
+                    Align.right
+                )
+            )
+            .right()
+            .padBottom(12f)
+            .row();
+    }
+
+    private void addSeasonRow(
+        Table table,
+        int year,
+        String league,
+        String cup,
+        int index
+    ) {
+
+        Table row =
+            ScreenUI.createRow(
+                index
+            );
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    String.valueOf(
+                        year
+                    ),
+                    StyleFactory.GOLD,
+                    Align.center
+                )
+            )
+            .width(90f);
+
+        row
+            .add(
+                ScreenUI.createValueLabel(
+                    game.skin,
+                    league,
+                    Color.WHITE,
+                    Align.center
+                )
+            )
+            .width(200f);
+
+        row
+            .add(
+                ScreenUI.createValueLabel(
+                    game.skin,
+                    cup,
+                    Color.WHITE,
+                    Align.center
+                )
+            )
+            .width(200f);
+
+        table
+            .add(row)
+            .growX()
+            .height(46f)
+            .row();
+    }
+
+    private void addTableHeader(
+        Table table,
+        String text,
+        float width,
+        int align
+    ) {
+
+        table
+            .add(
+                ScreenUI.createTableHeaderLabel(
+                    game.skin,
+                    text,
+                    align
+                )
+            )
+            .width(width);
+    }
+
+    private int normalizeReputation() {
+
+        int reputation =
+            club.getReputation();
+
+        if (
+            reputation > 5
+        ) {
+
+            return Math.max(
+                1,
+                Math.min(
+                    5,
+                    Math.round(
+                        reputation /
+                            20f
+                    )
+                )
+            );
+        }
+
+        return Math.max(
+            1,
+            Math.min(
+                5,
+                reputation
+            )
+        );
+    }
+
+    private String formatNumber(
+        long value
+    ) {
+
+        return NumberFormat
+            .getInstance(
+                new Locale(
+                    "pt",
+                    "BR"
+                )
+            )
+            .format(
+                value
+            );
+    }
+
+    private String compactNumber(
+        long value
+    ) {
+
+        if (
+            value >= 1_000_000
+        ) {
+
+            return String.format(
+                Locale.US,
+                "%.1fM",
+                value /
+                    1_000_000f
+            );
+        }
+
+        if (
+            value >= 1_000
+        ) {
+
+            return String.format(
+                Locale.US,
+                "%.0fK",
+                value /
+                    1_000f
+            );
+        }
+
+        return String.valueOf(
+            value
+        );
+    }
+
+    private Texture loadTextureOrNull(
+        String path
+    ) {
+
+        if (
+            path == null ||
+                path.trim().isEmpty()
+        ) {
+
+            return null;
+        }
+
+        try {
+
+            if (
+                Gdx.files
+                    .internal(path)
+                    .exists()
+            ) {
+
+                return new Texture(
+                    Gdx.files.internal(
+                        path
+                    )
+                );
+            }
+
+        } catch (
+            Exception ignored
+        ) {
+        }
+
+        return null;
+    }
+
+    // =========================================================
+    // SCREEN
+    // =========================================================
+
     @Override
-    public void render(float delta) {
-        Gdx.gl.glClearColor(0.04f, 0.04f, 0.05f, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        stage.act();
+    public void render(
+        float delta
+    ) {
+
+        Gdx.gl.glClearColor(
+            0f,
+            0f,
+            0f,
+            1f
+        );
+
+        Gdx.gl.glClear(
+            GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        stage.act(
+            delta
+        );
+
         stage.draw();
     }
 
-    @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
+    @Override
+    public void resize(
+        int width,
+        int height
+    ) {
+
+        stage
+            .getViewport()
+            .update(
+                width,
+                height,
+                true
+            );
+    }
+
     @Override public void pause() {}
     @Override public void resume() {}
     @Override public void hide() {}
 
     @Override
     public void dispose() {
-        stage.dispose();
-        if (logoTexture != null) logoTexture.dispose();
-        if (kitTexture != null) kitTexture.dispose();
-        if (starTexture != null) starTexture.dispose();
 
-        for (Drawable d : solidDrawableCache.values()) {
-            if (d instanceof TextureRegionDrawable) {
-                TextureRegionDrawable trd = (TextureRegionDrawable) d;
-                trd.getRegion().getTexture().dispose();
-            }
+        stage.dispose();
+
+        if (
+            logoTexture != null
+        ) {
+            logoTexture.dispose();
         }
-        solidDrawableCache.clear();
+
+        if (
+            starTexture != null
+        ) {
+            starTexture.dispose();
+        }
     }
 }

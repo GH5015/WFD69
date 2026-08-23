@@ -3,234 +3,813 @@ package io.github.some_example_name.screens;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.utils.Align;
+
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Formation;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class LineupDialog extends Dialog {
+
     private final Main game;
     private final Club club;
 
-    public LineupDialog(Main game, Club club) {
-        super("", game.skin);
-        this.game = game;
-        this.club = club;
-        getContentTable().clear();
+    public LineupDialog(
+        Main game,
+        Club club
+    ) {
+
+        super(
+            "",
+            game.skin
+        );
+
+        this.game =
+            game;
+
+        this.club =
+            club;
+
+        setModal(
+            true
+        );
+
+        setMovable(
+            false
+        );
+
         buildLayout();
     }
 
+    // =========================================================
+    // LAYOUT
+    // =========================================================
+
     private void buildLayout() {
-        Table root = getContentTable();
-        root.background(StyleFactory.createMetallicBoard(1100, 850, Color.valueOf("2B2B2B")));
-        root.pad(30);
 
-        // Header
-        Table header = new Table();
-        header.background(StyleFactory.createRoundedPanel(StyleFactory.WINE_RED, StyleFactory.GOLD));
-        Label title = new Label("⚽ ESCALAÇÃO - " + club.getName().toUpperCase(), game.skin, "font-title", Color.WHITE);
-        title.setFontScale(1.6f);
-        header.add(title).pad(20);
-        root.add(header).growX().padBottom(25).row();
+        Table root =
+            getContentTable();
 
-        // Formação Info
-        Label formationLabel = new Label("FORMAÇÃO: " + club.getFormation(), game.skin, "font-bold", StyleFactory.GOLD);
-        formationLabel.setFontScale(1.2f);
-        root.add(formationLabel).center().padBottom(20).row();
+        root.clear();
 
-        // Campo Tático
-        Table pitchTable = new Table();
-        pitchTable.background(StyleFactory.createRoundedPanel(StyleFactory.PRUSSIAN_GREEN, StyleFactory.GOLD));
-        pitchTable.pad(25);
+        root.background(
+            StyleFactory.createMetallicBoard(
+                1050,
+                720,
+                Color.valueOf(
+                    "151A17"
+                )
+            )
+        );
 
-        Formation f = club.getFormation();
-        List<String> formationSlots = f.getPositionSlots();
-        Map<Integer, Player> tacticsMap = club.getTacticsMap();
+        root.pad(
+            12f
+        );
 
-        // Criar linhas para cada posição
-        Table fwRow = createLineRow(tacticsMap, formationSlots, 4);  // Atacantes
-        Table mfRow = createLineRow(tacticsMap, formationSlots, 3);  // Meio-campo
-        Table dfRow = createLineRow(tacticsMap, formationSlots, 2);  // Defesa
-        Table gkRow = createLineRow(tacticsMap, formationSlots, 1);  // Goleiro
+        // =====================================================
+        // HEADER
+        // =====================================================
 
-        pitchTable.add(fwRow).expandX().fillX().padBottom(15).row();
-        pitchTable.add(mfRow).expandX().fillX().padBottom(15).row();
-        pitchTable.add(dfRow).expandX().fillX().padBottom(15).row();
-        pitchTable.add(gkRow).expandX().fillX().row();
+        root
+            .add(
+                createHeader()
+            )
+            .growX()
+            .height(72f)
+            .padBottom(8f)
+            .row();
 
-        root.add(pitchTable).growX().padBottom(20).row();
+        // =====================================================
+        // BODY
+        // =====================================================
 
-        // Seção de Legenda (Status dos jogadores)
-        Table legendTable = new Table();
-        legendTable.background(StyleFactory.createRoundedPanel(StyleFactory.METAL_DARK, StyleFactory.DARK_GOLD));
-        legendTable.pad(15);
+        Table body =
+            new Table();
 
-        Label legendTitle = new Label("📋 STATUS DOS JOGADORES", game.skin, "font-label", StyleFactory.GOLD);
-        legendTitle.setFontScale(1.1f);
-        legendTable.add(legendTitle).left().padBottom(12).row();
+        body
+            .add(
+                createPitchPanel()
+            )
+            .grow()
+            .padRight(8f);
 
-        Table playerDetailsTable = new Table();
-        int count = 0;
-        for (Map.Entry<Integer, Player> entry : tacticsMap.entrySet()) {
-            Player p = entry.getValue();
-            if (count >= 11) break;  // Máximo 11 jogadores
+        body
+            .add(
+                createPlayerListPanel()
+            )
+            .width(410f)
+            .growY();
 
-            Table playerRow = createPlayerDetailsRow(p);
-            playerDetailsTable.add(playerRow).growX().padBottom(8).row();
-            count++;
-        }
+        root
+            .add(body)
+            .width(990f)
+            .height(540f)
+            .row();
 
-        ScrollPane scroll = new ScrollPane(playerDetailsTable, game.skin);
-        scroll.setFadeScrollBars(false);
-        legendTable.add(scroll).growX().height(120);
-        root.add(legendTable).growX().padBottom(20).row();
+        // =====================================================
+        // ACTION
+        // =====================================================
 
-        // Botão de Ação
-        ImageTextButton btn = IconTextButton.create("CONTINUAR", game.skin, "Icons8/icons8-ok-50.png");
-        btn.getLabel().setFontScale(1.3f);
-        button(btn, true);
+        ImageTextButton continueButton =
+            IconTextButton.create(
+                "CONTINUAR",
+                game.skin,
+                "Icons8/icons8-ok-50.png"
+            );
+
+        continueButton
+            .getLabel()
+            .setFontScale(
+                0.60f
+            );
+
+        button(
+            continueButton,
+            true
+        );
     }
 
-    private Table createLineRow(Map<Integer, Player> tacticsMap, List<String> formationSlots, int posWeight) {
-        Table row = new Table();
-        row.align(Align.center);
+    // =========================================================
+    // HEADER
+    // =========================================================
 
-        for (int i = 0; i < 11; i++) {
-            String targetPos = formationSlots.get(i);
-            int weight = getPositionWeight(targetPos);
+    private Table createHeader() {
 
-            if (weight == posWeight) {
-                Player p = tacticsMap.get(i);
-                Table playerCard = createPlayerCard(p, targetPos);
-                row.add(playerCard).width(120).height(90).padRight(5);
+        Table header =
+            ScreenUI.createPanel();
+
+        Table identity =
+            new Table();
+
+        Label title =
+            new Label(
+                "ESCALAÇÃO",
+                game.skin,
+                "font-title"
+            );
+
+        title.setFontScale(
+            0.74f
+        );
+
+        title.setColor(
+            StyleFactory.GOLD
+        );
+
+        identity
+            .add(title)
+            .left()
+            .row();
+
+        Label clubName =
+            ScreenUI.createSubtitle(
+                game.skin,
+                club.getName()
+                    .toUpperCase()
+            );
+
+        identity
+            .add(clubName)
+            .left();
+
+        header
+            .add(identity)
+            .left()
+            .expandX();
+
+        String formation =
+            club.getFormation() != null
+                ? club
+                .getFormation()
+                .getName()
+                : "N/D";
+
+        header
+            .add(
+                ScreenUI.createStatusBox(
+                    game.skin,
+                    "FORMAÇÃO",
+                    formation,
+                    StyleFactory.SOFT_YELLOW
+                )
+            )
+            .width(185f)
+            .height(43f)
+            .padRight(7f);
+
+        header
+            .add(
+                ScreenUI.createStatusBox(
+                    game.skin,
+                    "TITULARES",
+                    club.getTacticsMap()
+                        .size() +
+                        "/11",
+                    club.getTacticsMap()
+                        .size() >=
+                        11
+                        ? ScreenUI.SUCCESS
+                        : ScreenUI.WARNING
+                )
+            )
+            .width(175f)
+            .height(43f);
+
+        return header;
+    }
+
+    // =========================================================
+    // PITCH
+    // =========================================================
+
+    private Table createPitchPanel() {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "CAMPO TÁTICO"
+                )
+            )
+            .center()
+            .padBottom(8f)
+            .row();
+
+        Table pitch =
+            new Table();
+
+        pitch.background(
+            StyleFactory.createRoundedPanel(
+                Color.valueOf(
+                    "173C20"
+                ),
+                StyleFactory.DARK_GOLD
+            )
+        );
+
+        pitch.pad(
+            15f
+        );
+
+        Formation formation =
+            club.getFormation();
+
+        if (
+            formation == null ||
+                formation.getPositionSlots() ==
+                    null
+        ) {
+
+            Label warning =
+                new Label(
+                    "Nenhuma formação definida.",
+                    game.skin,
+                    "font-bold"
+                );
+
+            warning.setColor(
+                ScreenUI.WARNING
+            );
+
+            pitch
+                .add(warning)
+                .center();
+
+            panel
+                .add(pitch)
+                .grow();
+
+            return panel;
+        }
+
+        List<String> slots =
+            formation
+                .getPositionSlots();
+
+        Map<Integer, Player> tactics =
+            club.getTacticsMap();
+
+        Table attackers =
+            createLine();
+
+        Table midfield =
+            createLine();
+
+        Table defense =
+            createLine();
+
+        Table goalkeeper =
+            createLine();
+
+        for (
+            int i = 0;
+            i < Math.min(
+                11,
+                slots.size()
+            );
+            i++
+        ) {
+
+            String position =
+                slots.get(i);
+
+            Player player =
+                tactics.get(i);
+
+            Table card =
+                createPlayerCard(
+                    player,
+                    position
+                );
+
+            int weight =
+                getPositionWeight(
+                    position
+                );
+
+            if (
+                weight ==
+                    4
+            ) {
+
+                attackers
+                    .add(card)
+                    .pad(5f);
+
+            } else if (
+                weight ==
+                    3
+            ) {
+
+                midfield
+                    .add(card)
+                    .pad(5f);
+
+            } else if (
+                weight ==
+                    2
+            ) {
+
+                defense
+                    .add(card)
+                    .pad(5f);
+
+            } else {
+
+                goalkeeper
+                    .add(card)
+                    .pad(5f);
             }
         }
 
-        return row;
+        pitch
+            .add(attackers)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(midfield)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(defense)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(goalkeeper)
+            .expand()
+            .fillX()
+            .row();
+
+        panel
+            .add(pitch)
+            .grow();
+
+        return panel;
     }
 
-    private Table createPlayerCard(Player p, String targetPos) {
-        Table card = new Table();
-        card.background(StyleFactory.createRoundedPanel(StyleFactory.METAL_DARK, StyleFactory.GOLD));
-        card.pad(8);
+    private Table createPlayerCard(
+        Player player,
+        String targetPosition
+    ) {
 
-        if (p == null) {
-            Label empty = new Label("[ VAZIO ]", game.skin, "font-label", StyleFactory.SOFT_YELLOW);
-            empty.setFontScale(0.8f);
-            card.add(empty).center().row();
+        Table card =
+            new Table();
+
+        boolean unavailable =
+            player != null &&
+                !player.canPlay();
+
+        card.background(
+            StyleFactory.createRoundedPanel(
+                unavailable
+                    ? Color.valueOf(
+                    "281919"
+                )
+                    : ScreenUI.PANEL,
+                StyleFactory.DARK_GOLD
+            )
+        );
+
+        card.pad(
+            5f
+        );
+
+        if (
+            player == null
+        ) {
+
+            Label pos =
+                new Label(
+                    targetPosition,
+                    game.skin,
+                    "font-bold"
+                );
+
+            pos.setColor(
+                StyleFactory.GOLD
+            );
+
+            pos.setFontScale(
+                0.57f
+            );
+
+            card
+                .add(pos)
+                .center()
+                .row();
+
+            Label empty =
+                new Label(
+                    "VAZIO",
+                    game.skin
+                );
+
+            empty.setFontScale(
+                0.45f
+            );
+
+            empty.setColor(
+                Color.GRAY
+            );
+
+            card
+                .add(empty)
+                .center();
+
             return card;
         }
 
-        // Nome do jogador
-        Label nameLabel = new Label(p.getName().toUpperCase(), game.skin, "font-bold", StyleFactory.GOLD);
-        nameLabel.setFontScale(0.85f);
-        card.add(nameLabel).center().padBottom(3).row();
+        Label name =
+            new Label(
+                ScreenUI.shorten(
+                    player.getName(),
+                    12
+                ),
+                game.skin,
+                "font-bold"
+            );
 
-        // Overall
-        Label ovrLabel = new Label("OVR: " + p.getOverall(), game.skin, "font-label", Color.WHITE);
-        ovrLabel.setFontScale(0.75f);
-        card.add(ovrLabel).center().padBottom(3).row();
+        name.setFontScale(
+            0.49f
+        );
 
-        // Efetivo (com penalty de fadiga)
-        int effective = p.getEffectiveOverallForPosition(targetPos);
-        Label effLabel = new Label("EFT: " + effective, game.skin, "font-label", StyleFactory.SOFT_YELLOW);
-        effLabel.setFontScale(0.75f);
-        if (effective < p.getOverall()) effLabel.setColor(Color.RED);
-        card.add(effLabel).center().padBottom(5).row();
+        name.setColor(
+            unavailable
+                ? ScreenUI.DANGER
+                : Color.WHITE
+        );
 
-        // Barra de Fadiga
-        ProgressBar fatigueBar = new ProgressBar(0, 100, 1, false, game.skin);
-        fatigueBar.setValue(p.getFatigue());
+        name.setAlignment(
+            Align.center
+        );
 
-        // Cor da barra baseada na fadiga
-        if (p.getFatigue() >= 80) {
-            fatigueBar.setColor(Color.GREEN);
-        } else if (p.getFatigue() >= 50) {
-            fatigueBar.setColor(Color.YELLOW);
-        } else {
-            fatigueBar.setColor(Color.RED);
-        }
+        card
+            .add(name)
+            .width(95f)
+            .center()
+            .row();
 
-        card.add(fatigueBar).width(100).height(4).padBottom(2).row();
+        int effective =
+            player
+                .getEffectiveOverallForPosition(
+                    targetPosition
+                );
 
-        // Fadiga percentual
-        Label fatigueLabel = new Label(p.getFatigue() + "%", game.skin, "font-label", Color.WHITE);
-        fatigueLabel.setFontScale(0.65f);
-        card.add(fatigueLabel).center().row();
+        Table info =
+            new Table();
 
-        // Status (Lesão/Suspensão)
-        if (p.isSuspended()) {
-            Label suspLabel = new Label("🚫 SUSPENSO", game.skin, "font-label", Color.RED);
-            suspLabel.setFontScale(0.7f);
-            card.add(suspLabel).center().row();
-        } else if (p.isInjured()) {
-            Label injLabel = new Label("🏥 LESIONADO", game.skin, "font-label", Color.RED);
-            injLabel.setFontScale(0.7f);
-            card.add(injLabel).center().row();
-        }
+        info
+            .add(
+                ScreenUI.createBadge(
+                    game.skin,
+                    targetPosition,
+                    StyleFactory
+                        .getPositionColor(
+                            targetPosition
+                        )
+                )
+            )
+            .height(22f)
+            .padRight(4f);
+
+        Label ovr =
+            new Label(
+                String.valueOf(
+                    effective
+                ),
+                game.skin,
+                "font-bold"
+            );
+
+        ovr.setFontScale(
+            0.55f
+        );
+
+        ovr.setColor(
+            effective <
+                player.getOverall()
+                ? ScreenUI.WARNING
+                : StyleFactory.SOFT_YELLOW
+        );
+
+        info.add(
+            ovr
+        );
+
+        card
+            .add(info)
+            .center()
+            .padTop(2f)
+            .padBottom(3f)
+            .row();
+
+        card
+            .add(
+                ScreenUI.createBlockProgress(
+                    game.skin,
+                    player.getFatigue(),
+                    7,
+                    getConditionColor(
+                        player.getFatigue()
+                    )
+                )
+            )
+            .center();
 
         return card;
     }
 
-    private Table createPlayerDetailsRow(Player p) {
-        Table row = new Table();
+    // =========================================================
+    // LIST
+    // =========================================================
 
-        // Nome
-        Label nameLabel = new Label(p.getName(), game.skin, "font-label", StyleFactory.GOLD);
-        nameLabel.setFontScale(0.95f);
-        row.add(nameLabel).width(150).left();
+    private Table createPlayerListPanel() {
 
-        // Overall
-        Label ovrLabel = new Label("OVR: " + p.getOverall(), game.skin, "font-label", Color.WHITE);
-        ovrLabel.setFontScale(0.85f);
-        row.add(ovrLabel).width(80).center();
+        Table panel =
+            ScreenUI.createPanel();
 
-        // Efetivo
-        Label effLabel = new Label("EFT: " + p.getEffectiveOverall(), game.skin, "font-label", StyleFactory.SOFT_YELLOW);
-        effLabel.setFontScale(0.85f);
-        row.add(effLabel).width(80).center();
+        panel.top();
 
-        // Fadiga (com barra visual)
-        Table fatigueCell = new Table();
-        ProgressBar fatBar = new ProgressBar(0, 100, 1, false, game.skin);
-        fatBar.setValue(p.getFatigue());
-        if (p.getFatigue() >= 80) fatBar.setColor(Color.GREEN);
-        else if (p.getFatigue() >= 50) fatBar.setColor(Color.YELLOW);
-        else fatBar.setColor(Color.RED);
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "TITULARES"
+                )
+            )
+            .left()
+            .padBottom(8f)
+            .row();
 
-        fatigueCell.add(fatBar).width(80).height(3).padRight(5);
-        fatigueCell.add(new Label(p.getFatigue() + "%", game.skin, "font-label", Color.WHITE)).width(40);
-        row.add(fatigueCell).width(130).center();
+        Table list =
+            new Table();
 
-        // Status
-        String status = "✓ OK";
-        Color statusColor = Color.GREEN;
-        if (p.isSuspended()) {
-            status = "🚫 SUSPENSO (" + p.getSuspendedMatches() + ")";
-            statusColor = Color.RED;
-        } else if (p.isInjured()) {
-            status = "🏥 LESIONADO (" + p.getInjuredMatches() + ")";
-            statusColor = Color.RED;
+        List<Integer> slots =
+            new ArrayList<>(
+                club.getTacticsMap()
+                    .keySet()
+            );
+
+        slots.sort(
+            Integer::compareTo
+        );
+
+        int index =
+            0;
+
+        for (
+            Integer slot :
+            slots
+        ) {
+
+            Player player =
+                club.getTacticsMap()
+                    .get(slot);
+
+            if (
+                player == null
+            ) {
+
+                continue;
+            }
+
+            list
+                .add(
+                    createDetailsRow(
+                        player,
+                        index++
+                    )
+                )
+                .growX()
+                .height(48f)
+                .padBottom(3f)
+                .row();
         }
 
-        Label statusLabel = new Label(status, game.skin, "font-label", statusColor);
-        statusLabel.setFontScale(0.85f);
-        row.add(statusLabel).width(180).left();
+        ScrollPane scroll =
+            new ScrollPane(
+                list,
+                game.skin
+            );
+
+        scroll.setFadeScrollBars(
+            false
+        );
+
+        panel
+            .add(scroll)
+            .grow();
+
+        return panel;
+    }
+
+    private Table createDetailsRow(
+        Player player,
+        int index
+    ) {
+
+        Table row =
+            ScreenUI.createRow(
+                index
+            );
+
+        row
+            .add(
+                ScreenUI.createBadge(
+                    game.skin,
+                    player.getPosition(),
+                    StyleFactory
+                        .getPositionColor(
+                            player.getPosition()
+                        )
+                )
+            )
+            .width(58f)
+            .height(25f)
+            .padLeft(4f);
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    ScreenUI.shorten(
+                        player.getName(),
+                        17
+                    ),
+                    player.canPlay()
+                        ? Color.WHITE
+                        : ScreenUI.DANGER,
+                    Align.left
+                )
+            )
+            .left()
+            .expandX()
+            .padLeft(7f);
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    String.valueOf(
+                        player.getOverall()
+                    ),
+                    StyleFactory.SOFT_YELLOW,
+                    Align.center
+                )
+            )
+            .width(45f);
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    player.getFatigue() +
+                        "%",
+                    getConditionColor(
+                        player.getFatigue()
+                    ),
+                    Align.center
+                )
+            )
+            .width(55f)
+            .padRight(4f);
 
         return row;
     }
 
-    private int getPositionWeight(String pos) {
-        if (pos.equalsIgnoreCase("GK")) return 1;
-        if (pos.matches("CB|RB|LB|RWB|LWB")) return 2;
-        if (pos.matches("CDM|CM|CAM|RM|LM")) return 3;
-        if (pos.matches("RW|LW|CF|ST")) return 4;
-        return 5;
+    // =========================================================
+    // HELPERS
+    // =========================================================
+
+    private Table createLine() {
+
+        Table line =
+            new Table();
+
+        line.center();
+
+        return line;
+    }
+
+    private Color getConditionColor(
+        int fatigue
+    ) {
+
+        if (
+            fatigue >=
+                75
+        ) {
+
+            return ScreenUI.SUCCESS;
+        }
+
+        if (
+            fatigue >=
+                50
+        ) {
+
+            return ScreenUI.WARNING;
+        }
+
+        return ScreenUI.DANGER;
+    }
+
+    private int getPositionWeight(
+        String position
+    ) {
+
+        if (
+            position == null
+        ) {
+
+            return 4;
+        }
+
+        if (
+            position.equalsIgnoreCase(
+                "GK"
+            )
+        ) {
+
+            return 1;
+        }
+
+        if (
+            position.matches(
+                "CB|RB|LB|RWB|LWB|SW"
+            )
+        ) {
+
+            return 2;
+        }
+
+        if (
+            position.matches(
+                "CDM|CM|CAM|RM|LM|RAM|LAM|AM"
+            )
+        ) {
+
+            return 3;
+        }
+
+        return 4;
     }
 }
-

@@ -5,349 +5,1807 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
-import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
+
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Formation;
-import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
+import io.github.some_example_name.model.TechnicalAttributes;
+import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 public class ClubManagementScreen implements Screen {
+
     private final Main game;
     private final Club club;
-    private Stage stage;
-    private Texture pranchetaTexture;
-    private Texture fieldTexture;
-    private Texture clubLogoTexture;
-    private Texture opponentLogoTexture;
-    private String sortType = "OVR";
-    private boolean sortAscending = false;
-    private String positionFilter = "TODOS";
-    private final List<Texture> navigationTextures = new ArrayList<>();
 
-    public ClubManagementScreen(Main game, Club club) {
-        this.game = game;
-        this.club = club;
-        this.stage = new Stage(new ScreenViewport());
-        this.pranchetaTexture = new Texture(Gdx.files.internal("prancheta.png"));
-        this.fieldTexture = new Texture(Gdx.files.internal("campo.png"));
-        this.clubLogoTexture = loadLogo(club);
+    private final Stage stage;
+
+    private final Texture pranchetaTexture;
+    private final Texture fieldTexture;
+
+    private Texture clubLogoTexture;
+
+    private String sortType =
+        "OVR";
+
+    private boolean sortAscending =
+        false;
+
+    private String positionFilter =
+        "TODOS";
+
+    public ClubManagementScreen(
+        Main game,
+        Club club
+    ) {
+
+        this.game =
+            game;
+
+        this.club =
+            club;
+
+        stage =
+            new Stage(
+                new ScreenViewport()
+            );
+
+        pranchetaTexture =
+            new Texture(
+                Gdx.files.internal(
+                    "prancheta.png"
+                )
+            );
+
+        fieldTexture =
+            new Texture(
+                Gdx.files.internal(
+                    "campo.png"
+                )
+            );
+
+        clubLogoTexture =
+            loadLogo(
+                club
+            );
     }
+
+    // =========================================================
+    // SHOW
+    // =========================================================
 
     @Override
     public void show() {
-        Gdx.input.setInputProcessor(stage);
+
+        Gdx.input.setInputProcessor(
+            stage
+        );
+
         refreshUI();
     }
 
+    // =========================================================
+    // UI
+    // =========================================================
+
     private void refreshUI() {
+
         stage.clear();
-        Stack root = new Stack();
-        root.setFillParent(true);
-        stage.addActor(root);
 
-        root.add(new Image(new TextureRegionDrawable(pranchetaTexture)));
+        Stack root =
+            new Stack();
 
-        Table mainContent = new Table();
-        mainContent.pad(48, 238, 42, 74);
+        root.setFillParent(
+            true
+        );
 
-        mainContent.add(createHeader()).growX().height(78).row();
+        stage.addActor(
+            root
+        );
 
-        Table body = new Table();
-        float usableWidth = Math.max(520, Gdx.graphics.getWidth() - 238 - 74 - 24);
-        body.add(createRosterPanel()).width(usableWidth * 0.56f).growY().padRight(12);
-        body.add(createFieldPreview()).width(usableWidth * 0.40f).growY();
-        mainContent.add(body).grow();
+        Image background =
+            new Image(
+                new TextureRegionDrawable(
+                    pranchetaTexture
+                )
+            );
 
-        root.add(mainContent);
+        background.setFillParent(
+            true
+        );
 
-        NavigationDrawer.attach(stage, game, club, "ELENCO", true);
-        CareerOverlay.attach(stage, game, club);
+        root.add(
+            background
+        );
+
+        Table page =
+            ScreenUI.createPage(
+                true
+            );
+
+        // =====================================================
+        // HEADER
+        // =====================================================
+
+        page
+            .add(
+                createHeader()
+            )
+            .growX()
+            .height(78f)
+            .padBottom(10f)
+            .row();
+
+        // =====================================================
+        // STATUS RÁPIDO
+        // =====================================================
+
+        page
+            .add(
+                createStatusBar()
+            )
+            .growX()
+            .height(60f)
+            .padBottom(10f)
+            .row();
+
+        // =====================================================
+        // CORPO
+        // =====================================================
+
+        Table body =
+            new Table();
+
+        float usableWidth =
+            Math.max(
+                850f,
+                Gdx.graphics.getWidth() -
+                    ScreenUI.PAGE_LEFT_OPEN -
+                    ScreenUI.PAGE_RIGHT
+            );
+
+        body
+            .add(
+                createRosterPanel()
+            )
+            .width(
+                usableWidth *
+                    0.62f
+            )
+            .growY()
+            .padRight(10f);
+
+        body
+            .add(
+                createFieldPreview()
+            )
+            .width(
+                usableWidth *
+                    0.35f
+            )
+            .growY();
+
+        page
+            .add(body)
+            .grow()
+            .row();
+
+        root.add(
+            page
+        );
+
+        NavigationDrawer.attach(
+            stage,
+            game,
+            club,
+            "ELENCO",
+            true
+        );
+
+        CareerOverlay.attach(
+            stage,
+            game,
+            club
+        );
     }
 
+    // =========================================================
+    // HEADER
+    // =========================================================
+
     private Table createHeader() {
-        Table header = new Table();
-        header.background(StyleFactory.createRoundedPanel(StyleFactory.MUSGO_DEEP, StyleFactory.GOLD));
-        header.pad(6, 18, 6, 18);
 
-        Image clubLogo = new Image(clubLogoTexture);
-        clubLogo.setScaling(Scaling.fit);
-        header.add(clubLogo).size(78, 43).padRight(12);
-        Label title = new Label(club.getName().toUpperCase(), game.skin, "font-title");
-        title.setFontScale(0.95f);
-        header.add(title).left().expandX().padRight(14);
+        Table header =
+            ScreenUI.createPanel();
 
-        Table season = new Table();
-        header.add(season).center().expandX();
+        if (
+            clubLogoTexture != null
+        ) {
+
+            Image logo =
+                new Image(
+                    new TextureRegionDrawable(
+                        clubLogoTexture
+                    )
+                );
+
+            logo.setScaling(
+                Scaling.fit
+            );
+
+            header
+                .add(logo)
+                .width(92f)
+                .height(54f)
+                .padRight(14f);
+        }
+
+        Table titleArea =
+            new Table();
+
+        Label title =
+            new Label(
+                "ELENCO",
+                game.skin,
+                "font-title"
+            );
+
+        title.setFontScale(
+            0.84f
+        );
+
+        title.setColor(
+            StyleFactory.GOLD
+        );
+
+        titleArea
+            .add(title)
+            .left()
+            .row();
+
+        Label subtitle =
+            new Label(
+                club.getName().toUpperCase(),
+                game.skin,
+                "font-bold"
+            );
+
+        subtitle.setFontScale(
+            0.58f
+        );
+
+        subtitle.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        titleArea
+            .add(subtitle)
+            .left();
+
+        header
+            .add(titleArea)
+            .left()
+            .expandX();
+
+        ImageTextButton tacticsButton =
+            IconTextButton.create(
+                "EDITAR TÁTICA",
+                game.skin,
+                "Icons8/icons8-estrutura-em-árvore-50.png"
+            );
+
+        tacticsButton
+            .getLabel()
+            .setFontScale(
+                0.62f
+            );
+
+        tacticsButton.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    game.setScreen(
+                        new TacticsScreen(
+                            game,
+                            club
+                        )
+                    );
+                }
+            }
+        );
+
+        header
+            .add(tacticsButton)
+            .width(190f)
+            .height(42f);
 
         return header;
     }
 
+    // =========================================================
+    // STATUS BAR
+    // =========================================================
+
+    private Table createStatusBar() {
+
+        Table bar =
+            new Table();
+
+        bar.add(
+            ScreenUI.createStatusBox(
+                game.skin,
+                "JOGADORES",
+                club.getSquad().size() +
+                    "/26",
+                club.getSquad().size() >= 23
+                    ? ScreenUI.SUCCESS
+                    : ScreenUI.WARNING
+            )
+        ).growX().uniformX().padRight(8f);
+
+        bar.add(
+            ScreenUI.createStatusBox(
+                game.skin,
+                "OVERALL",
+                String.valueOf(
+                    (int) Math.round(
+                        club.getOverall()
+                    )
+                ),
+                StyleFactory.GOLD
+            )
+        ).growX().uniformX().padRight(8f);
+
+        int unavailable =
+            0;
+
+        for (
+            Player player :
+            club.getSquad()
+        ) {
+
+            if (
+                !player.canPlay()
+            ) {
+
+                unavailable++;
+            }
+        }
+
+        bar.add(
+            ScreenUI.createStatusBox(
+                game.skin,
+                "INDISPONÍVEIS",
+                String.valueOf(
+                    unavailable
+                ),
+                unavailable == 0
+                    ? ScreenUI.SUCCESS
+                    : ScreenUI.DANGER
+            )
+        ).growX().uniformX().padRight(8f);
+
+        bar.add(
+            ScreenUI.createStatusBox(
+                game.skin,
+                "FORMAÇÃO",
+                club.getFormation() != null
+                    ? club.getFormation().getName()
+                    : "N/D",
+                StyleFactory.SOFT_YELLOW
+            )
+        ).growX().uniformX();
+
+        return bar;
+    }
+
+    // =========================================================
+    // ROSTER
+    // =========================================================
+
     private Table createRosterPanel() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createSolid(new Color(0.03f, 0.04f, 0.04f, 0.30f)));
-        panel.top().pad(12);
-        Label title = new Label("ELENCO • ESTATÍSTICAS", game.skin, "font-bold");
-        title.setColor(StyleFactory.SOFT_YELLOW);
-        panel.add(title).left().expandX();
-        SelectBox<String> positionBox = new SelectBox<>(game.skin);
-        positionBox.setItems("TODOS", "GOLEIROS", "DEFESA", "MEIO-CAMPO", "ATAQUE");
-        positionBox.setSelected(positionFilter);
-        positionBox.addListener(new ChangeListener() {
-            @Override public void changed(ChangeListener.ChangeEvent event, com.badlogic.gdx.scenes.scene2d.Actor actor) {
-                positionFilter = positionBox.getSelected();
-                refreshUI();
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        // =====================================================
+        // HEADER DO PAINEL
+        // =====================================================
+
+        Table panelHeader =
+            new Table();
+
+        Label title =
+            ScreenUI.createSectionTitle(
+                game.skin,
+                "ELENCO • ESTATÍSTICAS"
+            );
+
+        panelHeader
+            .add(title)
+            .left()
+            .expandX();
+
+        SelectBox<String> filter =
+            ScreenUI.createSelectBox(
+                game.skin
+            );
+
+        filter.setItems(
+            "TODOS",
+            "GOLEIROS",
+            "DEFESA",
+            "MEIO-CAMPO",
+            "ATAQUE"
+        );
+
+        filter.setSelected(
+            positionFilter
+        );
+
+        filter.addListener(
+            new ChangeListener() {
+
+                @Override
+                public void changed(
+                    ChangeEvent event,
+                    com.badlogic.gdx.scenes.scene2d.Actor actor
+                ) {
+
+                    positionFilter =
+                        filter.getSelected();
+
+                    refreshUI();
+                }
             }
-        });
-        panel.add(positionBox).width(155).right().row();
-        panel.add(new ScrollPane(createSquadTable(), game.skin)).grow().fill();
+        );
+
+        panelHeader
+            .add(filter)
+            .width(210f)
+            .height(48f)
+            .right();
+
+        panel
+            .add(panelHeader)
+            .growX()
+            .padBottom(10f)
+            .row();
+
+        // =====================================================
+        // TABLE
+        // =====================================================
+
+        ScrollPane scroll =
+            new ScrollPane(
+                createSquadTable(),
+                game.skin
+            );
+
+        scroll.setFadeScrollBars(
+            false
+        );
+
+        scroll.setScrollingDisabled(
+            false,
+            false
+        );
+
+        panel
+            .add(scroll)
+            .grow();
+
         return panel;
-    }
-
-    private Table createFieldPreview() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createSolid(new Color(0.03f, 0.10f, 0.05f, 0.22f)));
-        panel.top().pad(8);
-
-        Formation formation = club.getFormation();
-        String formationName = (formation != null) ? formation.getName() : "NENHUMA";
-
-        panel.add(new Label("TÁTICA ATUAL • " + formationName, game.skin, "font-bold")).padBottom(8).row();
-
-        int fieldWidth = Math.min(390, Math.max(260, (int)(Gdx.graphics.getWidth() * 0.28f)));
-        int fieldHeight = Math.min(560, Math.max(390, (int)(fieldWidth * 1.78f)));
-        Stack field = new Stack();
-        field.setSize(fieldWidth, fieldHeight);
-        Image fieldImage = new Image(fieldTexture);
-        fieldImage.setFillParent(true);
-        field.add(fieldImage);
-
-        if (formation == null) {
-            Table warningTable = new Table();
-            Label warningLabel = new Label("Nenhuma tática selecionada.\nVisite a aba Táticas.", game.skin, "font-bold");
-            warningLabel.setAlignment(Align.center);
-            warningLabel.setColor(StyleFactory.SOFT_YELLOW);
-            warningTable.add(warningLabel).center();
-            field.add(warningTable);
-        } else {
-            Group players = new Group();
-            players.setSize(fieldWidth, fieldHeight);
-            List<String> slots = formation.getPositionSlots();
-            for (int i = 0; i < Math.min(11, slots.size()); i++) {
-                Player player = club.getTacticsMap().get(i);
-                players.addActor(createFieldPlayerCard(player, slots.get(i), i, slots, fieldWidth, fieldHeight));
-            }
-            field.add(players);
-        }
-
-        panel.add(field).width(fieldWidth).height(fieldHeight);
-        return panel;
-    }
-
-    private Table createFieldPlayerCard(Player player, String position, int slot, List<String> slots,
-                                        int width, int height) {
-        Table card = new Table();
-        card.background(StyleFactory.createRoundedPanel(new Color(0.08f, 0.10f, 0.08f, 0.90f), StyleFactory.SOFT_YELLOW));
-        card.setSize(Math.min(120, width * 0.28f), 48);
-        String name = player == null ? "VAZIO" : player.getName();
-        Label label = new Label(name + "\n" + position, game.skin, "font-bold");
-        label.setAlignment(Align.center);
-        label.setFontScale(0.55f);
-        card.add(label).width(card.getWidth() - 8).center();
-
-        int line = positionWeight(position);
-        int sameLineIndex = 0;
-        for (int i = 0; i < slot; i++) {
-            if (positionWeight(slots.get(i)) == line) sameLineIndex++;
-        }
-        int lineCount = 0;
-        for (String slotPosition : slots) if (positionWeight(slotPosition) == line) lineCount++;
-        float[] y = {0.08f, 0.29f, 0.53f, 0.79f};
-        float x = (sameLineIndex + 1f) / (lineCount + 1f);
-        card.setPosition(x * width - card.getWidth() / 2f, y[line - 1] * height - card.getHeight() / 2f);
-        return card;
     }
 
     private Table createSquadTable() {
-        Table table = new Table();
-        table.add(createSortButton("POS", "POS")).width(54);
-        table.add(createSortButton("JOGADOR", "NOME")).width(200).left();
-        table.add(createSortButton("OVR", "OVR")).width(48);
-        table.add(createSortButton("EFF", "EFF")).width(48);
-        table.add(createSortButton("SALÁRIO", "SALARY")).width(90); // Coluna de Salários
-        table.add(createSortButton("MOR", "MORALE")).width(48);
-        table.add(createSortButton("G", "GOALS")).width(40);
-        table.add(createSortButton("A", "ASSISTS")).width(40);
-        table.add(createSortButton("CA", "YELLOW")).width(40);
-        table.add(createSortButton("CV", "RED")).width(40);
-        table.add(createSortButton("FADIGA", "FATIGUE")).width(70).row();
 
-        List<Player> players = new ArrayList<>(club.getSquad());
-        sortPlayers(players);
+        Table table =
+            new Table();
 
-        for (Player p : players) {
-            if (!matchesPositionFilter(p)) continue;
+        table.top();
 
-            boolean available = p.canPlay();
-            Color defaultColor = available ? Color.WHITE : Color.GRAY;
-            Label.LabelStyle textStyle = new Label.LabelStyle(game.skin.getFont("font-bold"), defaultColor);
+        // =====================================================
+        // CABEÇALHO
+        // =====================================================
 
-            Table posBadge = new Table();
-            posBadge.background(StyleFactory.createBadge(StyleFactory.getPositionColor(p.getPosition())));
-            Label posLabel = new Label(p.getPosition(), textStyle);
-            posLabel.setFontScale(0.55f);
-            posBadge.add(posLabel).center();
-            table.add(posBadge).width(48).height(24).pad(4);
+        Table header =
+            ScreenUI.createTableHeaderRow();
 
-            String displayName = p.getName();
-            if (p.isInjured()) displayName += " [LESIONADO: " + p.getInjuryDuration() + "J]";
-            else if (p.isSuspended()) displayName += " [SUSPENSO: " + p.getSuspendedMatches() + "J]";
+        addSortHeader(
+            header,
+            "POS",
+            "POS",
+            65f
+        );
 
-            Label nameLabel = new Label(displayName, textStyle);
-            nameLabel.setFontScale(0.65f);
-            if (!available) nameLabel.setColor(Color.valueOf("FF4D4D"));
-            table.add(nameLabel).left().padLeft(4);
+        addSortHeader(
+            header,
+            "JOGADOR",
+            "NOME",
+            230f
+        );
 
-            Label ovrLabel = new Label(String.valueOf(p.getOverall()), textStyle);
-            ovrLabel.setFontScale(0.65f);
-            table.add(ovrLabel);
+        addSortHeader(
+            header,
+            "OVR",
+            "OVR",
+            62f
+        );
 
-            int effVal = p.getEffectiveOverallForPosition(p.getPosition());
-            Label effLabel = new Label(String.valueOf(effVal), textStyle);
-            effLabel.setFontScale(0.65f);
-            if (effVal < p.getOverall()) effLabel.setColor(Color.valueOf("E67E22"));
-            table.add(effLabel);
+        addSortHeader(
+            header,
+            "EFF",
+            "EFF",
+            62f
+        );
 
-            // Exibição do Salário Anual formatado em Milhões/Milhares
-            long monthlySalary = p.getMonthlySalary();
-            String formattedSalary = "WFL$ " + String.format("%,d", monthlySalary).replace(',', '.');
-            Label salaryLabel = new Label(formattedSalary, textStyle);
-            salaryLabel.setFontScale(0.58f);
-            salaryLabel.setColor(StyleFactory.SOFT_YELLOW);
-            table.add(salaryLabel);
+        addSortHeader(
+            header,
+            "SALÁRIO",
+            "SALARY",
+            105f
+        );
 
-            int moraleVal = p.getMorale();
-            Label moraleLabel = new Label(String.valueOf(moraleVal), textStyle);
-            moraleLabel.setFontScale(0.65f);
-            if (moraleVal >= 75) moraleLabel.setColor(Color.GREEN);
-            else if (moraleVal >= 45) moraleLabel.setColor(StyleFactory.SOFT_YELLOW);
-            else moraleLabel.setColor(Color.valueOf("FF4D4D"));
-            table.add(moraleLabel);
+        addSortHeader(
+            header,
+            "MOR",
+            "MORALE",
+            62f
+        );
 
-            Label goalsLabel = new Label(String.valueOf(p.getSeasonGoals()), textStyle);
-            goalsLabel.setFontScale(0.65f);
-            table.add(goalsLabel);
+        addSortHeader(
+            header,
+            "G",
+            "GOALS",
+            45f
+        );
 
-            Label assistsLabel = new Label(String.valueOf(p.getSeasonAssists()), textStyle);
-            assistsLabel.setFontScale(0.65f);
-            table.add(assistsLabel);
+        addSortHeader(
+            header,
+            "A",
+            "ASSISTS",
+            45f
+        );
 
-            Label ycLabel = new Label(String.valueOf(p.getSeasonYellowCards()), textStyle);
-            ycLabel.setFontScale(0.65f);
-            table.add(ycLabel);
+        addSortHeader(
+            header,
+            "CA",
+            "YELLOW",
+            45f
+        );
 
-            Label rcLabel = new Label(String.valueOf(p.getSeasonRedCards()), textStyle);
-            rcLabel.setFontScale(0.65f);
-            if (p.getSeasonRedCards() > 0) rcLabel.setColor(Color.valueOf("FF4D4D"));
-            table.add(rcLabel);
+        addSortHeader(
+            header,
+            "CV",
+            "RED",
+            45f
+        );
 
-            Label fadLabel = new Label(p.getFatigue() + "%", textStyle);
-            fadLabel.setFontScale(0.62f);
-            if (p.getFatigue() >= 80) fadLabel.setColor(Color.GREEN);
-            else if (p.getFatigue() >= 50) fadLabel.setColor(StyleFactory.SOFT_YELLOW);
-            else fadLabel.setColor(Color.valueOf("FF4D4D"));
-            table.add(fadLabel);
+        addSortHeader(
+            header,
+            "FADIGA",
+            "FATIGUE",
+            80f
+        );
 
-            table.row().padBottom(4);
+        table
+            .add(header)
+            .growX()
+            .height(48f)
+            .row();
+
+        // =====================================================
+        // PLAYERS
+        // =====================================================
+
+        List<Player> players =
+            new ArrayList<>(
+                club.getSquad()
+            );
+
+        sortPlayers(
+            players
+        );
+
+        int visibleIndex =
+            0;
+
+        for (
+            Player player :
+            players
+        ) {
+
+            if (
+                !matchesPositionFilter(
+                    player
+                )
+            ) {
+
+                continue;
+            }
+
+            Table row =
+                createPlayerRow(
+                    player,
+                    visibleIndex++
+                );
+
+            table
+                .add(row)
+                .growX()
+                .height(54f)
+                .row();
         }
+
         return table;
     }
 
-    private boolean matchesPositionFilter(Player player) {
-        if (positionFilter.equals("TODOS")) return true;
-        int weight = player.getPositionWeight();
-        if (positionFilter.equals("GOLEIROS")) return weight == 1;
-        if (positionFilter.equals("DEFESA")) return weight == 2;
-        if (positionFilter.equals("MEIO-CAMPO")) return weight == 3;
-        return weight == 4;
-    }
+    private Table createPlayerRow(
+        Player player,
+        int rowIndex
+    ) {
 
-    private TextButton createSortButton(String label, final String type) {
-        TextButton btn = new TextButton(label, game.skin, "toggle");
-        if (sortType.equals(type)) btn.setChecked(true);
-        btn.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) {
-                if (sortType.equals(type)) sortAscending = !sortAscending;
-                else { sortType = type; sortAscending = false; }
-                refreshUI();
-            }
-        });
-        return btn;
-    }
+        Table row =
+            ScreenUI.createRow(
+                rowIndex
+            );
 
-    private void sortPlayers(List<Player> players) {
-        Comparator<Player> comp;
-        switch (sortType) {
-            case "NOME": comp = Comparator.comparing(Player::getName); break;
-            case "POS": comp = Comparator.comparingInt(Player::getPositionWeight); break;
-            case "FATIGUE": comp = Comparator.comparingInt(Player::getFatigue); break;
-            case "MORALE": comp = Comparator.comparingInt(Player::getMorale); break;
-            case "GOALS": comp = Comparator.comparingInt(Player::getSeasonGoals); break;
-            case "ASSISTS": comp = Comparator.comparingInt(Player::getSeasonAssists); break;
-            case "YELLOW": comp = Comparator.comparingInt(Player::getSeasonYellowCards); break;
-            case "RED": comp = Comparator.comparingInt(Player::getSeasonRedCards); break;
-            default: comp = Comparator.comparingInt(Player::getOverall); break;
+        boolean available =
+            player.canPlay();
+
+        // =====================================================
+        // POS
+        // =====================================================
+
+        Table badge =
+            ScreenUI.createBadge(
+                game.skin,
+                player.getPosition(),
+                StyleFactory.getPositionColor(
+                    player.getPosition()
+                )
+            );
+
+        row
+            .add(badge)
+            .width(65f)
+            .height(30f);
+
+        // =====================================================
+        // NAME
+        // =====================================================
+
+        String name =
+            player.getName();
+
+        if (
+            player.isInjured()
+        ) {
+
+            name +=
+                " • LES " +
+                    player.getInjuryDuration() +
+                    "J";
+
+        } else if (
+            player.isSuspended()
+        ) {
+
+            name +=
+                " • SUS " +
+                    player.getSuspendedMatches() +
+                    "J";
         }
-        if (!sortAscending) comp = comp.reversed();
-        players.sort(comp);
+
+        Label nameLabel =
+            ScreenUI.createBoldValue(
+                game.skin,
+                name,
+                available
+                    ? Color.WHITE
+                    : ScreenUI.DANGER,
+                Align.left
+            );
+
+        nameLabel.setEllipsis(
+            true
+        );
+
+        row
+            .add(nameLabel)
+            .width(230f)
+            .padLeft(8f);
+
+        // =====================================================
+        // OVR
+        // =====================================================
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    String.valueOf(
+                        player.getOverall()
+                    ),
+                    StyleFactory.SOFT_YELLOW,
+                    Align.center
+                )
+            )
+            .width(62f);
+
+        int effective =
+            player.getEffectiveOverallForPosition(
+                player.getPosition()
+            );
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    String.valueOf(
+                        effective
+                    ),
+                    effective <
+                        player.getOverall()
+                        ? ScreenUI.WARNING
+                        : Color.WHITE,
+                    Align.center
+                )
+            )
+            .width(62f);
+
+        // =====================================================
+        // SALARY
+        // =====================================================
+
+        row
+            .add(
+                ScreenUI.createValueLabel(
+                    game.skin,
+                    formatSalary(
+                        player.getMonthlySalary()
+                    ),
+                    StyleFactory.CREME_AGED,
+                    Align.center
+                )
+            )
+            .width(105f);
+
+        // =====================================================
+        // MORALE
+        // =====================================================
+
+        int morale =
+            player.getMorale();
+
+        Color moraleColor =
+            morale >= 75
+                ? ScreenUI.SUCCESS
+                : morale >= 45
+                ? ScreenUI.WARNING
+                : ScreenUI.DANGER;
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    String.valueOf(
+                        morale
+                    ),
+                    moraleColor,
+                    Align.center
+                )
+            )
+            .width(62f);
+
+        // =====================================================
+        // STATS
+        // =====================================================
+
+        row
+            .add(
+                value(
+                    player.getSeasonGoals()
+                )
+            )
+            .width(45f);
+
+        row
+            .add(
+                value(
+                    player.getSeasonAssists()
+                )
+            )
+            .width(45f);
+
+        row
+            .add(
+                value(
+                    player.getSeasonYellowCards()
+                )
+            )
+            .width(45f);
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    String.valueOf(
+                        player.getSeasonRedCards()
+                    ),
+                    player.getSeasonRedCards() > 0
+                        ? ScreenUI.DANGER
+                        : Color.WHITE,
+                    Align.center
+                )
+            )
+            .width(45f);
+
+        // =====================================================
+        // FATIGUE
+        // =====================================================
+
+        int fatigue =
+            player.getFatigue();
+
+        Color fatigueColor =
+            fatigue >= 80
+                ? ScreenUI.SUCCESS
+                : fatigue >= 50
+                ? ScreenUI.WARNING
+                : ScreenUI.DANGER;
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    fatigue + "%",
+                    fatigueColor,
+                    Align.center
+                )
+            )
+            .width(80f);
+
+        row.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+                    showPlayerProfileDialog(player);
+                }
+            }
+        );
+
+        return row;
     }
 
-    private int positionWeight(String position) {
-        if (position.equals("GK")) return 1;
-        if (position.matches("CB|RB|LB|RWB|LWB")) return 2;
-        if (position.matches("CDM|CM|CAM|RM|LM")) return 3;
+    private void showPlayerProfileDialog(Player player) {
+        int currentYear = game.league.getCurrentSeason();
+        Dialog dialog = new Dialog("", game.skin);
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.getContentTable().background(
+            StyleFactory.createMetallicBoard(1040, 760, Color.valueOf("141A16"))
+        );
+        dialog.getContentTable().pad(18f, 24f, 14f, 24f);
+
+        Table content = dialog.getContentTable();
+        content.add(ScreenUI.createSectionTitle(game.skin, "PERFIL DO JOGADOR"))
+            .center().padBottom(5f).row();
+        content.add(ScreenUI.createBoldValue(game.skin, player.getName(), Color.WHITE, Align.center))
+            .center().padBottom(2f).row();
+        content.add(ScreenUI.createSubtitle(game.skin,
+            player.getNationality() + " • " + player.getAge() + " anos • " + String.format(Locale.US, "%.2fm", player.getHeight())))
+            .center().padBottom(12f).row();
+
+        Table overview = new Table();
+        overview.add(ScreenUI.createStatusBox(game.skin, "POSIÇÃO", player.getPosition(), StyleFactory.getPositionColor(player.getPosition())))
+            .width(220f).height(62f).padRight(7f);
+        overview.add(ScreenUI.createStatusBox(game.skin, "OVERALL", String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW))
+            .width(220f).height(62f).padRight(7f);
+        overview.add(ScreenUI.createStatusBox(game.skin, "POTENCIAL", getLetterGrade(player.getPotential()), getGradeColor(player.getPotential())))
+            .width(220f).height(62f).padRight(7f);
+        overview.add(ScreenUI.createStatusBox(game.skin, "NOTA MÉDIA", formatAverageRating(player), getAverageRatingColor(player.getSeasonAverageRating())))
+            .width(220f).height(62f);
+        content.add(overview).width(910f).padBottom(10f).row();
+
+        Table columns = new Table();
+        columns.add(createSeasonStatsPanel(player)).width(440f).height(265f).padRight(10f).top();
+        columns.add(createProfileRightColumn(player, currentYear)).width(460f).height(265f).top();
+        content.add(columns).width(910f).padBottom(10f).row();
+
+        Table attributes = ScreenUI.createSubtlePanel();
+        attributes.add(ScreenUI.createSectionTitle(game.skin, "ATRIBUTOS")).colspan(3).left().padBottom(5f).row();
+        TechnicalAttributes values = player.getTechnicalAttributes();
+        addAttributeRow(attributes, "ATAQUE", values.getAtaque(), "PASSE", values.getPasse(), "DRIBLE", values.getDrible());
+        addAttributeRow(attributes, "FÍSICO", values.getFisico(), "DEFESA", values.getDefesa(), "GOLEIRO", values.getGoleiro());
+        content.add(attributes).width(910f).height(112f).padBottom(6f).row();
+
+        TextButton close = ScreenUI.createPrimaryButton(game.skin, "FECHAR");
+        close.getLabel().setFontScale(0.55f);
+        dialog.button(close, true);
+        dialog.show(stage);
+    }
+
+    private Table createSeasonStatsPanel(Player player) {
+        Table panel = ScreenUI.createSubtlePanel();
+        panel.add(ScreenUI.createSectionTitle(game.skin, "ESTATÍSTICAS DA TEMPORADA")).colspan(2).left().padBottom(8f).row();
+        addProfileDataRow(panel, "JOGOS", String.valueOf(player.getSeasonAppearances()), Color.WHITE);
+        addProfileDataRow(panel, "GOLS", String.valueOf(player.getSeasonGoals()), StyleFactory.SOFT_YELLOW);
+        addProfileDataRow(panel, "ASSISTÊNCIAS", String.valueOf(player.getSeasonAssists()), ScreenUI.SUCCESS);
+        addProfileDataRow(panel, "CLEAN SHEETS", String.valueOf(player.getSeasonCleanSheets()), ScreenUI.SUCCESS);
+        addProfileDataRow(panel, "CARTÕES", player.getSeasonYellowCards() + " A  •  " + player.getSeasonRedCards() + " V", player.getSeasonRedCards() > 0 ? ScreenUI.DANGER : StyleFactory.SOFT_YELLOW);
+        addProfileDataRow(panel, "NOTA MÉDIA", formatAverageRating(player), getAverageRatingColor(player.getSeasonAverageRating()));
+        return panel;
+    }
+
+    private Table createProfileRightColumn(Player player, int currentYear) {
+        Table column = new Table();
+        Table contract = ScreenUI.createSubtlePanel();
+        contract.add(ScreenUI.createSectionTitle(game.skin, "CONTRATO")).colspan(2).left().padBottom(7f).row();
+        addProfileDataRow(contract, "SALÁRIO ANUAL", formatAnnualSalary(player.getAnnualSalary()), StyleFactory.SOFT_YELLOW);
+        addProfileDataRow(contract, "TÉRMINO", String.valueOf(player.getContractEndYear()), Color.WHITE);
+        addProfileDataRow(contract, "RESTANTE", formatContractRemaining(player.getRemainingContractYears(currentYear)), getContractColor(player.getRemainingContractYears(currentYear)));
+        addProfileDataRow(contract, "NEGOCIAÇÃO", player.canNegotiateContract(currentYear) ? "DISPONÍVEL" : "BLOQUEADA", player.canNegotiateContract(currentYear) ? ScreenUI.SUCCESS : ScreenUI.WARNING);
+        column.add(contract).growX().height(145f).padBottom(8f).row();
+
+        Table condition = ScreenUI.createSubtlePanel();
+        condition.add(ScreenUI.createSectionTitle(game.skin, "CONDIÇÃO ATUAL")).colspan(2).left().padBottom(7f).row();
+        addProfileDataRow(condition, "MORAL", player.getMorale() + "/100", player.getMorale() >= 75 ? ScreenUI.SUCCESS : player.getMorale() >= 45 ? ScreenUI.WARNING : ScreenUI.DANGER);
+        addProfileDataRow(condition, "FADIGA", player.getFatigue() + "%", player.getFatigue() >= 80 ? ScreenUI.SUCCESS : player.getFatigue() >= 50 ? ScreenUI.WARNING : ScreenUI.DANGER);
+        addProfileDataRow(condition, "STATUS", getPlayerStatus(player), player.canPlay() ? ScreenUI.SUCCESS : ScreenUI.DANGER);
+        column.add(condition).growX().height(112f);
+        return column;
+    }
+
+    private void addAttributeRow(Table table, String firstName, int firstValue, String secondName, int secondValue, String thirdName, int thirdValue) {
+        table.add(createAttributeValue(firstName, firstValue)).growX().uniformX().padRight(7f);
+        table.add(createAttributeValue(secondName, secondValue)).growX().uniformX().padRight(7f);
+        table.add(createAttributeValue(thirdName, thirdValue)).growX().uniformX().row();
+    }
+
+    private Table createAttributeValue(String title, int value) {
+        Table item = new Table();
+        item.add(ScreenUI.createSubtitle(game.skin, title)).left().expandX();
+        item.add(ScreenUI.createBoldValue(game.skin, value + " • " + getLetterGrade(value), getGradeColor(value), Align.right));
+        return item;
+    }
+
+    private void addProfileDataRow(Table table, String label, String value, Color color) {
+        table.add(ScreenUI.createSubtitle(game.skin, label)).left().expandX().padBottom(5f);
+        table.add(ScreenUI.createBoldValue(game.skin, value, color, Align.right)).right().padBottom(5f).row();
+    }
+
+    private String formatAverageRating(Player player) {
+        return player.getSeasonRatingMatches() == 0 ? "—" : String.format(Locale.US, "%.1f", player.getSeasonAverageRating());
+    }
+
+    private String formatContractRemaining(int years) {
+        if (years == 0) return "EXPIRADO";
+        return years + " ano" + (years > 1 ? "s" : "");
+    }
+
+    private String formatAnnualSalary(long salary) {
+        return String.format(Locale.US, "WFL$ %.2fM", salary / 1_000_000.0);
+    }
+
+    private String getPlayerStatus(Player player) {
+        if (player.isInjured()) return "LESIONADO • " + player.getInjuryDuration() + "J";
+        if (player.isSuspended()) return "SUSPENSO • " + player.getSuspendedMatches() + "J";
+        return "DISPONÍVEL";
+    }
+
+    private Color getContractColor(int years) {
+        return years == 0 ? ScreenUI.DANGER : years == 1 ? ScreenUI.WARNING : ScreenUI.SUCCESS;
+    }
+
+    private Color getAverageRatingColor(double rating) {
+        return rating >= 7.0 ? ScreenUI.SUCCESS : rating >= 6.0 ? StyleFactory.SOFT_YELLOW : ScreenUI.DANGER;
+    }
+
+    private Color getGradeColor(int value) {
+        return value >= 85 ? ScreenUI.SUCCESS : value >= 70 ? StyleFactory.SOFT_YELLOW : value >= 60 ? ScreenUI.WARNING : ScreenUI.DANGER;
+    }
+
+    private String getLetterGrade(int value) {
+        if (value >= 90) return "A+";
+        if (value >= 85) return "A";
+        if (value >= 80) return "A-";
+        if (value >= 77) return "B+";
+        if (value >= 73) return "B";
+        if (value >= 70) return "B-";
+        if (value >= 67) return "C+";
+        if (value >= 63) return "C";
+        if (value >= 60) return "C-";
+        if (value >= 57) return "D+";
+        if (value >= 53) return "D";
+        if (value >= 50) return "D-";
+        return "F";
+    }
+
+    // =========================================================
+    // FIELD
+    // =========================================================
+
+    private Table createFieldPreview() {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        Formation formation =
+            club.getFormation();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    formation != null
+                        ? "ONZE INICIAL • " +
+                        formation.getName()
+                        : "ONZE INICIAL"
+                )
+            )
+            .center()
+            .padBottom(10f)
+            .row();
+
+        int fieldWidth =
+            Math.min(
+                410,
+                Math.max(
+                    300,
+                    (int) (
+                        Gdx.graphics
+                            .getWidth() *
+                            0.27f
+                    )
+                )
+            );
+
+        int fieldHeight =
+            Math.min(
+                580,
+                Math.max(
+                    420,
+                    (int) (
+                        fieldWidth *
+                            1.42f
+                    )
+                )
+            );
+
+        Stack field =
+            new Stack();
+
+        field.setSize(
+            fieldWidth,
+            fieldHeight
+        );
+
+        Image fieldImage =
+            new Image(
+                fieldTexture
+            );
+
+        fieldImage.setFillParent(
+            true
+        );
+
+        field.add(
+            fieldImage
+        );
+
+        if (
+            formation == null
+        ) {
+
+            Table warning =
+                new Table();
+
+            Label label =
+                new Label(
+                    "Nenhuma formação selecionada.\nAbra a tela Táticas.",
+                    game.skin,
+                    "font-bold"
+                );
+
+            label.setAlignment(
+                Align.center
+            );
+
+            label.setColor(
+                StyleFactory.SOFT_YELLOW
+            );
+
+            warning
+                .add(label)
+                .center();
+
+            field.add(
+                warning
+            );
+
+        } else {
+
+            Group players =
+                new Group();
+
+            players.setSize(
+                fieldWidth,
+                fieldHeight
+            );
+
+            List<String> slots =
+                formation
+                    .getPositionSlots();
+
+            for (
+                int i = 0;
+                i <
+                    Math.min(
+                        11,
+                        slots.size()
+                    );
+                i++
+            ) {
+
+                Player player =
+                    club.getTacticsMap()
+                        .get(i);
+
+                players.addActor(
+                    createFieldPlayerCard(
+                        player,
+                        slots.get(i),
+                        i,
+                        slots,
+                        fieldWidth,
+                        fieldHeight
+                    )
+                );
+            }
+
+            field.add(
+                players
+            );
+        }
+
+        panel
+            .add(field)
+            .width(fieldWidth)
+            .height(fieldHeight)
+            .center();
+
+        return panel;
+    }
+
+    private Table createFieldPlayerCard(
+        Player player,
+        String position,
+        int slot,
+        List<String> slots,
+        int width,
+        int height
+    ) {
+
+        Table card =
+            new Table();
+
+        card.background(
+            StyleFactory.createRoundedPanel(
+                new Color(
+                    0.025f,
+                    0.055f,
+                    0.045f,
+                    0.95f
+                ),
+                StyleFactory.GOLD
+            )
+        );
+
+        card.setSize(
+            Math.min(
+                108f,
+                width *
+                    0.26f
+            ),
+            48f
+        );
+
+        Label name =
+            new Label(
+                player != null
+                    ? ScreenUI.shorten(
+                    player.getName(),
+                    12
+                )
+                    : "VAZIO",
+                game.skin,
+                "font-bold"
+            );
+
+        name.setFontScale(
+            0.50f
+        );
+
+        name.setAlignment(
+            Align.center
+        );
+
+        card
+            .add(name)
+            .width(
+                card.getWidth() -
+                    8f
+            )
+            .center()
+            .row();
+
+        Label pos =
+            new Label(
+                position +
+                    (
+                        player != null
+                            ? "  " +
+                            player.getEffectiveOverallForPosition(
+                                position
+                            )
+                            : ""
+                    ),
+                game.skin,
+                "font-bold"
+            );
+
+        pos.setFontScale(
+            0.48f
+        );
+
+        pos.setColor(
+            StyleFactory.SOFT_YELLOW
+        );
+
+        card
+            .add(pos)
+            .center();
+
+        int line =
+            positionWeight(
+                position
+            );
+
+        int indexOnLine =
+            0;
+
+        for (
+            int i = 0;
+            i < slot;
+            i++
+        ) {
+
+            if (
+                positionWeight(
+                    slots.get(i)
+                ) ==
+                    line
+            ) {
+
+                indexOnLine++;
+            }
+        }
+
+        int countOnLine =
+            0;
+
+        for (
+            String slotPosition :
+            slots
+        ) {
+
+            if (
+                positionWeight(
+                    slotPosition
+                ) ==
+                    line
+            ) {
+
+                countOnLine++;
+            }
+        }
+
+        float[] y = {
+            0.08f,
+            0.30f,
+            0.55f,
+            0.80f
+        };
+
+        float x =
+            (
+                indexOnLine +
+                    1f
+            ) /
+                (
+                    countOnLine +
+                        1f
+                );
+
+        int yIndex =
+            Math.max(
+                0,
+                Math.min(
+                    y.length - 1,
+                    line - 1
+                )
+            );
+
+        card.setPosition(
+            x *
+                width -
+                card.getWidth() /
+                    2f,
+            y[yIndex] *
+                height -
+                card.getHeight() /
+                    2f
+        );
+
+        return card;
+    }
+
+    // =========================================================
+    // SORT
+    // =========================================================
+
+    private void addSortHeader(
+        Table row,
+        String label,
+        String type,
+        float width
+    ) {
+
+        String arrow =
+            "";
+
+        if (
+            sortType.equals(
+                type
+            )
+        ) {
+
+            arrow =
+                sortAscending
+                    ? " ↑"
+                    : " ↓";
+        }
+
+        TextButton button =
+            ScreenUI.createInteractiveButton(
+                label + arrow,
+                game.skin,
+                "toggle"
+            );
+
+        button
+            .getLabel()
+            .setFontScale(
+                0.52f
+            );
+
+        button.setChecked(
+            sortType.equals(
+                type
+            )
+        );
+
+        button.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    if (
+                        sortType.equals(
+                            type
+                        )
+                    ) {
+
+                        sortAscending =
+                            !sortAscending;
+
+                    } else {
+
+                        sortType =
+                            type;
+
+                        sortAscending =
+                            false;
+                    }
+
+                    refreshUI();
+                }
+            }
+        );
+
+        row
+            .add(button)
+            .width(width)
+            .height(38f);
+    }
+
+    private void sortPlayers(
+        List<Player> players
+    ) {
+
+        Comparator<Player> comparator;
+
+        switch (
+            sortType
+        ) {
+
+            case "NOME":
+
+                comparator =
+                    Comparator.comparing(
+                        Player::getName
+                    );
+
+                break;
+
+            case "POS":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getPositionWeight
+                    );
+
+                break;
+
+            case "FATIGUE":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getFatigue
+                    );
+
+                break;
+
+            case "MORALE":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getMorale
+                    );
+
+                break;
+
+            case "GOALS":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getSeasonGoals
+                    );
+
+                break;
+
+            case "ASSISTS":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getSeasonAssists
+                    );
+
+                break;
+
+            case "YELLOW":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getSeasonYellowCards
+                    );
+
+                break;
+
+            case "RED":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getSeasonRedCards
+                    );
+
+                break;
+
+            case "SALARY":
+
+                comparator =
+                    Comparator.comparingLong(
+                        Player::getMonthlySalary
+                    );
+
+                break;
+
+            case "EFF":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getEffectiveOverall
+                    );
+
+                break;
+
+            default:
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getOverall
+                    );
+        }
+
+        if (
+            !sortAscending
+        ) {
+
+            comparator =
+                comparator.reversed();
+        }
+
+        players.sort(
+            comparator
+        );
+    }
+
+    // =========================================================
+    // FILTER
+    // =========================================================
+
+    private boolean matchesPositionFilter(
+        Player player
+    ) {
+
+        if (
+            "TODOS".equals(
+                positionFilter
+            )
+        ) {
+
+            return true;
+        }
+
+        int weight =
+            player.getPositionWeight();
+
+        switch (
+            positionFilter
+        ) {
+
+            case "GOLEIROS":
+                return weight == 1;
+
+            case "DEFESA":
+                return weight == 2;
+
+            case "MEIO-CAMPO":
+                return weight == 3;
+
+            case "ATAQUE":
+                return weight == 4;
+
+            default:
+                return true;
+        }
+    }
+
+    // =========================================================
+    // HELPERS
+    // =========================================================
+
+    private int positionWeight(
+        String position
+    ) {
+
+        if (
+            position == null
+        ) {
+            return 4;
+        }
+
+        if (
+            position.equals(
+                "GK"
+            )
+        ) {
+            return 1;
+        }
+
+        if (
+            position.matches(
+                "CB|RB|LB|RWB|LWB"
+            )
+        ) {
+            return 2;
+        }
+
+        if (
+            position.matches(
+                "CDM|CM|CAM|RM|LM"
+            )
+        ) {
+            return 3;
+        }
+
         return 4;
     }
 
-    private Texture loadLogo(Club target) {
-        try {
-            return new Texture(Gdx.files.internal(target.getLogoPath()));
-        } catch (Exception e) {
-            return new Texture(Gdx.files.internal("libgdx.png"));
-        }
+    private Label value(
+        int value
+    ) {
+
+        return ScreenUI.createValueLabel(
+            game.skin,
+            String.valueOf(
+                value
+            ),
+            Color.WHITE,
+            Align.center
+        );
     }
 
-    @Override public void render(float delta) {
-        Gdx.gl.glClearColor(0, 0, 0, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        stage.act();
+    private String formatSalary(
+        long salary
+    ) {
+
+        if (
+            salary >=
+                1_000_000
+        ) {
+
+            return String.format(
+                "WFL$ %.1fM",
+                salary /
+                    1_000_000f
+            );
+        }
+
+        if (
+            salary >=
+                1_000
+        ) {
+
+            return String.format(
+                "WFL$ %.0fK",
+                salary /
+                    1_000f
+            );
+        }
+
+        return "WFL$ " +
+            salary;
+    }
+
+    private Texture loadLogo(
+        Club target
+    ) {
+
+        try {
+
+            if (
+                target.getLogoPath() != null &&
+                    Gdx.files
+                        .internal(
+                            target.getLogoPath()
+                        )
+                        .exists()
+            ) {
+
+                return new Texture(
+                    Gdx.files.internal(
+                        target.getLogoPath()
+                    )
+                );
+            }
+
+        } catch (
+            Exception ignored
+        ) {
+        }
+
+        return null;
+    }
+
+    // =========================================================
+    // SCREEN
+    // =========================================================
+
+    @Override
+    public void render(
+        float delta
+    ) {
+
+        Gdx.gl.glClearColor(
+            0f,
+            0f,
+            0f,
+            1f
+        );
+
+        Gdx.gl.glClear(
+            GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        stage.act(
+            delta
+        );
+
         stage.draw();
     }
-    @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
+
+    @Override
+    public void resize(
+        int width,
+        int height
+    ) {
+
+        stage
+            .getViewport()
+            .update(
+                width,
+                height,
+                true
+            );
+    }
+
     @Override public void pause() {}
     @Override public void resume() {}
     @Override public void hide() {}
-    @Override public void dispose() {
+
+    @Override
+    public void dispose() {
+
         stage.dispose();
+
         pranchetaTexture.dispose();
         fieldTexture.dispose();
-        if (clubLogoTexture != null) clubLogoTexture.dispose();
-        if (opponentLogoTexture != null) opponentLogoTexture.dispose();
-        for (Texture texture : navigationTextures) texture.dispose();
-        navigationTextures.clear();
+
+        if (
+            clubLogoTexture != null
+        ) {
+
+            clubLogoTexture.dispose();
+        }
     }
 }

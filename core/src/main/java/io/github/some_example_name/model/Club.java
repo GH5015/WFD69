@@ -2,8 +2,10 @@ package io.github.some_example_name.model;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import io.github.some_example_name.model.DraftPick;
 
 public class Club {
@@ -17,6 +19,7 @@ public class Club {
     private int stadiumCapacity = 30000;
     private String philosophy = "Desenvolver Jovens";
     private String logoPath;
+    private boolean userControlled = false;
     private int winStreak = 0;
     private int lossStreak = 0;
 
@@ -206,6 +209,10 @@ public class Club {
             return;
         }
 
+        if (!player.canPlay()) {
+            return;
+        }
+
         Integer currentSlotOfPlayer = null;
         for (Map.Entry<Integer, Player> entry : tacticsMap.entrySet()) {
             if (entry.getValue() != null && entry.getValue().equals(player)) {
@@ -228,17 +235,478 @@ public class Club {
         syncStartingXIFromTacticsMap();
     }
 
+    /**
+     * Seleciona automaticamente o melhor XI para a formação atual.
+     *
+     * Prioridade:
+     * 1) posição principal exatamente igual ao slot;
+     * 2) posição secundária exatamente igual ao slot;
+     * 3) posição compatível/relacionada;
+     * 4) melhor jogador restante, sem colocar goleiro na linha
+     *    nem jogador de linha no gol.
+     *
+     * Jogadores lesionados ou suspensos são ignorados.
+     */
     public void autoSelectXI() {
         tacticsMap.clear();
-        if (formation == null) return;
+        startingXI.clear();
 
-        int slotsCount = formation.getPositionSlots().size();
-        int limit = Math.min(slotsCount, squad.size());
-
-        for (int i = 0; i < limit; i++) {
-            tacticsMap.put(i, squad.get(i));
+        if (
+            formation == null ||
+            formation.getPositionSlots() == null ||
+            squad == null ||
+            squad.isEmpty()
+        ) {
+            return;
         }
+
+        List<String> slots = formation.getPositionSlots();
+        int slotLimit = Math.min(11, slots.size());
+
+        Set<Player> usedPlayers = new HashSet<>();
+
+        // -----------------------------------------------------
+        // FASE 1: posição principal exata
+        // -----------------------------------------------------
+        fillAutoLineupPhase(
+            slots,
+            slotLimit,
+            usedPlayers,
+            1
+        );
+
+        // -----------------------------------------------------
+        // FASE 2: posição secundária exata
+        // -----------------------------------------------------
+        fillAutoLineupPhase(
+            slots,
+            slotLimit,
+            usedPlayers,
+            2
+        );
+
+        // -----------------------------------------------------
+        // FASE 3: posição relacionada/compatível
+        // -----------------------------------------------------
+        fillAutoLineupPhase(
+            slots,
+            slotLimit,
+            usedPlayers,
+            3
+        );
+
+        // -----------------------------------------------------
+        // FASE 4: último recurso
+        // -----------------------------------------------------
+        fillAutoLineupPhase(
+            slots,
+            slotLimit,
+            usedPlayers,
+            4
+        );
+
+        fillEmergencyLineupSlots(
+            slots,
+            slotLimit,
+            usedPlayers
+        );
+
         syncStartingXIFromTacticsMap();
+    }
+
+    /**
+     * Garante um XI completo quando o elenco não tem uma correspondência
+     * perfeita para algum slot. A prioridade continua sendo o jogador mais
+     * adequado; o último recurso evita vagas vazias na escalação da IA.
+     */
+    private void fillEmergencyLineupSlots(
+        List<String> slots,
+        int slotLimit,
+        Set<Player> usedPlayers
+    ) {
+        for (int slotIndex = 0; slotIndex < slotLimit; slotIndex++) {
+            if (tacticsMap.get(slotIndex) != null) {
+                continue;
+            }
+
+            String targetPosition = slots.get(slotIndex);
+            boolean goalkeeperSlot = "GK".equalsIgnoreCase(targetPosition);
+            Player bestPlayer = null;
+            int bestScore = Integer.MIN_VALUE;
+
+            for (Player player : squad) {
+                if (player == null || usedPlayers.contains(player) || !player.canPlay()) {
+                    continue;
+                }
+
+                boolean goalkeeper = player.getPrimaryPosition() == Position.GK;
+                if (goalkeeperSlot != goalkeeper) {
+                    continue;
+                }
+
+                int score = calculateAutoSelectionScore(player, targetPosition);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPlayer = player;
+                }
+            }
+
+            /*
+             * Caso todos os goleiros estejam indisponíveis, o time ainda
+             * entra com 11 atletas em vez de deixar o slot em branco.
+             */
+            if (bestPlayer == null && goalkeeperSlot) {
+                for (Player player : squad) {
+                    if (player == null || usedPlayers.contains(player) || !player.canPlay()) {
+                        continue;
+                    }
+
+                    int score = calculateAutoSelectionScore(player, targetPosition);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestPlayer = player;
+                    }
+                }
+            }
+
+            if (bestPlayer != null) {
+                tacticsMap.put(slotIndex, bestPlayer);
+                usedPlayers.add(bestPlayer);
+            }
+        }
+    }
+
+    /**
+     * Escolhe, para clubes controlados pela IA, a formação que obtém o
+     * melhor rendimento posicional do elenco disponível e escala o XI.
+     */
+    public void autoSelectBestFormationAndXI() {
+        if (squad == null || squad.isEmpty()) {
+            return;
+        }
+
+        Formation bestFormation = null;
+        Map<Integer, Player> bestTactics = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Formation candidate : Formation.values()) {
+            formation = candidate;
+            autoSelectXI();
+
+            int score = scoreCurrentTactics(candidate);
+            if (score > bestScore) {
+                bestScore = score;
+                bestFormation = candidate;
+                bestTactics = new HashMap<>(tacticsMap);
+            }
+        }
+
+        if (bestFormation != null && bestTactics != null) {
+            formation = bestFormation;
+            tacticsMap.clear();
+            tacticsMap.putAll(bestTactics);
+            syncStartingXIFromTacticsMap();
+        }
+    }
+
+    private int scoreCurrentTactics(Formation candidate) {
+        int score = 0;
+        List<String> slots = candidate.getPositionSlots();
+
+        for (int slotIndex = 0; slotIndex < slots.size(); slotIndex++) {
+            Player player = tacticsMap.get(slotIndex);
+            if (player == null) {
+                score -= 100000;
+                continue;
+            }
+
+            String targetPosition = slots.get(slotIndex);
+            String primaryPosition = player.getPrimaryPosition() != null
+                ? player.getPrimaryPosition().name()
+                : "";
+            String secondaryPosition = player.getSecondaryPosition() != null
+                ? player.getSecondaryPosition().name()
+                : "";
+
+            score += player.getEffectiveOverallForPosition(targetPosition) * 100;
+
+            if (primaryPosition.equalsIgnoreCase(targetPosition)) {
+                score += 120;
+            } else if (secondaryPosition.equalsIgnoreCase(targetPosition)) {
+                score += 70;
+            } else if (isRelatedPosition(primaryPosition, targetPosition)) {
+                score += 25;
+            }
+        }
+
+        return score;
+    }
+
+    private void fillAutoLineupPhase(
+        List<String> slots,
+        int slotLimit,
+        Set<Player> usedPlayers,
+        int phase
+    ) {
+        for (
+            int slotIndex = 0;
+            slotIndex < slotLimit;
+            slotIndex++
+        ) {
+            if (tacticsMap.get(slotIndex) != null) {
+                continue;
+            }
+
+            String targetPosition = slots.get(slotIndex);
+
+            Player bestPlayer = findBestPlayerForAutoSlot(
+                targetPosition,
+                usedPlayers,
+                phase
+            );
+
+            if (bestPlayer != null) {
+                tacticsMap.put(
+                    slotIndex,
+                    bestPlayer
+                );
+
+                usedPlayers.add(
+                    bestPlayer
+                );
+            }
+        }
+    }
+
+    private Player findBestPlayerForAutoSlot(
+        String targetPosition,
+        Set<Player> usedPlayers,
+        int phase
+    ) {
+        Player bestPlayer = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Player player : squad) {
+            if (
+                player == null ||
+                usedPlayers.contains(player) ||
+                !player.canPlay()
+            ) {
+                continue;
+            }
+
+            String primaryPosition =
+                player.getPrimaryPosition() != null
+                    ? player.getPrimaryPosition().name()
+                    : "";
+
+            String secondaryPosition =
+                player.getSecondaryPosition() != null
+                    ? player.getSecondaryPosition().name()
+                    : "";
+
+            boolean eligible = false;
+
+            switch (phase) {
+                case 1:
+                    eligible =
+                        primaryPosition.equalsIgnoreCase(
+                            targetPosition
+                        );
+                    break;
+
+                case 2:
+                    eligible =
+                        secondaryPosition.equalsIgnoreCase(
+                            targetPosition
+                        );
+                    break;
+
+                case 3:
+                    eligible =
+                        isRelatedPosition(
+                            primaryPosition,
+                            targetPosition
+                        ) ||
+                        (
+                            !secondaryPosition.isEmpty() &&
+                            isRelatedPosition(
+                                secondaryPosition,
+                                targetPosition
+                            )
+                        );
+                    break;
+
+                case 4:
+                    boolean targetIsGoalkeeper =
+                        "GK".equalsIgnoreCase(
+                            targetPosition
+                        );
+
+                    boolean playerIsGoalkeeper =
+                        "GK".equalsIgnoreCase(
+                            primaryPosition
+                        );
+
+                    eligible =
+                        targetIsGoalkeeper ==
+                            playerIsGoalkeeper;
+                    break;
+
+                default:
+                    break;
+            }
+
+            if (!eligible) {
+                continue;
+            }
+
+            int score =
+                calculateAutoSelectionScore(
+                    player,
+                    targetPosition
+                );
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestPlayer = player;
+            }
+        }
+
+        return bestPlayer;
+    }
+
+    private int calculateAutoSelectionScore(
+        Player player,
+        String targetPosition
+    ) {
+        int effectiveOverall =
+            player.getEffectiveOverallForPosition(
+                targetPosition
+            );
+
+        /*
+         * O effective overall já leva em conta a adaptação de
+         * posição e a fadiga. O OVR base funciona como desempate.
+         */
+        return
+            effectiveOverall * 100 +
+            player.getOverall();
+    }
+
+    private boolean isRelatedPosition(
+        String playerPosition,
+        String targetPosition
+    ) {
+        if (
+            playerPosition == null ||
+            targetPosition == null
+        ) {
+            return false;
+        }
+
+        String from =
+            playerPosition
+                .trim()
+                .toUpperCase();
+
+        String to =
+            targetPosition
+                .trim()
+                .toUpperCase();
+
+        if (from.equals(to)) {
+            return true;
+        }
+
+        // Goleiro nunca é adaptado para a linha ou vice-versa.
+        if (
+            from.equals("GK") ||
+            to.equals("GK")
+        ) {
+            return false;
+        }
+
+        switch (from) {
+            case "LB":
+                return
+                    to.equals("LWB") ||
+                    to.equals("LM");
+
+            case "LWB":
+                return
+                    to.equals("LB") ||
+                    to.equals("LM") ||
+                    to.equals("LW");
+
+            case "RB":
+                return
+                    to.equals("RWB") ||
+                    to.equals("RM");
+
+            case "RWB":
+                return
+                    to.equals("RB") ||
+                    to.equals("RM") ||
+                    to.equals("RW");
+
+            case "CB":
+                return
+                    to.equals("CDM");
+
+            case "CDM":
+                return
+                    to.equals("CM") ||
+                    to.equals("CB");
+
+            case "CM":
+                return
+                    to.equals("CDM") ||
+                    to.equals("CAM") ||
+                    to.equals("LM") ||
+                    to.equals("RM");
+
+            case "CAM":
+                return
+                    to.equals("CM") ||
+                    to.equals("CF");
+
+            case "LM":
+                return
+                    to.equals("LW") ||
+                    to.equals("CM") ||
+                    to.equals("LWB");
+
+            case "RM":
+                return
+                    to.equals("RW") ||
+                    to.equals("CM") ||
+                    to.equals("RWB");
+
+            case "LW":
+                return
+                    to.equals("LM") ||
+                    to.equals("CF");
+
+            case "RW":
+                return
+                    to.equals("RM") ||
+                    to.equals("CF");
+
+            case "CF":
+                return
+                    to.equals("ST") ||
+                    to.equals("CAM") ||
+                    to.equals("LW") ||
+                    to.equals("RW");
+
+            case "ST":
+                return
+                    to.equals("CF");
+
+            default:
+                return false;
+        }
     }
 
     private void syncStartingXIFromTacticsMap() {
@@ -250,6 +718,44 @@ public class Club {
         }
     }
 
+    /**
+     * Remove da escalação jogadores que não podem continuar na partida,
+     * como lesionados, suspensos ou expulsos.
+     */
+    public void removeUnavailablePlayersFromStartingXI() {
+        boolean lineupChanged = startingXI.removeIf(
+            player -> player == null || !player.canPlay()
+        );
+
+        boolean tacticsChanged = false;
+
+        for (
+            Map.Entry<Integer, Player> entry :
+            tacticsMap.entrySet()
+        ) {
+
+            Player player =
+                entry.getValue();
+
+            if (
+                player != null &&
+                    !player.canPlay()
+            ) {
+
+                entry.setValue(
+                    null
+                );
+
+                tacticsChanged =
+                    true;
+            }
+        }
+
+        if (lineupChanged || tacticsChanged) {
+            syncStartingXIFromTacticsMap();
+        }
+    }
+
     // Getters & Setters
     public List<Player> getPlayers() { return getSquad(); } // Alias de compatibilidade
     public List<Player> getSquad() { return squad; }
@@ -257,6 +763,9 @@ public class Club {
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+
+    public boolean isUserControlled() { return userControlled; }
+    public void setUserControlled(boolean userControlled) { this.userControlled = userControlled; }
 
     public String getNickname() { return nickname; }
     public void setNickname(String nickname) { this.nickname = nickname; }
@@ -288,6 +797,7 @@ public class Club {
     public void setLogoPath(String logoPath) { this.logoPath = logoPath; }
 
     public List<Player> getStartingXI() {
+        removeUnavailablePlayersFromStartingXI();
         if (startingXI.isEmpty() && !tacticsMap.isEmpty()) {
             syncStartingXIFromTacticsMap();
         }
@@ -301,7 +811,10 @@ public class Club {
     public Formation getFormation() { return formation; }
     public void setFormation(Formation formation) { this.formation = formation; }
 
-    public Map<Integer, Player> getTacticsMap() { return tacticsMap; }
+    public Map<Integer, Player> getTacticsMap() {
+        removeUnavailablePlayersFromStartingXI();
+        return tacticsMap;
+    }
     public void setTacticsMap(Map<Integer, Player> tacticsMap) {
         this.tacticsMap = tacticsMap;
         syncStartingXIFromTacticsMap();

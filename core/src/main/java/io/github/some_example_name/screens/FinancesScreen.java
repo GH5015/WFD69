@@ -8,231 +8,1269 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.ClubFinance;
 import io.github.some_example_name.model.EconomicPower;
 import io.github.some_example_name.model.FinancialHealthState;
+import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
 public class FinancesScreen implements Screen {
+
     private final Main game;
     private final Club club;
-    private Stage stage;
-    private Texture pranchetaTexture;
+
+    private final Stage stage;
+
+    private final Texture backgroundTexture;
+
     private Texture starTexture;
 
-    public FinancesScreen(Main game, Club club) {
-        this.game = game;
-        this.club = club;
-        this.stage = new Stage(new ScreenViewport());
-        this.pranchetaTexture = new Texture(Gdx.files.internal("prancheta.png"));
-        this.starTexture = new Texture(Gdx.files.internal("Icons8/icons8-estrela-48.png"));    }
+    // =========================================================
+    // CONSTRUTOR
+    // =========================================================
+
+    public FinancesScreen(
+        Main game,
+        Club club
+    ) {
+
+        this.game =
+            game;
+
+        this.club =
+            club;
+
+        this.stage =
+            new Stage(
+                new ScreenViewport()
+            );
+
+        this.backgroundTexture =
+            new Texture(
+                Gdx.files.internal(
+                    "prancheta.png"
+                )
+            );
+
+        try {
+
+            if (
+                Gdx.files
+                    .internal(
+                        "Icons8/icons8-estrela-48.png"
+                    )
+                    .exists()
+            ) {
+
+                starTexture =
+                    new Texture(
+                        Gdx.files.internal(
+                            "Icons8/icons8-estrela-48.png"
+                        )
+                    );
+            }
+
+        } catch (
+            Exception ignored
+        ) {
+
+            starTexture =
+                null;
+        }
+    }
+
+    // =========================================================
+    // SHOW
+    // =========================================================
 
     @Override
     public void show() {
-        Gdx.input.setInputProcessor(stage);
+
+        Gdx.input.setInputProcessor(
+            stage
+        );
+
         refreshUI();
     }
 
+    // =========================================================
+    // UI
+    // =========================================================
+
     private void refreshUI() {
+
         stage.clear();
-        Stack root = new Stack();
-        root.setFillParent(true);
-        stage.addActor(root);
 
-        root.add(new Image(new TextureRegionDrawable(pranchetaTexture)));
+        Stack root =
+            new Stack();
 
-        Table mainContent = new Table();
-        mainContent.pad(42, 238, 36, 74);
+        root.setFillParent(
+            true
+        );
 
-        // 1. Saldo no Topo
-        mainContent.add(createHeaderPanel()).growX().padBottom(12).row();
+        stage.addActor(
+            root
+        );
 
-        // 2. Receitas vs Despesas
-        mainContent.add(createFinancialStatementPanel()).growX().padBottom(12).row();
+        Image bg =
+            new Image(
+                new TextureRegionDrawable(
+                    backgroundTexture
+                )
+            );
 
-        // 3. Painéis Inferiores: Poder Econômico + Situação Financeira
-        Table bottomContainer = new Table();
-        bottomContainer.add(createEconomicOverviewPanel()).growX().uniformX().padRight(12);
-        bottomContainer.add(createSituationPanel()).growX().uniformX();
+        bg.setFillParent(
+            true
+        );
 
-        mainContent.add(bottomContainer).growX().row();
+        root.add(
+            bg
+        );
 
-        root.add(mainContent);
+        Table page =
+            ScreenUI.createPage(
+                true
+            );
 
-        NavigationDrawer.attach(stage, game, club, "FINANÇAS", true);
-        CareerOverlay.attach(stage, game, club);
+        ClubFinance finance =
+            club.getFinance();
+
+        // =====================================================
+        // HEADER
+        // =====================================================
+
+        page
+            .add(
+                ScreenUI.createHeader(
+                    game.skin,
+                    "FINANÇAS",
+                    club.getName()
+                        .toUpperCase()
+                )
+            )
+            .growX()
+            .height(
+                ScreenUI.HEADER_HEIGHT
+            )
+            .padBottom(10f)
+            .row();
+
+        // =====================================================
+        // TOP CARDS
+        // =====================================================
+
+        Table topCards =
+            createTopCards(
+                finance
+            );
+
+        page
+            .add(topCards)
+            .growX()
+            .height(112f)
+            .padBottom(10f)
+            .row();
+
+        // =====================================================
+        // RECEITAS / DESPESAS
+        // =====================================================
+
+        Table middle =
+            new Table();
+
+        middle
+            .add(
+                createRevenuePanel(
+                    finance
+                )
+            )
+            .grow()
+            .uniformX()
+            .padRight(10f);
+
+        middle
+            .add(
+                createExpensePanel(
+                    finance
+                )
+            )
+            .grow()
+            .uniformX();
+
+        page
+            .add(middle)
+            .grow()
+            .padBottom(10f)
+            .row();
+
+        // =====================================================
+        // BOTTOM
+        // =====================================================
+
+        Table bottom =
+            new Table();
+
+        bottom
+            .add(
+                createSalaryCapPanel(
+                    finance
+                )
+            )
+            .grow()
+            .uniformX()
+            .padRight(10f);
+
+        bottom
+            .add(
+                createEconomicPowerPanel(
+                    finance
+                )
+            )
+            .grow()
+            .uniformX()
+            .padRight(10f);
+
+        bottom
+            .add(
+                createHealthPanel(
+                    finance
+                )
+            )
+            .grow()
+            .uniformX();
+
+        page
+            .add(bottom)
+            .growX()
+            .height(180f)
+            .row();
+
+        root.add(
+            page
+        );
+
+        NavigationDrawer.attach(
+            stage,
+            game,
+            club,
+            "FINANÇAS",
+            true
+        );
+
     }
 
-    private Table createHeaderPanel() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createRoundedPanel(StyleFactory.MUSGO_DEEP, StyleFactory.GOLD));
-        panel.pad(10, 16, 10, 16);
+    // =========================================================
+    // TOP CARDS
+    // =========================================================
 
-        ClubFinance fin = club.getFinance();
+    private Table createTopCards(
+        ClubFinance finance
+    ) {
 
-        Label title = new Label("SALDO ATUAL", game.skin, "font-bold");
-        title.setColor(StyleFactory.SOFT_YELLOW);
-        panel.add(title).center().row();
+        Table cards =
+            new Table();
 
-        String formattedBalance = String.format("WFL$ %,d,00", fin.getBalance()).replace(',', '.');
-        Label balanceLabel = new Label(formattedBalance, game.skin, "font-title");
-        balanceLabel.setColor(StyleFactory.GOLD);
-        panel.add(balanceLabel).center().padBottom(6).row();
+        long balance =
+            finance.getBalance();
 
-        Table flowTable = new Table();
-        flowTable.add(new Label("Receita mensal: ", game.skin, "font-bold")).left();
-        Label revLabel = new Label("+" + formatWFL(fin.getTotalMonthlyRevenue()), game.skin, "font-bold");
-        revLabel.setColor(Color.GREEN);
-        flowTable.add(revLabel).left().padRight(24);
+        long revenue =
+            finance.getTotalMonthlyRevenue();
 
-        flowTable.add(new Label("Despesas mensais: ", game.skin, "font-bold")).left();
-        Label expLabel = new Label("-" + formatWFL(fin.getTotalMonthlyExpenses()), game.skin, "font-bold");
-        expLabel.setColor(Color.RED);
-        flowTable.add(expLabel).left().row();
+        long expenses =
+            finance.getTotalMonthlyExpenses();
 
-        long net = fin.getMonthlyNetResult();
-        Label netLabel = new Label("Resultado: " + (net >= 0 ? "+" : "-") + formatWFL(Math.abs(net)), game.skin, "font-bold");
-        netLabel.setColor(net >= 0 ? Color.GREEN : Color.RED);
-        flowTable.add(netLabel).colspan(4).center().padTop(4);
+        long net =
+            finance.getMonthlyNetResult();
 
-        panel.add(flowTable).center();
+        cards
+            .add(
+                createLargeFinanceCard(
+                    "SALDO ATUAL",
+                    formatWFL(
+                        balance
+                    ),
+                    balance >= 0
+                        ? StyleFactory.GOLD
+                        : ScreenUI.DANGER
+                )
+            )
+            .growX()
+            .uniformX()
+            .padRight(8f);
+
+        cards
+            .add(
+                createLargeFinanceCard(
+                    "RECEITA MENSAL",
+                    "+" +
+                        formatWFL(
+                            revenue
+                        ),
+                    ScreenUI.SUCCESS
+                )
+            )
+            .growX()
+            .uniformX()
+            .padRight(8f);
+
+        cards
+            .add(
+                createLargeFinanceCard(
+                    "DESPESAS MENSAIS",
+                    "-" +
+                        formatWFL(
+                            expenses
+                        ),
+                    ScreenUI.DANGER
+                )
+            )
+            .growX()
+            .uniformX()
+            .padRight(8f);
+
+        cards
+            .add(
+                createLargeFinanceCard(
+                    "RESULTADO MENSAL",
+                    (
+                        net >= 0
+                            ? "+"
+                            : "-"
+                    ) +
+                        formatWFL(
+                            Math.abs(
+                                net
+                            )
+                        ),
+                    net >= 0
+                        ? ScreenUI.SUCCESS
+                        : ScreenUI.DANGER
+                )
+            )
+            .growX()
+            .uniformX();
+
+        return cards;
+    }
+
+    private Table createLargeFinanceCard(
+        String title,
+        String value,
+        Color valueColor
+    ) {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        Label titleLabel =
+            new Label(
+                title,
+                game.skin,
+                "font-bold"
+            );
+
+        titleLabel.setFontScale(
+            0.50f
+        );
+
+        titleLabel.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        titleLabel.setAlignment(
+            Align.center
+        );
+
+        panel
+            .add(titleLabel)
+            .center()
+            .row();
+
+        Label valueLabel =
+            new Label(
+                value,
+                game.skin,
+                "font-title"
+            );
+
+        valueLabel.setFontScale(
+            0.64f
+        );
+
+        valueLabel.setColor(
+            valueColor
+        );
+
+        valueLabel.setAlignment(
+            Align.center
+        );
+
+        panel
+            .add(valueLabel)
+            .center()
+            .padTop(8f);
+
         return panel;
     }
 
-    private Table createFinancialStatementPanel() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createRoundedPanel(StyleFactory.MUSGO_DEEP, StyleFactory.GOLD));
-        panel.pad(14, 20, 14, 20);
+    // =========================================================
+    // RECEITAS
+    // =========================================================
 
-        ClubFinance fin = club.getFinance();
+    private Table createRevenuePanel(
+        ClubFinance finance
+    ) {
 
-        // Coluna Receitas
-        Table revCol = new Table();
-        revCol.add(new Label("RECEITAS", game.skin, "font-bold")).left().padBottom(8).colspan(2).row();
-        addFinanceRow(revCol, "Bilheteria", fin.getTicketRevenue(), Color.WHITE);
-        addFinanceRow(revCol, "Televisão", fin.getTvRevenue(), Color.WHITE);
-        addFinanceRow(revCol, "Camisas", fin.getShirtSalesRevenue(), Color.WHITE);
-        addFinanceRow(revCol, "Premiações", fin.getPrizeMoneyRevenue(), Color.WHITE);
-        addFinanceRow(revCol, "TOTAL", fin.getTotalMonthlyRevenue(), Color.GREEN);
+        Table panel =
+            ScreenUI.createPanel();
 
-        // Coluna Despesas
-        Table expCol = new Table();
-        expCol.add(new Label("DESPESAS", game.skin, "font-bold")).left().padBottom(8).colspan(2).row();
-        addFinanceRow(expCol, "Salários", fin.getPlayerSalariesExpense(), Color.WHITE);
-        addFinanceRow(expCol, "Infraestrutura", fin.getInfrastructureExpense(), Color.WHITE);
-        addFinanceRow(expCol, "Dep. médico", fin.getMedicalExpense(), Color.WHITE);
-        addFinanceRow(expCol, "Olheiros", fin.getScoutingExpense(), Color.WHITE);
-        addFinanceRow(expCol, "TOTAL", fin.getTotalMonthlyExpenses(), Color.RED);
+        panel.top();
 
-        panel.add(revCol).growX().top().padRight(28);
-        panel.add(expCol).growX().top();
+        Table header =
+            new Table();
+
+        Label title =
+            ScreenUI.createSectionTitle(
+                game.skin,
+                "RECEITAS MENSAIS"
+            );
+
+        header
+            .add(title)
+            .left()
+            .expandX();
+
+        Label total =
+            ScreenUI.createBoldValue(
+                game.skin,
+                formatWFL(
+                    finance.getTotalMonthlyRevenue()
+                ),
+                ScreenUI.SUCCESS,
+                Align.right
+            );
+
+        header
+            .add(total)
+            .right();
+
+        panel
+            .add(header)
+            .growX()
+            .padBottom(12f)
+            .row();
+
+        addFinanceLine(
+            panel,
+            "Bilheteria",
+            finance.getTicketRevenue(),
+            ScreenUI.SUCCESS
+        );
+
+        addFinanceLine(
+            panel,
+            "Direitos de TV",
+            finance.getTvRevenue(),
+            ScreenUI.SUCCESS
+        );
+
+        addFinanceLine(
+            panel,
+            "Venda de camisas",
+            finance.getShirtSalesRevenue(),
+            ScreenUI.SUCCESS
+        );
+
+        addFinanceLine(
+            panel,
+            "Premiações",
+            finance.getPrizeMoneyRevenue(),
+            ScreenUI.SUCCESS
+        );
+
+        panel
+            .add(
+                ScreenUI.createDivider()
+            )
+            .growX()
+            .height(1f)
+            .colspan(2)
+            .padTop(9f)
+            .padBottom(9f)
+            .row();
+
+        addFinanceLine(
+            panel,
+            "TOTAL",
+            finance.getTotalMonthlyRevenue(),
+            ScreenUI.SUCCESS,
+            true
+        );
 
         return panel;
     }
 
-    private Table createEconomicOverviewPanel() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createRoundedPanel(StyleFactory.MUSGO_DEEP, StyleFactory.GOLD));
-        panel.pad(14, 18, 14, 18);
+    // =========================================================
+    // DESPESAS
+    // =========================================================
 
-        ClubFinance fin = club.getFinance();
+    private Table createExpensePanel(
+        ClubFinance finance
+    ) {
 
-        Label title = new Label("PODER ECONÔMICO", game.skin, "font-bold");
-        title.setColor(StyleFactory.SOFT_YELLOW);
-        panel.add(title).colspan(2).left().padBottom(6).row();
+        Table panel =
+            ScreenUI.createPanel();
 
-        // Montagem gráfica com o PNG icons8-estrela-48.png
-        Table starsWidget = createStarsWidget();
-        panel.add(starsWidget).colspan(2).left().padBottom(10).row();
+        panel.top();
 
-        String annualRev = String.format("WFL$ %,dM", fin.getTotalAnnualRevenue() / 1_000_000);
-        String clubVal = String.format("WFL$ %,dM", fin.getClubValuation() / 1_000_000);
+        Table header =
+            new Table();
 
-        panel.add(new Label("Receita anual:", game.skin, "font-bold")).left().expandX();
-        Label revLabel = new Label(annualRev, game.skin, "font-bold");
-        revLabel.setColor(Color.WHITE);
-        panel.add(revLabel).right().row();
+        header
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "DESPESAS MENSAIS"
+                )
+            )
+            .left()
+            .expandX();
 
-        panel.add(new Label("Valor do clube:", game.skin, "font-bold")).left().expandX().padTop(4);
-        Label valLabel = new Label(clubVal, game.skin, "font-bold");
-        valLabel.setColor(StyleFactory.SOFT_YELLOW);
-        panel.add(valLabel).right().padTop(4).row();
+        header
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    formatWFL(
+                        finance.getTotalMonthlyExpenses()
+                    ),
+                    ScreenUI.DANGER,
+                    Align.right
+                )
+            )
+            .right();
+
+        panel
+            .add(header)
+            .growX()
+            .padBottom(12f)
+            .row();
+
+        addFinanceLine(
+            panel,
+            "Salários",
+            finance.getPlayerSalariesExpense(),
+            ScreenUI.DANGER
+        );
+
+        addFinanceLine(
+            panel,
+            "Infraestrutura",
+            finance.getInfrastructureExpense(),
+            ScreenUI.DANGER
+        );
+
+        addFinanceLine(
+            panel,
+            "Departamento médico",
+            finance.getMedicalExpense(),
+            ScreenUI.DANGER
+        );
+
+        addFinanceLine(
+            panel,
+            "Scouting",
+            finance.getScoutingExpense(),
+            ScreenUI.DANGER
+        );
+
+        panel
+            .add(
+                ScreenUI.createDivider()
+            )
+            .growX()
+            .height(1f)
+            .colspan(2)
+            .padTop(9f)
+            .padBottom(9f)
+            .row();
+
+        addFinanceLine(
+            panel,
+            "TOTAL",
+            finance.getTotalMonthlyExpenses(),
+            ScreenUI.DANGER,
+            true
+        );
 
         return panel;
     }
+
+    // =========================================================
+    // SALARY CAP
+    // =========================================================
+
+    private Table createSalaryCapPanel(
+        ClubFinance finance
+    ) {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "SALARY CAP"
+                )
+            )
+            .left()
+            .padBottom(12f)
+            .row();
+
+        long cap =
+            finance.getSalaryCap();
+
+        long payroll =
+            finance.getAnnualPayroll();
+
+        long available =
+            finance.getAvailableCapSpace();
+
+        double percentage =
+            cap > 0
+                ? (
+                payroll *
+                    100.0 /
+                    cap
+            )
+                : 0.0;
+
+        Table capNumbers =
+            new Table();
+
+        capNumbers
+            .add(
+                ScreenUI.createSubtitle(
+                    game.skin,
+                    "CAP"
+                )
+            )
+            .left()
+            .expandX();
+
+        capNumbers
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    formatWFL(
+                        cap
+                    ),
+                    StyleFactory.SOFT_YELLOW,
+                    Align.right
+                )
+            )
+            .right()
+            .row();
+
+        capNumbers
+            .add(
+                ScreenUI.createSubtitle(
+                    game.skin,
+                    "FOLHA"
+                )
+            )
+            .left()
+            .expandX()
+            .padTop(5f);
+
+        capNumbers
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    formatWFL(
+                        payroll
+                    ),
+                    Color.WHITE,
+                    Align.right
+                )
+            )
+            .right()
+            .padTop(5f)
+            .row();
+
+        panel
+            .add(capNumbers)
+            .growX()
+            .padBottom(10f)
+            .row();
+
+        Table percentageRow =
+            new Table();
+
+        Label used =
+            new Label(
+                String.format(
+                    "%.1f%% utilizado",
+                    percentage
+                ),
+                game.skin,
+                "font-bold"
+            );
+
+        used.setFontScale(
+            0.60f
+        );
+
+        Color usageColor =
+            percentage >=
+                100
+                ? ScreenUI.DANGER
+                : percentage >=
+                90
+                ? ScreenUI.WARNING
+                : ScreenUI.SUCCESS;
+
+        used.setColor(
+            usageColor
+        );
+
+        percentageRow
+            .add(used)
+            .left()
+            .expandX();
+
+        percentageRow
+            .add(
+                ScreenUI.createBlockProgress(
+                    game.skin,
+                    percentage,
+                    12,
+                    usageColor
+                )
+            )
+            .right();
+
+        panel
+            .add(percentageRow)
+            .growX()
+            .padBottom(8f)
+            .row();
+
+        Table space =
+            ScreenUI.createStatusBox(
+                game.skin,
+                "ESPAÇO DISPONÍVEL",
+                formatWFL(
+                    available
+                ),
+                available >= 0
+                    ? ScreenUI.SUCCESS
+                    : ScreenUI.DANGER
+            );
+
+        panel
+            .add(space)
+            .growX()
+            .height(42f);
+
+        return panel;
+    }
+
+    // =========================================================
+    // ECONOMIC POWER
+    // =========================================================
+
+    private Table createEconomicPowerPanel(
+        ClubFinance finance
+    ) {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "PODER ECONÔMICO"
+                )
+            )
+            .left()
+            .padBottom(10f)
+            .row();
+
+        panel
+            .add(
+                createStarsWidget()
+            )
+            .left()
+            .padBottom(12f)
+            .row();
+
+        Table values =
+            new Table();
+
+        values
+            .add(
+                ScreenUI.createSubtitle(
+                    game.skin,
+                    "RECEITA ANUAL"
+                )
+            )
+            .left()
+            .expandX();
+
+        values
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    compactWFL(
+                        finance.getTotalAnnualRevenue()
+                    ),
+                    Color.WHITE,
+                    Align.right
+                )
+            )
+            .right()
+            .row();
+
+        values
+            .add(
+                ScreenUI.createSubtitle(
+                    game.skin,
+                    "VALOR DO CLUBE"
+                )
+            )
+            .left()
+            .expandX()
+            .padTop(7f);
+
+        values
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    compactWFL(
+                        finance.getClubValuation()
+                    ),
+                    StyleFactory.GOLD,
+                    Align.right
+                )
+            )
+            .right()
+            .padTop(7f);
+
+        panel
+            .add(values)
+            .growX();
+
+        return panel;
+    }
+
+    // =========================================================
+    // HEALTH
+    // =========================================================
+
+    private Table createHealthPanel(
+        ClubFinance finance
+    ) {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "SAÚDE FINANCEIRA"
+                )
+            )
+            .left()
+            .padBottom(12f)
+            .row();
+
+        FinancialHealthState health =
+            finance.getHealthState();
+
+        Table stateBox =
+            ScreenUI.createStatusBox(
+                game.skin,
+                "SITUAÇÃO",
+                health.getFormattedStatus(),
+                health.getColor()
+            );
+
+        panel
+            .add(stateBox)
+            .growX()
+            .height(44f)
+            .padBottom(9f)
+            .row();
+
+        long monthlyNet =
+            finance.getMonthlyNetResult();
+
+        panel
+            .add(
+                ScreenUI.createStatusBox(
+                    game.skin,
+                    "FLUXO MENSAL",
+                    (
+                        monthlyNet >= 0
+                            ? "+"
+                            : "-"
+                    ) +
+                        formatWFL(
+                            Math.abs(
+                                monthlyNet
+                            )
+                        ),
+                    monthlyNet >= 0
+                        ? ScreenUI.SUCCESS
+                        : ScreenUI.DANGER
+                )
+            )
+            .growX()
+            .height(44f)
+            .padBottom(9f)
+            .row();
+
+        panel
+            .add(
+                ScreenUI.createStatusBox(
+                    game.skin,
+                    "CAIXA",
+                    compactWFL(
+                        finance.getBalance()
+                    ),
+                    finance.getBalance() >=
+                        0
+                        ? StyleFactory.SOFT_YELLOW
+                        : ScreenUI.DANGER
+                )
+            )
+            .growX()
+            .height(44f);
+
+        return panel;
+    }
+
+    // =========================================================
+    // FINANCE ROW
+    // =========================================================
+
+    private void addFinanceLine(
+        Table panel,
+        String label,
+        long amount,
+        Color valueColor
+    ) {
+
+        addFinanceLine(
+            panel,
+            label,
+            amount,
+            valueColor,
+            false
+        );
+    }
+
+    private void addFinanceLine(
+        Table panel,
+        String label,
+        long amount,
+        Color valueColor,
+        boolean bold
+    ) {
+
+        Label labelActor;
+
+        if (
+            bold
+        ) {
+
+            labelActor =
+                new Label(
+                    label,
+                    game.skin,
+                    "font-bold"
+                );
+
+        } else {
+
+            labelActor =
+                new Label(
+                    label,
+                    game.skin
+                );
+        }
+
+        labelActor.setFontScale(
+            bold
+                ? 0.64f
+                : 0.60f
+        );
+
+        labelActor.setColor(
+            bold
+                ? Color.WHITE
+                : ScreenUI.MUTED_TEXT
+        );
+
+        panel
+            .add(labelActor)
+            .left()
+            .expandX()
+            .padBottom(8f);
+
+        Label amountActor =
+            new Label(
+                formatWFL(
+                    amount
+                ),
+                game.skin,
+                "font-bold"
+            );
+
+        amountActor.setFontScale(
+            bold
+                ? 0.67f
+                : 0.61f
+        );
+
+        amountActor.setColor(
+            valueColor
+        );
+
+        panel
+            .add(amountActor)
+            .right()
+            .padBottom(8f)
+            .row();
+    }
+
+    // =========================================================
+    // STARS
+    // =========================================================
 
     private Table createStarsWidget() {
-        Table starsTable = new Table();
-        int rating = EconomicPower.getStarRating(club);
 
-        for (int i = 0; i < 5; i++) {
-            Image starImage = new Image(new TextureRegionDrawable(starTexture));
-            if (i < rating) {
-                starImage.setColor(StyleFactory.GOLD);
+        Table stars =
+            new Table();
+
+        int rating =
+            EconomicPower
+                .getStarRating(
+                    club
+                );
+
+        for (
+            int i = 0;
+            i < 5;
+            i++
+        ) {
+
+            if (
+                starTexture != null
+            ) {
+
+                Image star =
+                    new Image(
+                        new TextureRegionDrawable(
+                            starTexture
+                        )
+                    );
+
+                star.setScaling(
+                    Scaling.fit
+                );
+
+                star.setColor(
+                    i < rating
+                        ? StyleFactory.GOLD
+                        : new Color(
+                        1f,
+                        1f,
+                        1f,
+                        0.18f
+                    )
+                );
+
+                stars
+                    .add(star)
+                    .size(24f)
+                    .padRight(4f);
+
             } else {
-                starImage.setColor(new Color(1f, 1f, 1f, 0.22f)); // Opacidade reduzida para estrelas inativas
+
+                Label star =
+                    new Label(
+                        i < rating
+                            ? "★"
+                            : "☆",
+                        game.skin,
+                        "font-bold"
+                    );
+
+                star.setColor(
+                    i < rating
+                        ? StyleFactory.GOLD
+                        : Color.DARK_GRAY
+                );
+
+                stars
+                    .add(star)
+                    .padRight(3f);
             }
-            starsTable.add(starImage).size(22, 22).padRight(4);
         }
-        return starsTable;
+
+        return stars;
     }
 
-    private Table createSituationPanel() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createRoundedPanel(StyleFactory.MUSGO_DEEP, StyleFactory.GOLD));
-        panel.pad(14, 18, 14, 18);
+    // =========================================================
+    // FORMAT
+    // =========================================================
 
-        ClubFinance fin = club.getFinance();
-        FinancialHealthState health = fin.getHealthState();
+    private String formatWFL(
+        long amount
+    ) {
 
-        Label title = new Label("SITUAÇÃO FINANCEIRA", game.skin, "font-bold");
-        title.setColor(StyleFactory.SOFT_YELLOW);
-        panel.add(title).colspan(2).left().padBottom(8).row();
-
-        // Caixa
-        panel.add(new Label("Caixa:", game.skin, "font-bold")).left().expandX();
-        Label healthLabel = new Label(health.getFormattedStatus(), game.skin, "font-bold");
-        healthLabel.setColor(health.getColor());
-        panel.add(healthLabel).right().row();
-
-        // Linhas do Salary Cap
-        addFinanceRow(panel, "Salary Cap", fin.getSalaryCap(), Color.WHITE);
-        addFinanceRow(panel, "Folha salarial", fin.getAnnualPayroll(), Color.WHITE);
-
-        long space = fin.getAvailableCapSpace();
-        addFinanceRow(panel, "Espaço disponível", space, space >= 0 ? Color.GREEN : Color.RED);
-
-        return panel;
+        return "WFL$ " +
+            String.format(
+                "%,d",
+                amount
+            ).replace(
+                ',',
+                '.'
+            );
     }
 
-    private void addFinanceRow(Table parent, String labelText, long amount, Color valueColor) {
-        parent.add(new Label(labelText, game.skin, "font-bold")).left().expandX().padBottom(3);
-        Label valLabel = new Label(formatWFL(amount), game.skin, "font-bold");
-        valLabel.setColor(valueColor);
-        parent.add(valLabel).right().padBottom(3).row();
+    private String compactWFL(
+        long amount
+    ) {
+
+        long absolute =
+            Math.abs(
+                amount
+            );
+
+        String prefix =
+            amount <
+                0
+                ? "-WFL$ "
+                : "WFL$ ";
+
+        if (
+            absolute >=
+                1_000_000_000L
+        ) {
+
+            return prefix +
+                String.format(
+                    "%.2fB",
+                    absolute /
+                        1_000_000_000f
+                );
+        }
+
+        if (
+            absolute >=
+                1_000_000L
+        ) {
+
+            return prefix +
+                String.format(
+                    "%.2fM",
+                    absolute /
+                        1_000_000f
+                );
+        }
+
+        if (
+            absolute >=
+                1_000L
+        ) {
+
+            return prefix +
+                String.format(
+                    "%.0fK",
+                    absolute /
+                        1_000f
+                );
+        }
+
+        return prefix +
+            absolute;
     }
 
-    private String formatWFL(long amount) {
-        return "WFL$ " + String.format("%,d", amount).replace(',', '.');
-    }
+    // =========================================================
+    // SCREEN
+    // =========================================================
 
-    @Override public void render(float delta) {
-        Gdx.gl.glClearColor(0, 0, 0, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        stage.act();
+    @Override
+    public void render(
+        float delta
+    ) {
+
+        Gdx.gl.glClearColor(
+            0f,
+            0f,
+            0f,
+            1f
+        );
+
+        Gdx.gl.glClear(
+            GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        stage.act(
+            delta
+        );
+
         stage.draw();
     }
 
-    @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
+    @Override
+    public void resize(
+        int width,
+        int height
+    ) {
+
+        stage
+            .getViewport()
+            .update(
+                width,
+                height,
+                true
+            );
+    }
+
     @Override public void pause() {}
     @Override public void resume() {}
     @Override public void hide() {}
-    @Override public void dispose() {
+
+    @Override
+    public void dispose() {
+
         stage.dispose();
-        if (pranchetaTexture != null) pranchetaTexture.dispose();
-        if (starTexture != null) starTexture.dispose();
+
+        backgroundTexture.dispose();
+
+        if (
+            starTexture != null
+        ) {
+
+            starTexture.dispose();
+        }
     }
 }

@@ -10,17 +10,24 @@ public class Player {
     private Position primaryPosition;
     private Position secondaryPosition;
     private int age;
+    private double height = 1.80;
     private TechnicalAttributes technicalAttributes;
     private int overall;
     private int potential;
     double salary;
+    private double negotiatedMonthlySalary = -1.0;
 
     // --- VÍNCULO DE CLUB E CONTRATO ---
-    private Club currentClub; 
+    private Club currentClub;
     private int contractYears;
     private int contractEndYear;
 
     private int seasonGoals = 0, seasonAssists = 0, seasonYellowCards = 0, seasonRedCards = 0;
+    private int seasonAppearances = 0;
+    private int seasonCleanSheets = 0;
+    private double seasonRatingTotal = 0.0;
+    private int seasonRatingMatches = 0;
+    private int nextContractNegotiationYear = 0;
 
     // --- CAMPOS PARA CARTÕES NA PARTIDA EM ANDAMENTO ---
     private int matchYellowCards = 0;
@@ -32,6 +39,7 @@ public class Player {
     private int suspendedMatches = 0;
     private int injuredMatches = 0;
     private String injuryType = null;
+    private boolean injuredInCurrentMatch = false;
 
     // --- SISTEMA DE MORAL ---
     public int getMorale() {
@@ -47,23 +55,176 @@ public class Player {
     }
 
     /**
-     * Calcula o Salário Mensal do jogador (WFL$ 1969).
-     * Formula: Base = 6.000 * e^(0.11 * (OVR - 60))
-     * Bônus = 1% para cada ponto de Potencial acima do OVR
+     * Calcula o salário mensal desejado (WFL$ 1969).
+     *
+     * A remuneração combina valor de mercado, overall, idade e potencial.
+     * Mantém uma parcela suavizada da curva exponencial anterior para que os
+     * atletas de elite continuem valorizados, sem criar saltos irreais acima
+     * de 90 de OVR.
      */
     public long getMonthlySalary() {
-        // Se já tiver um salário negociado salvo em 'salary', utiliza-o
-        if (this.salary > 0) {
-            return Math.round(this.salary);
+        if (this.negotiatedMonthlySalary >= 0.0) {
+            return Math.max(
+                1L,
+                Math.round(this.negotiatedMonthlySalary)
+            );
         }
 
-        // Caso contrário, calcula pela fórmula de regulamento WFL 1969
-        double baseSalary = 6000.0 * Math.exp(0.11 * (this.overall - 60));
-        int potentialDiff = Math.max(0, this.potential - this.overall);
-        double potentialBonus = 1.0 + (potentialDiff * 0.01);
+        int marketValue =
+            TradeValueCalculator.calculateTradeValue(
+                this
+            );
 
-        double finalMonthlySalary = baseSalary * potentialBonus;
-        return Math.max(6000L, Math.round(finalMonthlySalary));
+        int potentialGap =
+            Math.max(
+                0,
+                this.potential -
+                    this.overall
+            );
+
+        double overallComponent =
+            calculateOverallSalaryBase();
+
+        double ageComponent =
+            calculateAgeSalaryAdjustment();
+
+        /* Mercado e potencial refinam a proposta, sem superar OVR e idade. */
+        double marketComponent =
+            marketValue * 25.0;
+
+        double potentialComponent =
+            Math.min(
+                3_000.0,
+                potentialGap * 150.0
+            );
+
+        /* Curva anterior preservada apenas como pequena referência histórica. */
+        double legacyComponent =
+            6_000.0 *
+                Math.exp(
+                    0.04 *
+                        (this.overall - 60)
+                );
+
+        double recalibratedSalary =
+            overallComponent +
+                ageComponent +
+                marketComponent +
+                potentialComponent +
+                (legacyComponent * 0.02);
+
+        /*
+         * Contratos existentes continuam relevantes, mas não perpetuam a
+         * discrepância antiga de salários entre atletas semelhantes.
+         */
+        if (
+            this.salary > 0
+        ) {
+
+            double contractWeight =
+                this.overall >= 90
+                    ? 0.005
+                    : 0.03;
+
+            recalibratedSalary =
+                (recalibratedSalary *
+                    (1.0 - contractWeight)) +
+                    (this.salary *
+                        contractWeight);
+        }
+
+        return Math.max(
+            8_000L,
+            Math.round(
+                recalibratedSalary / 100.0
+            ) * 100L
+        );
+    }
+
+    private double calculateOverallSalaryBase() {
+
+        if (
+            this.overall <= 60
+        ) {
+
+            return 15_000.0 +
+                (Math.max(
+                    40,
+                    this.overall
+                ) - 40) *
+                    700.0;
+        }
+
+        if (
+            this.overall <= 75
+        ) {
+
+            return 29_000.0 +
+                ((this.overall - 60) *
+                    800.0);
+        }
+
+        if (this.overall <= 82) {
+            return 41_000.0 +
+                ((this.overall - 75) * 1_400.0);
+        }
+
+        if (this.overall <= 89) {
+            /* Faixa de estrela: cada ponto de OVR passa a ter peso bem maior. */
+            return 50_800.0 +
+                ((this.overall - 82) * 2_400.0);
+        }
+
+        /* Elite continua cara, sem criar um salto desproporcional acima de 90. */
+        return 67_600.0 +
+            ((this.overall - 89) * 850.0);
+    }
+
+    private double calculateAgeSalaryAdjustment() {
+
+        if (
+            this.age <= 20
+        ) {
+
+            return 8_000.0;
+        }
+
+        if (
+            this.age <= 23
+        ) {
+
+            return 4_500.0;
+        }
+
+        if (
+            this.age <= 27
+        ) {
+
+            return 1_500.0;
+        }
+
+        if (
+            this.age <= 30
+        ) {
+
+            return 0.0;
+        }
+
+        if (
+            this.age <= 33
+        ) {
+
+            return -4_500.0;
+        }
+
+        if (
+            this.age <= 34
+        ) {
+
+            return -8_500.0;
+        }
+
+        return -12_000.0;
     }
 
     /**
@@ -71,6 +232,14 @@ public class Player {
      */
     public long getAnnualSalary() {
         return getMonthlySalary() * 12L;
+    }
+
+    public double getHeight() {
+        return height;
+    }
+
+    public void setHeight(double height) {
+        this.height = height;
     }
 
     public Player(String name, String nationality, Position primaryPosition, Position secondaryPosition, int age,
@@ -216,6 +385,12 @@ public class Player {
 
     public void addGoal() { this.seasonGoals++; }
     public void addAssist() { this.seasonAssists++; }
+    public void addSeasonAppearance() { this.seasonAppearances++; }
+    public void addCleanSheet() { this.seasonCleanSheets++; }
+    public void addSeasonRating(double rating) {
+        this.seasonRatingTotal += Math.max(1.0, Math.min(10.0, rating));
+        this.seasonRatingMatches++;
+    }
 
     // --- MÉTODOS DE CARTÕES E SUSPENSÃO ---
     public int getYellowCards() { return matchYellowCards; }
@@ -241,6 +416,7 @@ public class Player {
     public void resetMatchStats() {
         this.matchYellowCards = 0;
         this.matchRedCards = 0;
+        this.injuredInCurrentMatch = false;
     }
 
     // Sistema de Suspensão
@@ -253,6 +429,7 @@ public class Player {
     public void injure(int matches, String type) {
         this.injuredMatches = Math.max(0, matches);
         this.injuryType = type;
+        this.injuredInCurrentMatch = this.injuredMatches > 0;
     }
 
     public void setInjuryDuration(int matches) {
@@ -265,6 +442,7 @@ public class Player {
 
     public void decreaseInjury() { this.injuredMatches = Math.max(0, this.injuredMatches - 1); }
     public boolean isInjured() { return injuredMatches > 0; }
+    public boolean wasInjuredInCurrentMatch() { return injuredInCurrentMatch; }
     public int getInjuredMatches() { return injuredMatches; }
     public String getInjuryType() { return injuryType; }
     public boolean canPlay() { return !isSuspended() && !isInjured(); }
@@ -276,7 +454,19 @@ public class Player {
     public void setContractYears(int contractYears) { this.contractYears = contractYears; }
     public int getContractEndYear() { return contractEndYear; }
     public void setContractEndYear(int contractEndYear) { this.contractEndYear = contractEndYear; }
-    
+    public int getNextContractNegotiationYear() { return nextContractNegotiationYear; }
+    public void setNextContractNegotiationYear(int year) { this.nextContractNegotiationYear = year; }
+    public boolean canNegotiateContract(int currentYear) { return currentYear >= nextContractNegotiationYear; }
+
+    public void renewContract(long annualSalary, int years, int currentYear) {
+        int safeYears = Math.max(1, Math.min(5, years));
+        this.salary = Math.max(0L, annualSalary) / 12.0;
+        this.negotiatedMonthlySalary = this.salary;
+        this.contractYears = safeYears;
+        this.contractEndYear = currentYear + safeYears;
+        this.nextContractNegotiationYear = currentYear + Math.max(1, safeYears - 2);
+    }
+
     public String getId() { return id; }
     public String getName() { return name; }
     public String getNationality() { return nationality; }
@@ -286,12 +476,21 @@ public class Player {
     public int getEffectiveOverall() { return getEffectiveOverallForPosition(primaryPosition); }
     public int getPotential() { return potential; }
     public double getSalary() { return salary; }
-    public void setSalary(double salary) { this.salary = salary; }
+    public void setSalary(double salary) {
+        this.salary = salary;
+        this.negotiatedMonthlySalary = -1.0;
+    }
     public int getFatigue() { return fatigue; }
     public int getAge() { return age; }
     public void setAge(int age) { this.age = age; }
     public int getSeasonGoals() { return seasonGoals; }
     public int getSeasonAssists() { return seasonAssists; }
+    public int getSeasonAppearances() { return seasonAppearances; }
+    public int getSeasonCleanSheets() { return seasonCleanSheets; }
+    public int getSeasonRatingMatches() { return seasonRatingMatches; }
+    public double getSeasonAverageRating() {
+        return seasonRatingMatches == 0 ? 0.0 : seasonRatingTotal / seasonRatingMatches;
+    }
     public int getSeasonYellowCards() { return seasonYellowCards; }
     public int getSeasonRedCards() { return seasonRedCards; }
     public TechnicalAttributes getTechnicalAttributes() { return technicalAttributes; }
@@ -302,6 +501,10 @@ public class Player {
     public void resetSeasonStats() {
         this.seasonGoals = 0;
         this.seasonAssists = 0;
+        this.seasonAppearances = 0;
+        this.seasonCleanSheets = 0;
+        this.seasonRatingTotal = 0.0;
+        this.seasonRatingMatches = 0;
         this.seasonYellowCards = 0;
         this.seasonRedCards = 0;
         this.suspendedMatches = 0;
@@ -310,5 +513,51 @@ public class Player {
     }
     public int getMatchRedCards() {
         return matchRedCards;
+    }
+    public int getAttackStat() {
+        return technicalAttributes != null
+            ? technicalAttributes.getAtaque()
+            : 0;
+    }
+
+    public int getPassStat() {
+        return technicalAttributes != null
+            ? technicalAttributes.getPasse()
+            : 0;
+    }
+
+    public int getDefenseStat() {
+        return technicalAttributes != null
+            ? technicalAttributes.getDefesa()
+            : 0;
+    }
+
+    public int getPhysicalStat() {
+        return technicalAttributes != null
+            ? technicalAttributes.getFisico()
+            : 0;
+    }
+
+    public int getDribbleStat() {
+        return technicalAttributes != null
+            ? technicalAttributes.getDrible()
+            : 0;
+    }
+
+    public String getPosition() {
+        return primaryPosition != null ? primaryPosition.name() : "";
+    }
+    public int getEffectiveOverallForPosition(String targetPos) {
+        if (targetPos == null || targetPos.isEmpty()) {
+            return this.overall;
+        }
+
+        try {
+            return getEffectiveOverallForPosition(
+                Position.valueOf(targetPos.toUpperCase())
+            );
+        } catch (IllegalArgumentException e) {
+            return this.overall;
+        }
     }
 }

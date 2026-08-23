@@ -9,6 +9,17 @@ public class TradeNegotiator {
     }
 
     public static TradeDecision analyzeProposal(TradeOffer offer, int currentSeasonYear) {
+        // Valida a proposta antes de avaliá-la: uma oferta vazia, com ativo
+        // duplicado/transferido ou contrato expirado nunca deve chegar à IA.
+        TradeRulesValidator.ValidationResult ruleCheck = TradeRulesValidator.validateRules(offer, currentSeasonYear);
+        if (!ruleCheck.isValid) {
+            return new TradeDecision(
+                TradeDecision.Status.REJECTED,
+                "VIOLAÇÃO DO REGULAMENTO: " + ruleCheck.reason,
+                0, 0, null
+            );
+        }
+
         Club targetClub = offer.getTargetClub();
         Club userClub = offer.getUserClub();
 
@@ -21,19 +32,6 @@ public class TradeNegotiator {
             targetClub, offer.getTargetPlayers(), offer.getTargetPicks(), currentSeasonYear
         );
 
-        int expectedScore = Math.min(100, Math.max(10, (int) (valueTargetGivesUp / 100000L)));
-        int offeredScore = Math.min(100, Math.max(0, (int) (valueTargetReceives / 100000L)));
-
-        // Validador de regras da liga
-        TradeRulesValidator.ValidationResult ruleCheck = TradeRulesValidator.validateRules(offer);
-        if (!ruleCheck.isValid) {
-            return new TradeDecision(
-                TradeDecision.Status.REJECTED,
-                "VIOLAÇÃO DO REGULAMENTO: " + ruleCheck.reason,
-                0, 0, null
-            );
-        }
-
         // Checagem de Salary Cap
         long newPayroll = targetClub.getFinance().getAnnualPayroll()
             - offer.getTargetPlayers().stream().mapToLong(Player::getAnnualSalary).sum()
@@ -43,7 +41,7 @@ public class TradeNegotiator {
             return new TradeDecision(
                 TradeDecision.Status.REJECTED,
                 "Não podemos aceitar este negócio. A transação ultrapassaria o nosso teto salarial (Salary Cap).",
-                offeredScore, expectedScore, null
+                valueTargetReceives, valueTargetGivesUp, null
             );
         }
 
@@ -52,21 +50,30 @@ public class TradeNegotiator {
             return new TradeDecision(
                 TradeDecision.Status.ACCEPTED,
                 "A proposta atende perfeitamente aos nossos objetivos estratégicos. Negócio fechado!",
-                offeredScore, expectedScore, null
+                valueTargetReceives, valueTargetGivesUp, null
             );
         }
 
         // 3. Contraoferta
         if (valueTargetReceives >= (valueTargetGivesUp * 0.70)) {
-            long marginNeeded = valueTargetGivesUp - valueTargetReceives;
+            long minimumValueForAcceptance = (long) Math.ceil(valueTargetGivesUp * 0.98d);
+            long marginNeeded = Math.max(1L, minimumValueForAcceptance - valueTargetReceives);
             TradeOffer counterOffer = buildCounterOffer(offer, userClub, marginNeeded, currentSeasonYear);
+
+            if (counterOffer == null) {
+                return new TradeDecision(
+                    TradeDecision.Status.REJECTED,
+                    "A proposta tem algum interesse, mas não há um ativo elegível que complete o valor sem exceder o limite da negociação.",
+                    valueTargetReceives, valueTargetGivesUp, null
+                );
+            }
 
             String feedback = "Estamos interessados nos ativos oferecidos, mas consideramos a proposta insuficiente " +
                 "para compensar a perda dos nossos atletas. Podemos fechar se você incluir mais peças.";
 
             return new TradeDecision(
                 TradeDecision.Status.CONSIDERED,
-                feedback, offeredScore, expectedScore, counterOffer
+                feedback, valueTargetReceives, valueTargetGivesUp, counterOffer
             );
         }
 
@@ -74,7 +81,7 @@ public class TradeNegotiator {
         return new TradeDecision(
             TradeDecision.Status.REJECTED,
             "A proposta está muito distante do valor de mercado dos nossos jogadores. Não temos interesse na negociação nesses moldes.",
-            offeredScore, expectedScore, null
+            valueTargetReceives, valueTargetGivesUp, null
         );
     }
 
@@ -86,14 +93,21 @@ public class TradeNegotiator {
         originalOffer.getTargetPlayers().forEach(counter::addPlayerToReceive);
         originalOffer.getTargetPicks().forEach(counter::addPickToReceive);
 
+        if (counter.getUserAssetCount() >= TradeOffer.MAX_ASSETS_PER_SIDE) {
+            return null;
+        }
+
         // Busca Pick do usuário
         List<DraftPick> availablePicks = userClub.getDraftPicks();
         for (DraftPick pick : availablePicks) {
             if (!counter.getUserPicks().contains(pick)) {
                 long pickVal = DraftPickEvaluator.getPerceivedPickValue(originalOffer.getTargetClub(), pick, currentSeasonYear);
-                if (pickVal >= (marginNeeded * 0.8)) {
+                if (pickVal >= marginNeeded) {
                     counter.addPickToGive(pick);
-                    return counter;
+                    if (TradeRulesValidator.validateRules(counter, currentSeasonYear).isValid) {
+                        return counter;
+                    }
+                    counter.removePickToGive(pick);
                 }
             }
         }
@@ -101,14 +115,18 @@ public class TradeNegotiator {
         // Se não encontrar Pick, busca jogador
         for (Player p : userClub.getSquad()) {
             if (!counter.getUserPlayers().contains(p)) {
-                long pVal = SmartTradeEvaluator.getPerceivedPlayerValue(originalOffer.getTargetClub(), p);
-                if (pVal >= (marginNeeded * 0.7) && pVal <= (marginNeeded * 1.4)) {
+                long pVal = SmartTradeEvaluator.getPerceivedPlayerValue(originalOffer.getTargetClub(), p, currentSeasonYear);
+                if (!p.isFreeAgent(currentSeasonYear)
+                    && pVal >= marginNeeded && pVal <= (marginNeeded * 1.4)) {
                     counter.addPlayerToGive(p);
-                    return counter;
+                    if (TradeRulesValidator.validateRules(counter, currentSeasonYear).isValid) {
+                        return counter;
+                    }
+                    counter.removePlayerToGive(p);
                 }
             }
         }
 
-        return counter;
+        return null;
     }
 }

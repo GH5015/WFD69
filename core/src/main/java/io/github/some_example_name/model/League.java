@@ -182,7 +182,9 @@ public class League {
         }
         return map.values().stream().sorted((r1, r2) -> {
             if (r1.points != r2.points) return r2.points - r1.points;
-            return r2.goalDifference - r1.goalDifference;
+            if (r1.goalDifference != r2.goalDifference) return r2.goalDifference - r1.goalDifference;
+            if (r1.goalsFor != r2.goalsFor) return r2.goalsFor - r1.goalsFor;
+            return r1.club.getName().compareTo(r2.club.getName());
         }).collect(Collectors.toList());
     }
 

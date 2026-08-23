@@ -1,10 +1,12 @@
 package io.github.some_example_name.screens;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -12,211 +14,1098 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
-import com.badlogic.gdx.scenes.scene2d.Touchable;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
+
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
-import java.util.Date;
 import java.text.SimpleDateFormat;
-import java.util.Locale;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
-public final class CareerOverlay extends WidgetGroup {
-    private static final Map<String, Texture> LOGOS = new HashMap<>();
+/**
+ * HUD persistente da carreira.
+ *
+ * Exibe:
+ *
+ * - Temporada
+ * - Data
+ * - Próxima partida
+ * - Adversário
+ * - Botão de avançar/jogar
+ *
+ * Também processa:
+ *
+ * - avanço diário
+ * - scouting
+ * - recuperação física
+ * - partidas da IA
+ * - fechamento financeiro mensal
+ */
+public final class CareerOverlay
+    extends WidgetGroup {
+
+    private static final Map<String, Texture> LOGOS =
+        new HashMap<>();
+
     private final Main game;
     private final Club club;
-    private final Table matchCard = new Table();
-    private final Table dateCard = new Table();
+
+    private final Table matchCard;
+    private final Table dateCard;
+
     private final ImageTextButton advanceButton;
 
-    public CareerOverlay(Main game, Club club) {
-        this.game = game;
-        this.club = club;
-        setTouchable(Touchable.childrenOnly);
-        setSize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+    // =========================================================
+    // DIMENSÕES
+    // =========================================================
 
-        matchCard.setSize(400, 96);
-        matchCard.setPosition(Math.max(12, Gdx.graphics.getWidth() - 420),
-            Math.max(12, Gdx.graphics.getHeight() - 116));
-        addActor(matchCard);
+    private static final float MATCH_WIDTH =
+        390f;
 
-        dateCard.setSize(220, 52);
-        dateCard.setPosition(240, 18);
-        addActor(dateCard);
+    private static final float MATCH_HEIGHT =
+        96f;
 
-        advanceButton = IconTextButton.create("AVANÇAR DATA", game.skin, "Icons8/icons8-relógio-50.png");
-        advanceButton.setSize(260, 52);
-        advanceButton.setPosition(Math.max(12, Gdx.graphics.getWidth() - 280), 18);
-        advanceButton.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent event, float x, float y) {
-                advanceOneDay(game, club);
-                com.badlogic.gdx.Screen currentScreen = game.getScreen();
-                if (currentScreen != null) {
-                    currentScreen.show();
-                } else {
-                    refresh();
+    private static final float DATE_WIDTH =
+        205f;
+
+    private static final float DATE_HEIGHT =
+        58f;
+
+    private static final float BUTTON_WIDTH =
+        245f;
+
+    private static final float BUTTON_HEIGHT =
+        58f;
+
+    private static final float SCREEN_MARGIN =
+        18f;
+
+    // =========================================================
+    // CONSTRUTOR
+    // =========================================================
+
+    public CareerOverlay(
+        Main game,
+        Club club
+    ) {
+
+        this.game =
+            game;
+
+        this.club =
+            club;
+
+        setTouchable(
+            Touchable.childrenOnly
+        );
+
+        setSize(
+            Gdx.graphics.getWidth(),
+            Gdx.graphics.getHeight()
+        );
+
+        // =====================================================
+        // CARD DA PARTIDA
+        // =====================================================
+
+        matchCard =
+            new Table();
+
+        matchCard.setSize(
+            MATCH_WIDTH,
+            MATCH_HEIGHT
+        );
+
+        addActor(
+            matchCard
+        );
+
+        // =====================================================
+        // CARD DE DATA
+        // =====================================================
+
+        dateCard =
+            new Table();
+
+        dateCard.setSize(
+            DATE_WIDTH,
+            DATE_HEIGHT
+        );
+
+        addActor(
+            dateCard
+        );
+
+        // =====================================================
+        // BOTÃO PRINCIPAL
+        // =====================================================
+
+        advanceButton =
+            IconTextButton.create(
+                "AVANÇAR DIA",
+                game.skin,
+                "Icons8/icons8-relógio-50.png"
+            );
+
+        advanceButton.setSize(
+            BUTTON_WIDTH,
+            BUTTON_HEIGHT
+        );
+
+        advanceButton
+            .getLabel()
+            .setFontScale(
+                0.72f
+            );
+
+        advanceButton.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    /*
+                     * Guardamos a tela anterior.
+                     *
+                     * Se advanceOneDay abrir a PreMatchScreen,
+                     * não chamamos show() de novo na nova tela.
+                     */
+                    Screen screenBefore =
+                        game.getScreen();
+
+                    advanceOneDay(
+                        game,
+                        club
+                    );
+
+                    Screen screenAfter =
+                        game.getScreen();
+
+                    if (
+                        screenBefore ==
+                            screenAfter
+                    ) {
+
+                        /*
+                         * Algumas telas constroem os valores
+                         * dinâmicos no show().
+                         */
+                        if (
+                            screenAfter != null
+                        ) {
+
+                            screenAfter.show();
+
+                        } else {
+
+                            refresh();
+                        }
+                    }
                 }
             }
-        });
-        addActor(advanceButton);
+        );
+
+        addActor(
+            advanceButton
+        );
+
+        updatePositions();
+
         refresh();
     }
 
-    public static CareerOverlay attach(Stage stage, Main game, Club club) {
-        CareerOverlay overlay = new CareerOverlay(game, club);
-        stage.addActor(overlay);
+    // =========================================================
+    // ATTACH
+    // =========================================================
+
+    public static CareerOverlay attach(
+        Stage stage,
+        Main game,
+        Club club
+    ) {
+
+        CareerOverlay overlay =
+            new CareerOverlay(
+                game,
+                club
+            );
+
+        stage.addActor(
+            overlay
+        );
+
         return overlay;
     }
 
+    // =========================================================
+    // RESPONSIVIDADE
+    // =========================================================
+
     @Override
-    public void act(float delta) {
-        setSize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        matchCard.setPosition(Math.max(12, Gdx.graphics.getWidth() - 420),
-            Math.max(12, Gdx.graphics.getHeight() - 116));
-        advanceButton.setPosition(Math.max(12, Gdx.graphics.getWidth() - 280), 18);
-        dateCard.setPosition(240, 18);
-        super.act(delta);
+    public void act(
+        float delta
+    ) {
+
+        setSize(
+            Gdx.graphics.getWidth(),
+            Gdx.graphics.getHeight()
+        );
+
+        updatePositions();
+
+        super.act(
+            delta
+        );
     }
 
+    private void updatePositions() {
+
+        float width =
+            Gdx.graphics.getWidth();
+
+        float height =
+            Gdx.graphics.getHeight();
+
+        // =====================================================
+        // PRÓXIMA PARTIDA NO TOPO DIREITO
+        // =====================================================
+
+        matchCard.setPosition(
+            Math.max(
+                12f,
+                width -
+                    MATCH_WIDTH -
+                    SCREEN_MARGIN
+            ),
+            Math.max(
+                12f,
+                height -
+                    MATCH_HEIGHT -
+                    10f
+            )
+        );
+
+        // =====================================================
+        // TEMPORADA / DATA NO CANTO INFERIOR ESQUERDO
+        // =====================================================
+
+        dateCard.setPosition(
+            ScreenUI.PAGE_LEFT_OPEN + 8f,
+            SCREEN_MARGIN
+        );
+
+        // =====================================================
+        // AVANÇAR NO CANTO INFERIOR DIREITO
+        // =====================================================
+
+        advanceButton.setPosition(
+            Math.max(
+                12f,
+                width -
+                    BUTTON_WIDTH -
+                    SCREEN_MARGIN
+            ),
+            SCREEN_MARGIN
+        );
+    }
+
+    // =========================================================
+    // REFRESH
+    // =========================================================
+
     private void refresh() {
+
+        refreshDateCard();
+
+        refreshMatchCard();
+    }
+
+    // =========================================================
+    // CARD TEMPORADA / DATA
+    // =========================================================
+
+    private void refreshDateCard() {
+
         dateCard.clear();
-        dateCard.background(StyleFactory.createRoundedPanel(new Color(0.04f, 0.08f, 0.06f, 0.96f), StyleFactory.GOLD));
-        dateCard.pad(6, 16, 6, 16);
 
-        Table seasonInfo = new Table();
-        Label seasonLabel = new Label("TEMPORADA " + game.league.getCurrentSeason(), game.skin, "font-bold");
-        seasonLabel.setFontScale(0.82f);
-        seasonLabel.setColor(StyleFactory.GOLD);
-        seasonInfo.add(seasonLabel).left().row();
+        dateCard.background(
+            StyleFactory.createRoundedPanel(
+                new Color(
+                    0.025f,
+                    0.070f,
+                    0.050f,
+                    0.98f
+                ),
+                StyleFactory.GOLD
+            )
+        );
 
-        Date currentDate = game.league.getCurrentDate();
-        String dateStr = currentDate != null ? new SimpleDateFormat("dd/MM/yyyy", new Locale("pt", "BR")).format(currentDate) : "DATA N/A";
-        Label dateLabel = new Label(dateStr, game.skin);
-        dateLabel.setFontScale(0.78f);
-        dateLabel.setColor(StyleFactory.CREME_AGED);
-        seasonInfo.add(dateLabel).left();
+        dateCard.pad(
+            7f,
+            14f,
+            7f,
+            14f
+        );
 
-        dateCard.add(seasonInfo).left();
+        Label seasonLabel =
+            new Label(
+                "TEMPORADA " +
+                    game.league
+                        .getCurrentSeason(),
+                game.skin,
+                "font-bold"
+            );
+
+        seasonLabel.setFontScale(
+            0.66f
+        );
+
+        seasonLabel.setColor(
+            StyleFactory.GOLD
+        );
+
+        seasonLabel.setAlignment(
+            Align.left
+        );
+
+        dateCard
+            .add(seasonLabel)
+            .left()
+            .row();
+
+        Date currentDate =
+            game.league
+                .getCurrentDate();
+
+        String dateString =
+            currentDate != null
+                ? new SimpleDateFormat(
+                "dd/MM/yyyy",
+                new Locale(
+                    "pt",
+                    "BR"
+                )
+            ).format(
+                currentDate
+            )
+                : "DATA N/A";
+
+        Label dateLabel =
+            new Label(
+                dateString,
+                game.skin
+            );
+
+        dateLabel.setFontScale(
+            0.65f
+        );
+
+        dateLabel.setColor(
+            Color.WHITE
+        );
+
+        dateCard
+            .add(dateLabel)
+            .left()
+            .padTop(2f);
+    }
+
+    // =========================================================
+    // CARD DA PARTIDA
+    // =========================================================
+
+    private void refreshMatchCard() {
 
         matchCard.clear();
-        matchCard.background(StyleFactory.createRoundedPanel(new Color(0.04f, 0.08f, 0.06f, 0.96f), StyleFactory.GOLD));
-        Match next = game.league.getNextMatchForClub(club);
 
-        if (next == null) {
-            boolean isPlayoffs = "PLAYOFFS".equals(game.league.getCurrentStage());
-            String text = isPlayoffs ? "PLAYOFFS FINALIZADOS" : "FASE REGULAR CONCLUÍDA";
-            matchCard.add(new Label(text, game.skin, "font-bold")).center();
+        matchCard.background(
+            StyleFactory.createRoundedPanel(
+                new Color(
+                    0.020f,
+                    0.060f,
+                    0.045f,
+                    0.985f
+                ),
+                StyleFactory.GOLD
+            )
+        );
 
-            advanceButton.setText(isPlayoffs ? "NOVA TEMPORADA 🏆" : "INICIAR PLAYOFFS ⚡");
-            advanceButton.setDisabled(false);
+        matchCard.pad(
+            8f,
+            12f,
+            8f,
+            12f
+        );
+
+        Match next =
+            game.league
+                .getNextMatchForClub(
+                    club
+                );
+
+        // =====================================================
+        // SEM PRÓXIMA PARTIDA
+        // =====================================================
+
+        if (
+            next == null
+        ) {
+
+            boolean playoffs =
+                "PLAYOFFS".equals(
+                    game.league
+                        .getCurrentStage()
+                );
+
+            Label status =
+                new Label(
+                    playoffs
+                        ? "PLAYOFFS FINALIZADOS"
+                        : "FASE REGULAR CONCLUÍDA",
+                    game.skin,
+                    "font-bold"
+                );
+
+            status.setFontScale(
+                0.72f
+            );
+
+            status.setColor(
+                StyleFactory.SOFT_YELLOW
+            );
+
+            status.setAlignment(
+                Align.center
+            );
+
+            matchCard
+                .add(status)
+                .expand()
+                .center();
+
+            advanceButton.setText(
+                playoffs
+                    ? "NOVA TEMPORADA"
+                    : "INICIAR PLAYOFFS"
+            );
+
+            advanceButton.setDisabled(
+                false
+            );
+
             return;
         }
 
-        Club opponent = next.getHomeTeam() == club ? next.getAwayTeam() : next.getHomeTeam();
-        Table home = teamCell(club);
-        Table away = teamCell(opponent);
-        matchCard.add(home).width(160).center();
+        // =====================================================
+        // CLUBES
+        // =====================================================
 
-        Label vsLabel = new Label("VS", game.skin, "font-bold");
-        vsLabel.setColor(StyleFactory.GOLD);
-        vsLabel.setFontScale(0.9f);
-        matchCard.add(vsLabel).width(36).center();
+        Club opponent =
+            next.getHomeTeam() == club
+                ? next.getAwayTeam()
+                : next.getHomeTeam();
 
-        matchCard.add(away).width(160).center();
+        Table userCell =
+            createTeamCell(
+                club
+            );
 
-        boolean canPlay = isMatchDay(next);
-        advanceButton.setText(canPlay ? "JOGAR PARTIDA ⚽" : "AVANÇAR DIA 📅");
-        advanceButton.setDisabled(false);
+        Table opponentCell =
+            createTeamCell(
+                opponent
+            );
+
+        matchCard
+            .add(userCell)
+            .width(150f)
+            .center();
+
+        // =====================================================
+        // VS
+        // =====================================================
+
+        Table middle =
+            new Table();
+
+        Label vs =
+            new Label(
+                "VS",
+                game.skin,
+                "font-bold"
+            );
+
+        vs.setFontScale(
+            0.78f
+        );
+
+        vs.setColor(
+            StyleFactory.GOLD
+        );
+
+        middle
+            .add(vs)
+            .center()
+            .row();
+
+        String matchDate =
+            next.getDate() != null
+                ? new SimpleDateFormat(
+                "dd/MM",
+                new Locale(
+                    "pt",
+                    "BR"
+                )
+            ).format(
+                next.getDate()
+            )
+                : "";
+
+        Label date =
+            new Label(
+                matchDate,
+                game.skin
+            );
+
+        date.setFontScale(
+            0.48f
+        );
+
+        date.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        middle
+            .add(date)
+            .center()
+            .padTop(2f);
+
+        matchCard
+            .add(middle)
+            .width(54f)
+            .center();
+
+        matchCard
+            .add(opponentCell)
+            .width(150f)
+            .center();
+
+        // =====================================================
+        // BOTÃO
+        // =====================================================
+
+        boolean canPlay =
+            isMatchDay(
+                next
+            );
+
+        advanceButton.setText(
+            canPlay
+                ? "JOGAR PARTIDA"
+                : "AVANÇAR DIA"
+        );
+
+        advanceButton.setDisabled(
+            false
+        );
     }
 
-    private Table teamCell(Club team) {
-        Table cell = new Table();
-        Image teamLogo = new Image(new TextureRegionDrawable(logo(team)));
-        teamLogo.setScaling(Scaling.fit);
-        cell.add(teamLogo).size(76, 42).row();
-        Label name = new Label(team.getName(), game.skin, "font-bold");
-        name.setFontScale(0.70f);
-        name.setColor(StyleFactory.CREME_AGED);
-        cell.add(name).width(150).center();
+    // =========================================================
+    // TIME NO CARD
+    // =========================================================
+
+    private Table createTeamCell(
+        Club team
+    ) {
+
+        Table cell =
+            new Table();
+
+        Image logo =
+            new Image(
+                new TextureRegionDrawable(
+                    logo(
+                        team
+                    )
+                )
+            );
+
+        logo.setScaling(
+            Scaling.fit
+        );
+
+        cell
+            .add(logo)
+            .size(
+                58f,
+                42f
+            )
+            .center()
+            .row();
+
+        Label name =
+            new Label(
+                ScreenUI.shorten(
+                    team.getName(),
+                    20
+                ),
+                game.skin,
+                "font-bold"
+            );
+
+        name.setFontScale(
+            0.54f
+        );
+
+        name.setAlignment(
+            Align.center
+        );
+
+        name.setColor(
+            StyleFactory.CREME_AGED
+        );
+
+        cell
+            .add(name)
+            .width(145f)
+            .center()
+            .padTop(3f);
+
         return cell;
     }
 
-    private boolean isMatchDay(Match userMatch) {
-        return isMatchDay(game, club);
+    // =========================================================
+    // MATCH DAY
+    // =========================================================
+
+    private boolean isMatchDay(
+        Match ignored
+    ) {
+
+        return isMatchDay(
+            game,
+            club
+        );
     }
 
-    public static boolean isMatchDay(Main game, Club club) {
-        Match userMatch = game.league.getNextMatchForClub(club);
-        if (userMatch == null || game.league.getCurrentDate() == null) return false;
-        Match nextGlobal = game.league.getNextMatch();
-        boolean dateReached = !game.league.getCurrentDate().before(userMatch.getDate());
-        return (nextGlobal == userMatch) && dateReached;
+    public static boolean isMatchDay(
+        Main game,
+        Club club
+    ) {
+
+        Match userMatch =
+            game.league
+                .getNextMatchForClub(
+                    club
+                );
+
+        if (
+            userMatch == null ||
+                game.league
+                    .getCurrentDate() ==
+                    null
+        ) {
+
+            return false;
+        }
+
+        Match nextGlobal =
+            game.league
+                .getNextMatch();
+
+        boolean dateReached =
+            !game.league
+                .getCurrentDate()
+                .before(
+                    userMatch.getDate()
+                );
+
+        return
+            nextGlobal ==
+                userMatch &&
+                dateReached;
     }
 
-   public static void advanceOneDay(Main game, Club club) {
-    Match userMatch = game.league.getNextMatchForClub(club);
+    // =========================================================
+    // AVANÇO DE DATA
+    // =========================================================
 
-    if (userMatch == null) {
-        game.league.checkAndAdvanceStage();
-        return;
+    public static void advanceOneDay(
+        Main game,
+        Club club
+    ) {
+
+        Match userMatch =
+            game.league
+                .getNextMatchForClub(
+                    club
+                );
+
+        // =====================================================
+        // FIM DA FASE
+        // =====================================================
+
+        if (
+            userMatch == null
+        ) {
+
+            game.league
+                .checkAndAdvanceStage();
+
+            return;
+        }
+
+        // =====================================================
+        // DIA DA PARTIDA
+        // =====================================================
+
+        if (
+            isMatchDay(
+                game,
+                club
+            )
+        ) {
+
+            game.setScreen(
+                new PreMatchScreen(
+                    game,
+                    userMatch,
+                    club
+                )
+            );
+
+            return;
+        }
+
+        // =====================================================
+        // DATA ANTERIOR
+        // =====================================================
+
+        Date previousDate =
+            game.league
+                .getCurrentDate();
+
+        // =====================================================
+        // AVANÇA UM DIA
+        // =====================================================
+
+        game.league
+            .advanceDateOneDay();
+
+        Date newDate =
+            game.league
+                .getCurrentDate();
+
+        // =====================================================
+        // FECHAMENTO MENSAL
+        // =====================================================
+
+        if (
+            changedMonth(
+                previousDate,
+                newDate
+            )
+        ) {
+
+            processMonthlyFinances(
+                game
+            );
+        }
+
+        // =====================================================
+        // SCOUTING
+        // =====================================================
+
+        if (
+            game.draftScoutManager != null
+        ) {
+
+            game.draftScoutManager
+                .advanceDay();
+        }
+
+        // =====================================================
+        // RECUPERAÇÃO
+        // =====================================================
+
+        recoverAllPlayers(
+            game,
+            1
+        );
+
+        // =====================================================
+        // JOGOS DA IA
+        // =====================================================
+
+        processDueMatches(
+            game,
+            club
+        );
     }
 
-    if (isMatchDay(game, club)) {
-        game.setScreen(new PreMatchScreen(game, userMatch, club));
-        return;
+    // =========================================================
+    // MUDANÇA DE MÊS
+    // =========================================================
+
+    private static boolean changedMonth(
+        Date previousDate,
+        Date newDate
+    ) {
+
+        if (
+            previousDate == null ||
+                newDate == null
+        ) {
+
+            return false;
+        }
+
+        Calendar previous =
+            Calendar.getInstance();
+
+        previous.setTime(
+            previousDate
+        );
+
+        Calendar current =
+            Calendar.getInstance();
+
+        current.setTime(
+            newDate
+        );
+
+        return
+            previous.get(
+                Calendar.MONTH
+            )
+                !=
+                current.get(
+                    Calendar.MONTH
+                )
+                ||
+                previous.get(
+                    Calendar.YEAR
+                )
+                    !=
+                    current.get(
+                        Calendar.YEAR
+                    );
     }
 
-    // Avança a data da liga
-    game.league.advanceDateOneDay();
+    // =========================================================
+    // FINANÇAS MENSAIS
+    // =========================================================
 
-    // Evolução diária do conhecimento dos olheiros
-    if (game.draftScoutManager != null) {
-        game.draftScoutManager.advanceDay();
-    }
+    private static void processMonthlyFinances(
+        Main game
+    ) {
 
-    // Recuperação física do elenco
-    recoverAllPlayers(game, 1);
+        if (
+            game == null ||
+                game.league == null
+        ) {
 
-    // Simulação dos demais jogos da rodada
-    processDueMatches(game, club);
-}
+            return;
+        }
 
-    private static void processDueMatches(Main game, Club playerClub) {
-        Match due = game.league.getNextMatch();
-        Match userMatch = game.league.getNextMatchForClub(playerClub);
-        while (due != null && due != userMatch && game.league.getCurrentDate() != null
-            && !due.getDate().after(game.league.getCurrentDate())) {
-            game.matchEngine.simulate(due);
-            game.league.advanceMatch();
-            due = game.league.getNextMatch();
+        for (
+            Club team :
+            game.league
+                .getClubs()
+        ) {
+
+            if (
+                team != null &&
+                    team.getFinance() != null
+            ) {
+
+                team.getFinance()
+                    .applyMonthlyBalance();
+            }
         }
     }
 
-    private static void recoverAllPlayers(Main game, int days) {
-        for (Club team : game.league.getClubs()) {
-            for (Player player : team.getSquad()) player.recover(days);
+    // =========================================================
+    // SIMULA PARTIDAS DA IA
+    // =========================================================
+
+    private static void processDueMatches(
+        Main game,
+        Club playerClub
+    ) {
+
+        Match due =
+            game.league
+                .getNextMatch();
+
+        Match userMatch =
+            game.league
+                .getNextMatchForClub(
+                    playerClub
+                );
+
+        while (
+            due != null &&
+                due != userMatch &&
+                game.league
+                    .getCurrentDate() != null &&
+                !due.getDate()
+                    .after(
+                        game.league
+                            .getCurrentDate()
+                    )
+        ) {
+
+            game.matchEngine
+                .simulate(
+                    due
+                );
+
+            game.league
+                .advanceMatch();
+
+            due =
+                game.league
+                    .getNextMatch();
+
+            userMatch =
+                game.league
+                    .getNextMatchForClub(
+                        playerClub
+                    );
         }
     }
 
-    private static Texture logo(Club team) {
-        String path = team.getLogoPath();
-        Texture texture = LOGOS.get(path);
-        if (texture == null) {
-            try { texture = new Texture(Gdx.files.internal(path)); }
-            catch (Exception e) { texture = new Texture(Gdx.files.internal("libgdx.png")); }
-            LOGOS.put(path, texture);
+    // =========================================================
+    // RECUPERAÇÃO DOS JOGADORES
+    // =========================================================
+
+    private static void recoverAllPlayers(
+        Main game,
+        int days
+    ) {
+
+        for (
+            Club team :
+            game.league
+                .getClubs()
+        ) {
+
+            for (
+                Player player :
+                team.getSquad()
+            ) {
+
+                player.recover(
+                    days
+                );
+            }
         }
+    }
+
+    // =========================================================
+    // LOGOS
+    // =========================================================
+
+    private static Texture logo(
+        Club team
+    ) {
+
+        String path =
+            team != null
+                ? team.getLogoPath()
+                : null;
+
+        String key =
+            path != null
+                ? path
+                : "__fallback__";
+
+        Texture texture =
+            LOGOS.get(
+                key
+            );
+
+        if (
+            texture != null
+        ) {
+
+            return texture;
+        }
+
+        try {
+
+            if (
+                path != null &&
+                    Gdx.files
+                        .internal(path)
+                        .exists()
+            ) {
+
+                texture =
+                    new Texture(
+                        Gdx.files.internal(
+                            path
+                        )
+                    );
+
+            } else {
+
+                texture =
+                    new Texture(
+                        Gdx.files.internal(
+                            "libgdx.png"
+                        )
+                    );
+            }
+
+        } catch (
+            Exception e
+        ) {
+
+            texture =
+                new Texture(
+                    Gdx.files.internal(
+                        "libgdx.png"
+                    )
+                );
+        }
+
+        LOGOS.put(
+            key,
+            texture
+        );
+
         return texture;
     }
 
+    // =========================================================
+    // DISPOSE
+    // =========================================================
+
     public static void disposeAssets() {
-        for (Texture texture : LOGOS.values()) texture.dispose();
+
+        for (
+            Texture texture :
+            LOGOS.values()
+        ) {
+
+            texture.dispose();
+        }
+
         LOGOS.clear();
     }
 }

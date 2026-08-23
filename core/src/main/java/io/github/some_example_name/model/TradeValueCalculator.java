@@ -6,17 +6,25 @@ public class TradeValueCalculator {
      * Calcula o Trade Value final do jogador (0 a 100)
      */
     public static int calculateTradeValue(Player player) {
+        return calculateTradeValue(player, -1);
+    }
+
+    /** Overall domina o valor; o contrato é aplicado quando o ano é conhecido. */
+    public static int calculateTradeValue(Player player, int currentSeasonYear) {
         int ovrScore = calculateOvrScore(player.getOverall());
         int ageScore = calculateAgeScore(player.getAge());
         int potentialScore = calculatePotentialScore(player.getOverall(), player.getPotential());
         int positionScore = calculatePositionScore(player.getPosition());
+        int contractScore = currentSeasonYear >= 0
+            ? calculateContractScore(player.getRemainingContractYears(currentSeasonYear))
+            : 70;
 
-        // Pesos de Ponderação
-        // OVR (45%) | Idade (25%) | Potencial (20%) | Posição (10%)
-        double finalScore = (ovrScore * 0.45)
-            + (ageScore * 0.25)
-            + (potentialScore * 0.20)
-            + (positionScore * 0.10);
+        // OVR (62%) | Idade (14%) | Potencial (11%) | Posição (5%) | Contrato (8%)
+        double finalScore = (ovrScore * 0.62)
+            + (ageScore * 0.14)
+            + (potentialScore * 0.11)
+            + (positionScore * 0.05)
+            + (contractScore * 0.08);
 
         return (int) Math.min(99, Math.max(10, Math.round(finalScore)));
     }
@@ -50,5 +58,13 @@ public class TradeValueCalculator {
         if (position.matches("ST|CAM|CB")) return 90;  // Artilheiros, Maestros e Zagueiros
         if (position.matches("RW|LW|CDM|GK")) return 80;
         return 70; // Laterais / Meias de lado
+    }
+
+    private static int calculateContractScore(int remainingYears) {
+        if (remainingYears >= 4) return 100;
+        if (remainingYears == 3) return 88;
+        if (remainingYears == 2) return 74;
+        if (remainingYears == 1) return 50;
+        return 25;
     }
 }

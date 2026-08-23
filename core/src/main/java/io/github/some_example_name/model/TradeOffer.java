@@ -4,6 +4,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TradeOffer {
+    /**
+     * The interface and the negotiation rules both use this limit. Keeping it
+     * here prevents a counteroffer or future screen from bypassing the five
+     * available trade slots.
+     */
+    public static final int MAX_ASSETS_PER_SIDE = 5;
+
     private final Club userClub;
     private final Club targetClub;
 
@@ -38,4 +45,7 @@ public class TradeOffer {
     public List<Player> getTargetPlayers() { return targetPlayers; }
     public List<DraftPick> getUserPicks() { return userPicks; }
     public List<DraftPick> getTargetPicks() { return targetPicks; }
+
+    public int getUserAssetCount() { return userPlayers.size() + userPicks.size(); }
+    public int getTargetAssetCount() { return targetPlayers.size() + targetPicks.size(); }
 }

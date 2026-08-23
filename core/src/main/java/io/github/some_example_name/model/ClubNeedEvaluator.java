@@ -19,7 +19,10 @@ public class ClubNeedEvaluator {
      */
     public static Map<String, Integer> calculatePositionNeeds(Club club) {
         Map<String, Integer> needs = new HashMap<>();
-        String[] positions = {"GK", "CB", "LB", "RB", "CDM", "CM", "CAM", "LW", "RW", "ST"};
+        String[] positions = {
+            "GK", "CB", "LB", "RB", "LWB", "RWB",
+            "CDM", "CM", "CAM", "LW", "RW", "CF", "ST"
+        };
 
         for (String pos : positions) {
             List<Player> posPlayers = club.getSquad().stream()

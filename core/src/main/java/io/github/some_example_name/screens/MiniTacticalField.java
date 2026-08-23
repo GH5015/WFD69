@@ -57,13 +57,18 @@ public class MiniTacticalField extends Actor {
 
     private float shotSpeedMultiplier = 1.0f;
     private float passSpeedMultiplier = 1.0f;
+    private Runnable onPassCompletedCallback = null;
     private Runnable onShotCompletedCallback = null;
+    private boolean eventSequenceRunning = false;
 
     private boolean isGoalFrozen = false;
     private float goalAnimationTimer = 0f;
     private float shakeIntensity = 0f;
 
     private final Color COLOR_GRASS = new Color(0.12f, 0.45f, 0.22f, 1f);
+    private final Color COLOR_GRASS_ALT = new Color(0.10f, 0.39f, 0.19f, 1f);
+    private final Color COLOR_PITCH_LINE = new Color(0.88f, 0.96f, 0.89f, 0.78f);
+    private final Color COLOR_PLAYER_SHADOW = new Color(0f, 0.05f, 0.02f, 0.42f);
     private final Color COLOR_HOME = new Color(0.15f, 0.55f, 0.98f, 1f);
     private final Color COLOR_HOME_GK = new Color(0.0f, 0.8f, 0.8f, 1f);
     private final Color COLOR_AWAY = new Color(0.95f, 0.25f, 0.25f, 1f);
@@ -282,6 +287,12 @@ public class MiniTacticalField extends Actor {
                 currentCarrierIndex = targetReceiverIndex;
                 ballState = BallState.CARRIED;
                 passSpeedMultiplier = 1.0f;
+
+                if (onPassCompletedCallback != null) {
+                    Runnable callback = onPassCompletedCallback;
+                    onPassCompletedCallback = null;
+                    callback.run();
+                }
             }
         }
         else if (ballState == BallState.IN_SHOT) {
@@ -429,6 +440,15 @@ public class MiniTacticalField extends Actor {
     }
 
     public void startPass(int fromIndex, int toIndex, float speedMultiplier) {
+        startPass(fromIndex, toIndex, speedMultiplier, null);
+    }
+
+    private void startPass(
+        int fromIndex,
+        int toIndex,
+        float speedMultiplier,
+        Runnable onComplete
+    ) {
         Vector2[] team = isHomeBallPossession ? homePlayers : awayPlayers;
         currentCarrierIndex = fromIndex;
         targetReceiverIndex = toIndex;
@@ -437,6 +457,7 @@ public class MiniTacticalField extends Actor {
         passTargetPos.set(team[toIndex]);
         passProgress = 0f;
         this.passSpeedMultiplier = speedMultiplier;
+        this.onPassCompletedCallback = onComplete;
         ballState = BallState.IN_PASS;
         showActionVector = false;
     }
@@ -449,7 +470,12 @@ public class MiniTacticalField extends Actor {
         passTargetPos.set(targetX, targetY);
         passProgress = 0f;
         this.shotSpeedMultiplier = speedMultiplier;
-        this.onShotCompletedCallback = onComplete;
+        this.onShotCompletedCallback = () -> {
+            eventSequenceRunning = false;
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        };
         ballState = BallState.IN_SHOT;
         showActionVector = true;
     }
@@ -466,6 +492,20 @@ public class MiniTacticalField extends Actor {
 
     public void onMatchEvent(MatchEvent event, Runnable onGoalNetHitCallback) {
         if (event == null) return;
+
+        boolean isGoalEvent = "GOL".equals(event.type);
+
+        /*
+         * Um gol sempre tem prioridade visual: encerra uma animação menor
+         * pendente para que a construção e a finalização do gol apareçam.
+         */
+        if (isGoalEvent && (eventSequenceRunning || ballState != BallState.CARRIED)) {
+            cancelCurrentActionSequence();
+        } else if (eventSequenceRunning || ballState != BallState.CARRIED) {
+            // Não deixa uma nova narração cortar um passe ou chute ainda visível.
+            return;
+        }
+
         showActionVector = false;
 
         boolean eventHomeTeam = event.isHomeTeam;
@@ -477,55 +517,41 @@ public class MiniTacticalField extends Actor {
             applyFormations();
         }
 
-        if ("GOL".equals(event.type)) {
+        if (isGoalEvent) {
             setMatchPhase(MatchPhase.ATAQUE);
+            eventSequenceRunning = true;
 
             int defenderOrMid = MathUtils.random(2, 6);
             int builderIndex = MathUtils.random(5, 7);
             int shooterIndex = MathUtils.random(8, 10);
 
-            startPass(defenderOrMid, builderIndex, 0.55f);
-
-            Timer.schedule(new Timer.Task() {
-                @Override
-                public void run() {
-                    startPass(builderIndex, shooterIndex, 0.60f);
-
-                    Timer.schedule(new Timer.Task() {
-                        @Override
-                        public void run() {
-                            float goalTargetX = eventHomeTeam ? 1.035f : -0.035f;
-                            float goalTargetY = MathUtils.random(0.42f, 0.58f);
-
-                            startShot(shooterIndex, goalTargetX, goalTargetY, 0.40f, onGoalNetHitCallback);
-                            pendingPossessionChange = true;
-                        }
-                    }, 1.0f);
-                }
-            }, 0.9f);
+            startPass(defenderOrMid, builderIndex, 0.80f, () ->
+                startPass(builderIndex, shooterIndex, 0.80f, () -> {
+                    float goalTargetX = eventHomeTeam ? 1.035f : -0.035f;
+                    float goalTargetY = MathUtils.random(0.42f, 0.58f);
+                    startShot(shooterIndex, goalTargetX, goalTargetY, 0.95f, onGoalNetHitCallback);
+                    pendingPossessionChange = true;
+                })
+            );
         }
         else if ("CHUTE".equals(event.type)) {
             setMatchPhase(MatchPhase.ATAQUE);
+            eventSequenceRunning = true;
 
             int builderIndex = MathUtils.random(4, 7);
             int shooterIndex = MathUtils.random(7, 10);
 
-            startPass(currentCarrierIndex, builderIndex, 0.55f);
-
-            Timer.schedule(new Timer.Task() {
-                @Override
-                public void run() {
-                    float shotTargetX = eventHomeTeam ? 0.97f : 0.03f;
-                    float shotTargetY = MathUtils.random(0.28f, 0.72f);
-
-                    startShot(shooterIndex, shotTargetX, shotTargetY, 0.45f, null);
-                    if (MathUtils.randomBoolean(0.6f)) pendingPossessionChange = true;
-                }
-            }, 0.9f);
+            startPass(currentCarrierIndex, builderIndex, 0.80f, () -> {
+                float shotTargetX = eventHomeTeam ? 0.97f : 0.03f;
+                float shotTargetY = MathUtils.random(0.28f, 0.72f);
+                startShot(shooterIndex, shotTargetX, shotTargetY, 0.95f, null);
+                if (MathUtils.randomBoolean(0.6f)) pendingPossessionChange = true;
+            });
         }
         // ANIMAÇÃO DE ESCANTEIO (Velocidade Cadenciada)
         else if ("ESCANTEIO".equals(event.type)) {
             setMatchPhase(MatchPhase.ESCANTEIO);
+            eventSequenceRunning = true;
 
             float cornerX = eventHomeTeam ? 0.98f : 0.02f;
             float cornerY = MathUtils.randomBoolean() ? 0.05f : 0.95f;
@@ -533,30 +559,16 @@ public class MiniTacticalField extends Actor {
             ballPos.set(cornerX, cornerY);
             currentCarrierIndex = 10;
 
-            // 1.2s de pausa para os times se posicionarem na área
-            Timer.schedule(new Timer.Task() {
-                @Override
-                public void run() {
-                    // Passe suave/parabólico para o centro da área (Multiplicador 0.22f)
-                    startPass(10, 9, 0.22f);
-
-                    // 2.0s de viagem da bola pelo ar
-                    Timer.schedule(new Timer.Task() {
-                        @Override
-                        public void run() {
-                            // Cabeceio/Chute após a bola chegar (Multiplicador 0.25f)
-                            float goalTargetX = eventHomeTeam ? 1.02f : -0.02f;
-                            float goalTargetY = MathUtils.random(0.40f, 0.60f);
-
-                            startShot(9, goalTargetX, goalTargetY, 0.25f, null);
-                        }
-                    }, 2.0f);
-                }
-            }, 1.2f);
+            startPass(10, 9, 0.42f, () -> {
+                float goalTargetX = eventHomeTeam ? 1.02f : -0.02f;
+                float goalTargetY = MathUtils.random(0.40f, 0.60f);
+                startShot(9, goalTargetX, goalTargetY, 0.65f, null);
+            });
         }
         // ANIMAÇÃO DE TIRO LIVRE / FALTA (Velocidade Cadenciada)
         else if ("FALTA".equals(event.type) || "TIRO_LIVRE".equals(event.type)) {
             setMatchPhase(MatchPhase.ATAQUE);
+            eventSequenceRunning = true;
 
             float freeKickX = eventHomeTeam ? 0.75f : 0.25f;
             float freeKickY = 0.50f + MathUtils.random(-0.18f, 0.18f);
@@ -564,17 +576,9 @@ public class MiniTacticalField extends Actor {
             ballPos.set(freeKickX, freeKickY);
             currentCarrierIndex = 8;
 
-            // 1.5s para arrumar a barreira e posicionar o cobrador
-            Timer.schedule(new Timer.Task() {
-                @Override
-                public void run() {
-                    float goalTargetX = eventHomeTeam ? 1.02f : -0.02f;
-                    float goalTargetY = MathUtils.random(0.42f, 0.58f);
-
-                    // Cobrança direta com trajetória lenta e visível (Multiplicador 0.22f)
-                    startShot(8, goalTargetX, goalTargetY, 0.22f, null);
-                }
-            }, 1.5f);
+            float goalTargetX = eventHomeTeam ? 1.02f : -0.02f;
+            float goalTargetY = MathUtils.random(0.42f, 0.58f);
+            startShot(8, goalTargetX, goalTargetY, 0.60f, null);
         }
         else if ("ROUBADA".equals(event.type) || "DESARME".equals(event.type) || "INTERCEPTACAO".equals(event.type)) {
             setMatchPhase(MatchPhase.CONSTRUCAO);
@@ -584,6 +588,20 @@ public class MiniTacticalField extends Actor {
             setMatchPhase(MatchPhase.CONSTRUCAO);
             triggerSmartPass();
         }
+    }
+
+    private void cancelCurrentActionSequence() {
+        eventSequenceRunning = false;
+        onPassCompletedCallback = null;
+        onShotCompletedCallback = null;
+        pendingPossessionChange = false;
+        showActionVector = false;
+        passProgress = 0f;
+        ballState = BallState.CARRIED;
+
+        Vector2[] team = isHomeBallPossession ? homePlayers : awayPlayers;
+        currentCarrierIndex = MathUtils.clamp(currentCarrierIndex, 0, team.length - 1);
+        ballPos.set(team[currentCarrierIndex]);
     }
 
     @Override
@@ -601,25 +619,52 @@ public class MiniTacticalField extends Actor {
         float w = getWidth();
         float h = getHeight();
 
-        // 1. GRAMADO
+        float playerRadius = MathUtils.clamp(
+            Math.min(w, h) * 0.016f,
+            8f,
+            13f
+        );
+        float goalDepth = Math.max(10f, w * 0.010f);
+        float goalHeight = h * 0.28f;
+        float goalY = y + (h - goalHeight) / 2f;
+
+        // 1. GRAMADO COM FAIXAS
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         shapeRenderer.setColor(COLOR_GRASS);
         shapeRenderer.rect(x, y, w, h);
 
-        shapeRenderer.setColor(Color.WHITE);
-        shapeRenderer.rect(x - 7, y + (h * 0.36f), 7, h * 0.28f);
-        shapeRenderer.rect(x + w, y + (h * 0.36f), 7, h * 0.28f);
+        float stripeWidth = w / 10f;
+        for (int stripe = 0; stripe < 10; stripe += 2) {
+            shapeRenderer.setColor(COLOR_GRASS_ALT);
+            shapeRenderer.rect(x + stripe * stripeWidth, y, stripeWidth, h);
+        }
+
+        // Fundo das redes, para dar profundidade aos gols.
+        shapeRenderer.setColor(new Color(0.95f, 1f, 0.96f, 0.15f));
+        shapeRenderer.rect(x - goalDepth, goalY, goalDepth, goalHeight);
+        shapeRenderer.rect(x + w, goalY, goalDepth, goalHeight);
         shapeRenderer.end();
 
         // 2. LINHAS DE CAMPO
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        shapeRenderer.setColor(new Color(1f, 1f, 1f, 0.75f));
+        shapeRenderer.setColor(COLOR_PITCH_LINE);
         shapeRenderer.rect(x, y, w, h);
         shapeRenderer.line(x + w / 2f, y, x + w / 2f, y + h);
         shapeRenderer.circle(x + w / 2f, y + h / 2f, h * 0.14f);
 
         shapeRenderer.rect(x, y + h * 0.20f, w * 0.16f, h * 0.60f);
         shapeRenderer.rect(x + w - (w * 0.16f), y + h * 0.20f, w * 0.16f, h * 0.60f);
+        shapeRenderer.rect(x, y + h * 0.36f, w * 0.055f, h * 0.28f);
+        shapeRenderer.rect(x + w - (w * 0.055f), y + h * 0.36f, w * 0.055f, h * 0.28f);
+        shapeRenderer.rect(x - goalDepth, goalY, goalDepth, goalHeight);
+        shapeRenderer.rect(x + w, goalY, goalDepth, goalHeight);
+        shapeRenderer.end();
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(COLOR_PITCH_LINE);
+        shapeRenderer.circle(x + w / 2f, y + h / 2f, 2.5f);
+        shapeRenderer.circle(x + w * 0.11f, y + h / 2f, 2.5f);
+        shapeRenderer.circle(x + w * 0.89f, y + h / 2f, 2.5f);
         shapeRenderer.end();
 
         // 3. ANIMAÇÃO DE GOL NO RADAR
@@ -654,18 +699,52 @@ public class MiniTacticalField extends Actor {
                 y + ballPos.y * h
             );
 
+            shapeRenderer.circle(
+                x + ballPos.x * w,
+                y + ballPos.y * h,
+                playerRadius * 0.80f
+            );
+
             shapeRenderer.end();
         }
 
-        // 5. JOGADORES E BOLA
+        // 5. SOMBRA E DESTAQUE DO PORTADOR DA BOLA
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        float playerRadius = 6.0f;
+
+        for (int i = 0; i < 11; i++) {
+            shapeRenderer.setColor(COLOR_PLAYER_SHADOW);
+            shapeRenderer.circle(
+                x + homePlayers[i].x * w + 2f,
+                y + homePlayers[i].y * h - 2f,
+                playerRadius + 2f
+            );
+            shapeRenderer.circle(
+                x + awayPlayers[i].x * w + 2f,
+                y + awayPlayers[i].y * h - 2f,
+                playerRadius + 2f
+            );
+        }
+
+        Vector2[] possessionTeam = isHomeBallPossession
+            ? homePlayers
+            : awayPlayers;
+        Vector2 carrier = possessionTeam[currentCarrierIndex];
+        shapeRenderer.setColor(new Color(COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b, 0.24f));
+        shapeRenderer.circle(
+            x + carrier.x * w,
+            y + carrier.y * h,
+            playerRadius + 7f
+        );
+
+        // 6. JOGADORES E BOLA
 
         for (int i = 0; i < 11; i++) {
             float px = x + (homePlayers[i].x * w);
             float py = y + (homePlayers[i].y * h);
             shapeRenderer.setColor(i == 0 ? COLOR_HOME_GK : COLOR_HOME);
             shapeRenderer.circle(px, py, playerRadius);
+            shapeRenderer.setColor(new Color(1f, 1f, 1f, 0.22f));
+            shapeRenderer.circle(px - playerRadius * 0.20f, py + playerRadius * 0.20f, playerRadius * 0.45f);
         }
 
         for (int i = 0; i < 11; i++) {
@@ -673,10 +752,18 @@ public class MiniTacticalField extends Actor {
             float py = y + (awayPlayers[i].y * h);
             shapeRenderer.setColor(i == 0 ? COLOR_AWAY_GK : COLOR_AWAY);
             shapeRenderer.circle(px, py, playerRadius);
+            shapeRenderer.setColor(new Color(1f, 1f, 1f, 0.22f));
+            shapeRenderer.circle(px - playerRadius * 0.20f, py + playerRadius * 0.20f, playerRadius * 0.45f);
         }
 
-        shapeRenderer.setColor(Color.YELLOW);
-        shapeRenderer.circle(x + (ballPos.x * w), y + (ballPos.y * h), isGoalFrozen ? 8.5f : 5.5f);
+        float ballX = x + ballPos.x * w;
+        float ballY = y + ballPos.y * h;
+        shapeRenderer.setColor(COLOR_PLAYER_SHADOW);
+        shapeRenderer.circle(ballX + 2f, ballY - 2f, playerRadius * 0.62f);
+        shapeRenderer.setColor(isGoalFrozen ? COLOR_HIGHLIGHT : Color.WHITE);
+        shapeRenderer.circle(ballX, ballY, isGoalFrozen ? playerRadius * 0.76f : playerRadius * 0.55f);
+        shapeRenderer.setColor(Color.valueOf("26352A"));
+        shapeRenderer.circle(ballX, ballY, playerRadius * 0.20f);
         shapeRenderer.end();
 
         batch.begin();

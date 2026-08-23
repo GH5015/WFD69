@@ -1,8 +1,5 @@
 package io.github.some_example_name.model;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class TradeDecision {
 
     public enum Status {
@@ -24,11 +21,11 @@ public class TradeDecision {
 
     private final Status status;
     private final String feedbackMessage;
-    private final int offeredValue;
-    private final int expectedValue;
+    private final long offeredValue;
+    private final long expectedValue;
     private final TradeOffer counterOffer; // Nulo se for aceito ou rejeitado sumariamente
 
-    public TradeDecision(Status status, String feedbackMessage, int offeredValue, int expectedValue, TradeOffer counterOffer) {
+    public TradeDecision(Status status, String feedbackMessage, long offeredValue, long expectedValue, TradeOffer counterOffer) {
         this.status = status;
         this.feedbackMessage = feedbackMessage;
         this.offeredValue = offeredValue;
@@ -38,8 +35,8 @@ public class TradeDecision {
 
     public Status getStatus() { return status; }
     public String getFeedbackMessage() { return feedbackMessage; }
-    public int getOfferedValue() { return offeredValue; }
-    public int getExpectedValue() { return expectedValue; }
+    public long getOfferedValue() { return offeredValue; }
+    public long getExpectedValue() { return expectedValue; }
     public TradeOffer getCounterOffer() { return counterOffer; }
     public boolean hasCounterOffer() { return counterOffer != null; }
 }

@@ -9,9 +9,11 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+
 import io.github.some_example_name.Main;
 import io.github.some_example_name.engine.TacticalEngine;
 import io.github.some_example_name.engine.TacticalModifiers;
@@ -20,7 +22,8 @@ import io.github.some_example_name.model.Formation;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.StandingsRow;
-import io.github.some_example_name.model.TechnicalAttributes;
+import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
 import java.text.SimpleDateFormat;
@@ -33,763 +36,2645 @@ public class PreMatchScreen implements Screen {
     private final Main game;
     private final Match match;
     private final Club playerClub;
-    private Stage stage;
 
-    private Texture bgTexture;
+    private final Stage stage;
+
+    private Texture backgroundTexture;
     private Texture homeLogoTexture;
     private Texture awayLogoTexture;
 
-    public PreMatchScreen(Main game, Match match, Club playerClub) {
+    // =========================================================
+    // CONSTRUCTOR
+    // =========================================================
+
+    public PreMatchScreen(
+        Main game,
+        Match match,
+        Club playerClub
+    ) {
+
         this.game = game;
         this.match = match;
         this.playerClub = playerClub;
-        this.stage = new Stage(new ScreenViewport());
 
-        if (Gdx.files.internal("fundo_pre.png").exists()) {
-            this.bgTexture = new Texture(Gdx.files.internal("fundo_pre.png"));
-        } else {
-            this.bgTexture = null;
+        this.stage =
+            new Stage(
+                new ScreenViewport()
+            );
+
+        // =====================================================
+        // BACKGROUND
+        // =====================================================
+
+        try {
+
+            if (
+                Gdx.files
+                    .internal(
+                        "fundo_pre.png"
+                    )
+                    .exists()
+            ) {
+
+                backgroundTexture =
+                    new Texture(
+                        Gdx.files.internal(
+                            "fundo_pre.png"
+                        )
+                    );
+            }
+
+        } catch (
+            Exception ignored
+        ) {
+
+            backgroundTexture =
+                null;
         }
 
-        this.homeLogoTexture = loadLogo(match.getHomeTeam());
-        this.awayLogoTexture = loadLogo(match.getAwayTeam());
+        // =====================================================
+        // CLUB LOGOS
+        // =====================================================
+
+        homeLogoTexture =
+            loadLogo(
+                match.getHomeTeam()
+            );
+
+        awayLogoTexture =
+            loadLogo(
+                match.getAwayTeam()
+            );
     }
+
+    // =========================================================
+    // SHOW
+    // =========================================================
 
     @Override
     public void show() {
-        Gdx.input.setInputProcessor(stage);
+
+        Gdx.input.setInputProcessor(
+            stage
+        );
+
         buildUI();
     }
 
+    // =========================================================
+    // UI
+    // =========================================================
+
     private void buildUI() {
+
         stage.clear();
 
-        Stack rootStack = new Stack();
-        rootStack.setFillParent(true);
-        stage.addActor(rootStack);
+        Stack root =
+            new Stack();
 
-        if (bgTexture != null) {
-            rootStack.add(new Image(bgTexture));
-        } else if (game.background != null) {
-            rootStack.add(new Image(game.background));
+        root.setFillParent(
+            true
+        );
+
+        stage.addActor(
+            root
+        );
+
+        // =====================================================
+        // BACKGROUND
+        // =====================================================
+
+        if (
+            backgroundTexture != null
+        ) {
+
+            Image background =
+                new Image(
+                    new TextureRegionDrawable(
+                        backgroundTexture
+                    )
+                );
+
+            background.setFillParent(
+                true
+            );
+
+            background.setScaling(
+                Scaling.fill
+            );
+
+            root.add(
+                background
+            );
+
+        } else {
+
+            root.add(
+                new Image(
+                    game.background
+                )
+            );
         }
 
-        Table mainContainer = new Table();
-        mainContainer.top().pad(16, 24, 16, 24);
+        // =====================================================
+        // DARK OVERLAY
+        // =====================================================
 
-        Table contentBox = new Table();
-        contentBox.background(StyleFactory.createSolid(new Color(0.05f, 0.07f, 0.08f, 0.88f)));
-        contentBox.pad(12);
+        Image overlay =
+            new Image(
+                StyleFactory.createSolid(
+                    new Color(
+                        0f,
+                        0.025f,
+                        0.018f,
+                        0.36f
+                    )
+                )
+            );
 
-        // 1. Cabeçalho
-        contentBox.add(buildHeader()).growX().padBottom(10).row();
+        overlay.setFillParent(
+            true
+        );
 
-        // 2. Banner de Probabilidades + Resumo dos Times
-        contentBox.add(buildMatchBanner()).growX().padBottom(12).row();
+        root.add(
+            overlay
+        );
 
-        // 3. Escalações Titulares
-        contentBox.add(buildLineupsTable()).growX().padBottom(10).row();
+        // =====================================================
+        // MAIN PAGE
+        // =====================================================
 
-        // 4. Desfalques Detalhados
-        contentBox.add(buildAbsencesTable()).growX().padBottom(10).row();
+        Table page =
+            new Table();
 
-        // 5. Jogos da Rodada com Destaque
-        contentBox.add(buildRoundMatchesTable()).growX().padBottom(12).row();
+        page.top();
 
-        // 6. Botões de Ação (Voltar e Iniciar Partida)
-        Table buttonsTable = new Table();
+        /*
+         * O rodapé agora é fixo.
+         * Reservamos 88px na parte inferior para ele.
+         */
+        page.pad(
+            18f,
+            42f,
+            88f,
+            42f
+        );
 
-        TextButton btnBack = new TextButton("⬅ VOLTAR", game.skin);
-        btnBack.getLabel().setFontScale(0.95f);
-        btnBack.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new TacticsScreen(game, playerClub));
-            }
-        });
+        // =====================================================
+        // HEADER
+        // =====================================================
 
-        TextButton btnStart = new TextButton("⚽ INICIAR PARTIDA", game.skin);
-        btnStart.getLabel().setFontScale(0.95f);
-        btnStart.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                String validationError = validatePlayerClubStatus();
-                if (validationError != null) {
-                    showValidationModal(validationError);
-                } else {
-                    game.setScreen(new MatchScreen(game, match, playerClub));
-                }
-            }
-        });
+        page
+            .add(
+                createHeader()
+            )
+            .growX()
+            .height(66f)
+            .padBottom(10f)
+            .row();
 
-        buttonsTable.add(btnBack).width(160).height(42).padRight(12);
-        buttonsTable.add(btnStart).width(280).height(42);
+        // =====================================================
+        // MATCH HERO
+        // =====================================================
 
-        contentBox.add(buttonsTable).center().padTop(6);
+        page
+            .add(
+                createMatchHero()
+            )
+            .growX()
+            .height(195f)
+            .padBottom(10f)
+            .row();
 
-        ScrollPane scrollPane = new ScrollPane(contentBox, game.skin);
-        scrollPane.setFadeScrollBars(false);
-        mainContainer.add(scrollPane).grow();
+        // =====================================================
+        // LINEUPS
+        // =====================================================
 
-        rootStack.add(mainContainer);
+        Table middle =
+            new Table();
+
+        middle
+            .add(
+                createLineupPanel(
+                    match.getHomeTeam()
+                )
+            )
+            .grow()
+            .uniformX()
+            .padRight(10f);
+
+        middle
+            .add(
+                createLineupPanel(
+                    match.getAwayTeam()
+                )
+            )
+            .grow()
+            .uniformX();
+
+        page
+            .add(middle)
+            .grow()
+            .padBottom(10f)
+            .row();
+
+        // =====================================================
+        // ABSENCES + ROUND
+        // =====================================================
+
+        Table lower =
+            new Table();
+
+        lower
+            .add(
+                createAbsencesPanel()
+            )
+            .grow()
+            .uniformX()
+            .padRight(10f);
+
+        lower
+            .add(
+                createRoundMatchesPanel()
+            )
+            .grow()
+            .uniformX();
+
+        page
+            .add(lower)
+            .growX()
+            .height(150f)
+            .row();
+
+        root.add(
+            page
+        );
+
+        // =====================================================
+        // FIXED BOTTOM BAR
+        // =====================================================
+
+        Table actionLayer =
+            new Table();
+
+        actionLayer.setFillParent(
+            true
+        );
+
+        actionLayer.bottom();
+
+        actionLayer.pad(
+            0f,
+            42f,
+            14f,
+            42f
+        );
+
+        actionLayer
+            .add(
+                createActions()
+            )
+            .growX()
+            .height(62f);
+
+        root.add(
+            actionLayer
+        );
     }
 
-    /**
-     * Valida se a formação foi escolhida e se há jogadores lesionados ou suspensos no time titular do jogador.
-     * @return Mensagem de erro caso haja impedimento, ou null se estiver válido.
-     */
-    private String validatePlayerClubStatus() {
-        if (playerClub == null) return null;
+    // =========================================================
+    // HEADER
+    // =========================================================
 
-        // 1. Exige que uma formação seja escolhida
-        if (playerClub.getFormation() == null) {
-            return "Escolha uma formação para o seu time antes de iniciar a partida!";
+    private Table createHeader() {
+
+        String date =
+            "DATA NÃO DEFINIDA";
+
+        if (
+            match != null &&
+                match.getDate() != null
+        ) {
+
+            date =
+                new SimpleDateFormat(
+                    "dd 'DE' MMMM 'DE' yyyy",
+                    new Locale(
+                        "pt",
+                        "BR"
+                    )
+                )
+                    .format(
+                        match.getDate()
+                    )
+                    .toUpperCase();
         }
 
-        // 2. Não permite avançar se houver jogador lesionado ou suspenso/expulso no time titular
-        for (Player starter : playerClub.getTacticsMap().values()) {
-            if (starter != null && !starter.canPlay()) {
-                if (starter.isInjured()) {
-                    return "O jogador titular " + starter.getName() + " está lesionado. Substitua-o antes de jogar.";
-                } else if (starter.isSuspended()) {
-                    return "O jogador titular " + starter.getName() + " está suspenso/expulso. Substitua-o antes de jogar.";
-                }
-            }
-        }
-
-        return null;
+        return ScreenUI.createHeader(
+            game.skin,
+            "WFL • RODADA " +
+                (
+                    game.league != null
+                        ? game.league
+                        .getCurrentRound()
+                        : 1
+                ),
+            date
+        );
     }
 
-    /**
-     * Exibe um modal de aviso informando o erro de validação ao usuário.
-     */
-    private void showValidationModal(String message) {
-        Dialog dialog = new Dialog("", game.skin);
-        dialog.background(StyleFactory.createRoundedPanel(StyleFactory.PRUSSIAN_GREEN, StyleFactory.GOLD));
-        dialog.pad(16);
+    // =========================================================
+    // MATCH HERO
+    // =========================================================
 
-        Table content = dialog.getContentTable();
-        content.defaults().pad(8);
+    private Table createMatchHero() {
 
-        Label titleLbl = new Label("⚠️ ATENÇÃO", game.skin, "font-bold", StyleFactory.GOLD);
-        titleLbl.setFontScale(1.1f);
-        titleLbl.setAlignment(Align.center);
-        content.add(titleLbl).center().row();
+        Table panel =
+            ScreenUI.createPanel();
 
-        Label msgLbl = new Label(message, game.skin, "font-label", Color.WHITE);
-        msgLbl.setFontScale(0.85f);
-        msgLbl.setWrap(true);
-        msgLbl.setAlignment(Align.center);
-        content.add(msgLbl).width(320).center().padTop(8).row();
+        Club home =
+            match.getHomeTeam();
 
-        TextButton btnOk = new TextButton("OK", game.skin);
-        btnOk.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                dialog.hide();
-            }
-        });
+        Club away =
+            match.getAwayTeam();
 
-        dialog.getButtonTable().padTop(12);
-        dialog.button(btnOk);
-        dialog.show(stage);
+        int[] odds =
+            calculateAdvancedOdds(
+                home,
+                away
+            );
+
+        panel
+            .add(
+                createTeamHero(
+                    home,
+                    homeLogoTexture,
+                    true
+                )
+            )
+            .width(320f)
+            .growY();
+
+        panel
+            .add(
+                createProbabilityCenter(
+                    odds
+                )
+            )
+            .expandX()
+            .center();
+
+        panel
+            .add(
+                createTeamHero(
+                    away,
+                    awayLogoTexture,
+                    false
+                )
+            )
+            .width(320f)
+            .growY();
+
+        return panel;
     }
 
-    private Table buildHeader() {
-        Table header = new Table();
-        header.background(StyleFactory.createRoundedPanel(StyleFactory.PRUSSIAN_GREEN, StyleFactory.GOLD));
-        header.pad(8, 16, 8, 16);
+    // =========================================================
+    // TEAM HERO
+    // =========================================================
 
-        int currentRound = (game.league != null) ? game.league.getCurrentRound() : 1;
-        Label lblTitle = new Label("WFL • RODADA " + currentRound, game.skin, "font-bold", StyleFactory.GOLD);
-        lblTitle.setFontScale(1.0f);
-        lblTitle.setAlignment(Align.center);
+    private Table createTeamHero(
+        Club team,
+        Texture logo,
+        boolean home
+    ) {
 
-        String matchDateStr = "15 DE JUNHO DE 1969";
-        if (match != null && match.getDate() != null) {
-            SimpleDateFormat dateFormat = new SimpleDateFormat("dd 'DE' MMMM 'DE' yyyy", new Locale("pt", "BR"));
-            matchDateStr = dateFormat.format(match.getDate()).toUpperCase();
-        }
+        Table box =
+            new Table();
 
-        Label lblDate = new Label(matchDateStr, game.skin, "font-label", Color.WHITE);
-        lblDate.setFontScale(0.80f);
-        lblDate.setAlignment(Align.center);
-
-        header.add(lblTitle).center().row();
-        header.add(lblDate).center().padTop(2);
-
-        return header;
-    }
-
-    private Table buildMatchBanner() {
-        Table banner = new Table();
-        banner.background(StyleFactory.createRoundedPanel(StyleFactory.METAL_DARK, StyleFactory.DARK_GOLD));
-        banner.pad(12);
-
-        Club home = match.getHomeTeam();
-        Club away = match.getAwayTeam();
-
-        int[] odds = calculateAdvancedOdds(home, away);
-        int homePct = odds[0];
-        int drawPct = odds[1];
-        int awayPct = odds[2];
-
-        // Lado Esquerdo - Mandante
-        Table homeBox = buildTeamSummaryBox(home, homeLogoTexture);
-
-        // Centro - Probabilidades + Barras
-        Table probBox = new Table();
-
-        Label lblProbTitle = new Label("─────── PROBABILIDADES DE RESULTADO ───────", game.skin, "font-bold", StyleFactory.DARK_GOLD);
-        lblProbTitle.setFontScale(0.75f);
-        probBox.add(lblProbTitle).colspan(3).center().padBottom(8).row();
-
-        // Percentuais no topo
-        Label lblHomePct = new Label(homePct + "%", game.skin, "font-bold", StyleFactory.GOLD);
-        lblHomePct.setFontScale(1.1f);
-        Label lblDrawPct = new Label(drawPct + "%", game.skin, "font-bold", Color.LIGHT_GRAY);
-        lblDrawPct.setFontScale(1.1f);
-        Label lblAwayPct = new Label(awayPct + "%", game.skin, "font-bold", StyleFactory.GOLD);
-        lblAwayPct.setFontScale(1.1f);
-
-        probBox.add(lblHomePct).width(75).center();
-        probBox.add(lblDrawPct).width(75).center();
-        probBox.add(lblAwayPct).width(75).center().row();
-
-        // Nomes curtos abaixo dos percentuais
-        Label lblHomeSub = new Label(getShortName(home), game.skin, "font-label", Color.WHITE);
-        lblHomeSub.setFontScale(0.68f);
-        Label lblDrawSub = new Label("EMPATE", game.skin, "font-label", Color.LIGHT_GRAY);
-        lblDrawSub.setFontScale(0.68f);
-        Label lblAwaySub = new Label(getShortName(away), game.skin, "font-label", Color.WHITE);
-        lblAwaySub.setFontScale(0.68f);
-
-        probBox.add(lblHomeSub).width(75).center();
-        probBox.add(lblDrawSub).width(75).center();
-        probBox.add(lblAwaySub).width(75).center().row();
-        probBox.getCell(lblAwaySub).padBottom(10);
-
-        // Barras de Progresso Organizadas
-        Table barsTable = new Table();
-        barsTable.defaults().padRight(12).center();
-
-        barsTable.add(createVerticalBar(homePct, StyleFactory.GOLD)).width(45).height(45);
-        barsTable.add(createVerticalBar(drawPct, Color.GRAY)).width(45).height(45);
-        barsTable.add(createVerticalBar(awayPct, StyleFactory.GOLD)).width(45).height(45);
-
-        probBox.add(barsTable).colspan(3).center();
-
-        // Lado Direito - Visitante
-        Table awayBox = buildTeamSummaryBox(away, awayLogoTexture);
-
-        banner.add(homeBox).width(210).center();
-        banner.add(probBox).expandX().center();
-        banner.add(awayBox).width(210).center();
-
-        return banner;
-    }
-
-    private Table buildTeamSummaryBox(Club team, Texture logo) {
-        Table box = new Table();
         box.center();
 
-        if (logo != null) {
-            Image img = new Image(logo);
-            img.setScaling(Scaling.fit);
-            box.add(img).size(95, 65).padBottom(4).row();
+        // =====================================================
+        // LOGO
+        // =====================================================
+
+        if (
+            logo != null
+        ) {
+
+            Image image =
+                new Image(
+                    new TextureRegionDrawable(
+                        logo
+                    )
+                );
+
+            image.setScaling(
+                Scaling.fit
+            );
+
+            box
+                .add(image)
+                .width(135f)
+                .height(78f)
+                .center()
+                .padBottom(4f)
+                .row();
         }
 
-        Label name = new Label(team.getName().toUpperCase(), game.skin, "font-bold", Color.WHITE);
-        name.setFontScale(0.80f);
-        name.setAlignment(Align.center);
-        box.add(name).padBottom(4).row();
+        // =====================================================
+        // CLUB NAME
+        // =====================================================
 
-        int pos = 1;
-        int pts = 0;
-        if (game.league != null) {
-            List<StandingsRow> standings = game.league.getFullStandings(null);
-            for (int i = 0; i < standings.size(); i++) {
-                if (standings.get(i).club == team) {
-                    pos = i + 1;
-                    pts = standings.get(i).points;
-                    break;
+        Label name =
+            new Label(
+                team.getName()
+                    .toUpperCase(),
+                game.skin,
+                "font-title"
+            );
+
+        name.setFontScale(
+            0.64f
+        );
+
+        name.setAlignment(
+            Align.center
+        );
+
+        name.setColor(
+            StyleFactory.GOLD
+        );
+
+        box
+            .add(name)
+            .width(300f)
+            .center()
+            .row();
+
+        // =====================================================
+        // POSITION
+        // =====================================================
+
+        int position =
+            getLeaguePosition(
+                team
+            );
+
+        int points =
+            getLeaguePoints(
+                team
+            );
+
+        Label info =
+            new Label(
+                position +
+                    "º • " +
+                    points +
+                    " PTS • " +
+                    (
+                        home
+                            ? "MANDANTE"
+                            : "VISITANTE"
+                    ),
+                game.skin,
+                "font-bold"
+            );
+
+        info.setFontScale(
+            0.49f
+        );
+
+        info.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        box
+            .add(info)
+            .center()
+            .padTop(3f)
+            .row();
+
+        // =====================================================
+        // FORM
+        // =====================================================
+
+        box
+            .add(
+                createRecentForm(
+                    team
+                )
+            )
+            .center()
+            .padTop(6f);
+
+        return box;
+    }
+
+    // =========================================================
+    // PROBABILITY CENTER
+    // =========================================================
+
+    private Table createProbabilityCenter(
+        int[] odds
+    ) {
+
+        Table center =
+            new Table();
+
+        Label vs =
+            new Label(
+                "VS",
+                game.skin,
+                "font-title"
+            );
+
+        vs.setFontScale(
+            0.85f
+        );
+
+        vs.setColor(
+            Color.WHITE
+        );
+
+        center
+            .add(vs)
+            .center()
+            .padBottom(6f)
+            .row();
+
+        Label title =
+            ScreenUI.createSubtitle(
+                game.skin,
+                "PROBABILIDADES"
+            );
+
+        center
+            .add(title)
+            .center()
+            .padBottom(6f)
+            .row();
+
+        Table values =
+            new Table();
+
+        values
+            .add(
+                createOddsValue(
+                    getShortName(
+                        match.getHomeTeam()
+                    ),
+                    odds[0],
+                    StyleFactory.GOLD
+                )
+            )
+            .width(105f);
+
+        values
+            .add(
+                createOddsValue(
+                    "EMPATE",
+                    odds[1],
+                    Color.LIGHT_GRAY
+                )
+            )
+            .width(105f);
+
+        values
+            .add(
+                createOddsValue(
+                    getShortName(
+                        match.getAwayTeam()
+                    ),
+                    odds[2],
+                    StyleFactory.GOLD
+                )
+            )
+            .width(105f);
+
+        center
+            .add(values)
+            .center();
+
+        return center;
+    }
+
+    // =========================================================
+    // ODDS BOX
+    // =========================================================
+
+    private Table createOddsValue(
+        String label,
+        int percentage,
+        Color color
+    ) {
+
+        Table box =
+            ScreenUI.createSubtlePanel();
+
+        Label value =
+            new Label(
+                percentage +
+                    "%",
+                game.skin,
+                "font-title"
+            );
+
+        value.setFontScale(
+            0.62f
+        );
+
+        value.setColor(
+            color
+        );
+
+        box
+            .add(value)
+            .center()
+            .row();
+
+        Label name =
+            new Label(
+                label,
+                game.skin,
+                "font-bold"
+            );
+
+        name.setFontScale(
+            0.43f
+        );
+
+        name.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        box
+            .add(name)
+            .center();
+
+        return box;
+    }
+
+    // =========================================================
+    // LINEUP PANEL
+    // =========================================================
+
+    private Table createLineupPanel(
+        Club team
+    ) {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        // =====================================================
+        // HEADING
+        // =====================================================
+
+        Table heading =
+            new Table();
+
+        heading
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    team.getName()
+                        .toUpperCase()
+                )
+            )
+            .left()
+            .expandX();
+
+        String formation =
+            team.getFormation() != null
+                ? team
+                .getFormation()
+                .getName()
+                : "N/D";
+
+        heading
+            .add(
+                ScreenUI.createBadge(
+                    game.skin,
+                    formation,
+                    StyleFactory.DARK_GOLD
+                )
+            )
+            .height(27f);
+
+        panel
+            .add(heading)
+            .growX()
+            .padBottom(6f)
+            .row();
+
+        // =====================================================
+        // TABLE HEADER
+        // =====================================================
+
+        Table header =
+            ScreenUI.createTableHeaderRow();
+
+        header
+            .add(
+                ScreenUI.createTableHeaderLabel(
+                    game.skin,
+                    "POS",
+                    Align.center
+                )
+            )
+            .width(60f);
+
+        header
+            .add(
+                ScreenUI.createTableHeaderLabel(
+                    game.skin,
+                    "TITULAR",
+                    Align.left
+                )
+            )
+            .expandX();
+
+        header
+            .add(
+                ScreenUI.createTableHeaderLabel(
+                    game.skin,
+                    "OVR",
+                    Align.center
+                )
+            )
+            .width(60f);
+
+        header
+            .add(
+                ScreenUI.createTableHeaderLabel(
+                    game.skin,
+                    "COND.",
+                    Align.center
+                )
+            )
+            .width(70f);
+
+        panel
+            .add(header)
+            .growX()
+            .height(34f)
+            .row();
+
+        // =====================================================
+        // FORMATION SLOTS
+        // =====================================================
+
+        Formation formationObject =
+            team.getFormation();
+
+        List<String> slots =
+            formationObject != null &&
+                formationObject
+                    .getPositionSlots() != null
+                ? formationObject
+                .getPositionSlots()
+                : createDefaultSlots();
+
+        // =====================================================
+        // PLAYERS
+        // =====================================================
+
+        for (
+            int i = 0;
+            i < 11;
+            i++
+        ) {
+
+            String slot =
+                i < slots.size()
+                    ? slots.get(i)
+                    : "CM";
+
+            Player player =
+                team.getTacticsMap()
+                    .get(i);
+
+            Table row =
+                ScreenUI.createRow(
+                    i
+                );
+
+            // =================================================
+            // POSITION
+            // =================================================
+
+            row
+                .add(
+                    ScreenUI.createBadge(
+                        game.skin,
+                        slot,
+                        StyleFactory
+                            .getPositionColor(
+                                slot
+                            )
+                    )
+                )
+                .width(60f)
+                .height(24f);
+
+            // =================================================
+            // NAME
+            // =================================================
+
+            String name =
+                player != null
+                    ? player.getName()
+                    : "VAGA NÃO PREENCHIDA";
+
+            Label nameLabel =
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    ScreenUI.shorten(
+                        name,
+                        22
+                    ),
+                    player != null
+                        ? Color.WHITE
+                        : ScreenUI.DANGER,
+                    Align.left
+                );
+
+            row
+                .add(nameLabel)
+                .expandX()
+                .left()
+                .padLeft(7f);
+
+            // =================================================
+            // EFFECTIVE OVR
+            // =================================================
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        player != null
+                            ? String.valueOf(
+                            player
+                                .getEffectiveOverallForPosition(
+                                    slot
+                                )
+                        )
+                            : "-",
+                        player != null
+                            ? StyleFactory.SOFT_YELLOW
+                            : ScreenUI.DANGER,
+                        Align.center
+                    )
+                )
+                .width(60f);
+
+            // =================================================
+            // CONDITION
+            // =================================================
+
+            Color conditionColor =
+                player == null
+                    ? ScreenUI.DANGER
+                    : player.getFatigue() >= 75
+                    ? ScreenUI.SUCCESS
+                    : player.getFatigue() >= 50
+                    ? ScreenUI.WARNING
+                    : ScreenUI.DANGER;
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        player != null
+                            ? player.getFatigue() +
+                            "%"
+                            : "-",
+                        conditionColor,
+                        Align.center
+                    )
+                )
+                .width(70f);
+
+            // =================================================
+            // PLAYER DETAILS
+            // =================================================
+
+            if (
+                player != null
+            ) {
+
+                final Player selected =
+                    player;
+
+                row.addListener(
+                    new ClickListener() {
+
+                        @Override
+                        public void clicked(
+                            InputEvent event,
+                            float x,
+                            float y
+                        ) {
+
+                            showPlayerModal(
+                                selected
+                            );
+                        }
+                    }
+                );
+            }
+
+            panel
+                .add(row)
+                .growX()
+                .height(36f)
+                .row();
+        }
+
+        return panel;
+    }
+
+    // =========================================================
+    // ABSENCES
+    // =========================================================
+
+    private Table createAbsencesPanel() {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "DESFALQUES"
+                )
+            )
+            .left()
+            .colspan(2)
+            .padBottom(6f)
+            .row();
+
+        panel
+            .add(
+                createAbsenceColumn(
+                    match.getHomeTeam()
+                )
+            )
+            .grow()
+            .uniformX()
+            .padRight(7f);
+
+        panel
+            .add(
+                createAbsenceColumn(
+                    match.getAwayTeam()
+                )
+            )
+            .grow()
+            .uniformX();
+
+        return panel;
+    }
+
+    // =========================================================
+    // ABSENCE COLUMN
+    // =========================================================
+
+    private Table createAbsenceColumn(
+        Club team
+    ) {
+
+        Table column =
+            ScreenUI.createSubtlePanel();
+
+        column.top();
+
+        Label title =
+            new Label(
+                team.getName()
+                    .toUpperCase(),
+                game.skin,
+                "font-bold"
+            );
+
+        title.setFontScale(
+            0.48f
+        );
+
+        title.setColor(
+            StyleFactory.SOFT_YELLOW
+        );
+
+        column
+            .add(title)
+            .left()
+            .padBottom(5f)
+            .row();
+
+        boolean hasAbsence =
+            false;
+
+        int shown =
+            0;
+
+        for (
+            Player player :
+            team.getSquad()
+        ) {
+
+            if (
+                player.canPlay()
+            ) {
+
+                continue;
+            }
+
+            hasAbsence =
+                true;
+
+            String reason =
+                player.isInjured()
+                    ? "LES • " +
+                    player.getInjuryDuration() +
+                    "J"
+                    : "SUS • " +
+                    player.getSuspendedMatches() +
+                    "J";
+
+            Table row =
+                new Table();
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        ScreenUI.shorten(
+                            player.getName(),
+                            15
+                        ),
+                        Color.WHITE,
+                        Align.left
+                    )
+                )
+                .left()
+                .expandX();
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        reason,
+                        ScreenUI.DANGER,
+                        Align.right
+                    )
+                )
+                .right();
+
+            column
+                .add(row)
+                .growX()
+                .padBottom(3f)
+                .row();
+
+            shown++;
+
+            /*
+             * Evita que um número grande de lesões
+             * expanda o painel e empurre a interface.
+             */
+            if (
+                shown >= 3
+            ) {
+
+                break;
+            }
+        }
+
+        if (
+            !hasAbsence
+        ) {
+
+            column
+                .add(
+                    ScreenUI.createValueLabel(
+                        game.skin,
+                        "Nenhum desfalque",
+                        ScreenUI.SUCCESS,
+                        Align.left
+                    )
+                )
+                .left();
+        }
+
+        return column;
+    }
+
+    // =========================================================
+    // ROUND MATCHES
+    // =========================================================
+
+    private Table createRoundMatchesPanel() {
+
+        Table panel =
+            ScreenUI.createPanel();
+
+        panel.top();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "JOGOS DA RODADA"
+                )
+            )
+            .left()
+            .padBottom(6f)
+            .row();
+
+        Table list =
+            new Table();
+
+        List<Match> matches =
+            game.league != null
+                ? game.league
+                .getCurrentRoundMatches()
+                : new ArrayList<Match>();
+
+        if (
+            matches == null ||
+                matches.isEmpty()
+        ) {
+
+            matches =
+                new ArrayList<>();
+
+            matches.add(
+                match
+            );
+        }
+
+        int index =
+            0;
+
+        for (
+            Match roundMatch :
+            matches
+        ) {
+
+            boolean current =
+                roundMatch ==
+                    match;
+
+            Table row =
+                ScreenUI.createRow(
+                    index++
+                );
+
+            if (
+                current
+            ) {
+
+                row.background(
+                    StyleFactory.createRoundedPanel(
+                        new Color(
+                            0.18f,
+                            0.14f,
+                            0.025f,
+                            0.97f
+                        ),
+                        StyleFactory.GOLD
+                    )
+                );
+            }
+
+            row
+                .add(
+                    ScreenUI.createValueLabel(
+                        game.skin,
+                        ScreenUI.shorten(
+                            roundMatch
+                                .getHomeTeam()
+                                .getName(),
+                            14
+                        ),
+                        Color.WHITE,
+                        Align.right
+                    )
+                )
+                .expandX()
+                .right();
+
+            int[] odds =
+                calculateAdvancedOdds(
+                    roundMatch
+                        .getHomeTeam(),
+                    roundMatch
+                        .getAwayTeam()
+                );
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        odds[0] +
+                            "%",
+                        StyleFactory.SOFT_YELLOW,
+                        Align.center
+                    )
+                )
+                .width(48f);
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        "VS",
+                        ScreenUI.MUTED_TEXT,
+                        Align.center
+                    )
+                )
+                .width(32f);
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        odds[2] +
+                            "%",
+                        StyleFactory.SOFT_YELLOW,
+                        Align.center
+                    )
+                )
+                .width(48f);
+
+            row
+                .add(
+                    ScreenUI.createValueLabel(
+                        game.skin,
+                        ScreenUI.shorten(
+                            roundMatch
+                                .getAwayTeam()
+                                .getName(),
+                            14
+                        ),
+                        Color.WHITE,
+                        Align.left
+                    )
+                )
+                .expandX()
+                .left();
+
+            list
+                .add(row)
+                .growX()
+                .height(30f)
+                .padBottom(2f)
+                .row();
+
+            /*
+             * Painel pequeno no pré-jogo.
+             * Exibe no máximo 4 jogos e mantém
+             * os botões sempre visíveis.
+             */
+            if (
+                index >= 4
+            ) {
+
+                break;
+            }
+        }
+
+        ScrollPane scroll =
+            new ScrollPane(
+                list,
+                game.skin
+            );
+
+        scroll.setFadeScrollBars(
+            false
+        );
+
+        panel
+            .add(scroll)
+            .grow();
+
+        return panel;
+    }
+
+    // =========================================================
+    // FIXED ACTION BAR
+    // =========================================================
+
+    private Table createActions() {
+
+        Table bar =
+            ScreenUI.createPanel();
+
+        bar.pad(
+            7f,
+            14f,
+            7f,
+            14f
+        );
+
+        // =====================================================
+        // BACK
+        // =====================================================
+
+        ImageTextButton back =
+            IconTextButton.create(
+                "VOLTAR",
+                game.skin,
+                "Icons8/icons8-logout-arredondado-à-esquerda-50.png"
+            );
+
+        back
+            .getLabel()
+            .setFontScale(
+                0.60f
+            );
+
+        back.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    game.setScreen(
+                        new ClubManagementScreen(
+                            game,
+                            playerClub
+                        )
+                    );
+                }
+            }
+        );
+
+        bar
+            .add(back)
+            .width(155f)
+            .height(42f);
+
+        // =====================================================
+        // CENTER SPACE
+        // =====================================================
+
+        bar
+            .add()
+            .expandX();
+
+        // =====================================================
+        // TACTICS
+        // =====================================================
+
+        ImageTextButton tactics =
+            IconTextButton.create(
+                "AJUSTAR TÁTICA",
+                game.skin,
+                "Icons8/icons8-estrutura-em-árvore-50.png"
+            );
+
+        tactics
+            .getLabel()
+            .setFontScale(
+                0.60f
+            );
+
+        tactics.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    game.setScreen(
+                        new TacticsScreen(
+                            game,
+                            playerClub
+                        )
+                    );
+                }
+            }
+        );
+
+        bar
+            .add(tactics)
+            .width(210f)
+            .height(42f)
+            .padRight(10f);
+
+        // =====================================================
+        // PLAY MATCH
+        // =====================================================
+
+        ImageTextButton play =
+            IconTextButton.create(
+                "JOGAR PARTIDA",
+                game.skin,
+                "Icons8/icons8-ligar-50.png"
+            );
+
+        play
+            .getLabel()
+            .setFontScale(
+                0.64f
+            );
+
+        play.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    String error =
+                        validatePlayerClubStatus();
+
+                    if (
+                        error != null
+                    ) {
+
+                        showValidationModal(
+                            error
+                        );
+
+                        return;
+                    }
+
+                    game.setScreen(
+                        new MatchScreen(
+                            game,
+                            match,
+                            playerClub
+                        )
+                    );
+                }
+            }
+        );
+
+        bar
+            .add(play)
+            .width(235f)
+            .height(42f);
+
+        return bar;
+    }
+
+    // =========================================================
+    // VALIDATION
+    // =========================================================
+
+    private String validatePlayerClubStatus() {
+
+        if (
+            playerClub == null
+        ) {
+
+            return null;
+        }
+
+        // =====================================================
+        // FORMATION
+        // =====================================================
+
+        if (
+            playerClub.getFormation() ==
+                null
+        ) {
+
+            return "Escolha uma formação antes de iniciar a partida.";
+        }
+
+        // =====================================================
+        // 11 PLAYERS
+        // =====================================================
+
+        if (
+            playerClub
+                .getTacticsMap()
+                .size() <
+                11
+        ) {
+
+            return "A escalação titular precisa possuir 11 jogadores.";
+        }
+
+        // =====================================================
+        // VALIDATE PLAYERS
+        // =====================================================
+
+        for (
+            Player starter :
+            playerClub
+                .getTacticsMap()
+                .values()
+        ) {
+
+            if (
+                starter == null
+            ) {
+
+                return "Existem posições vazias na escalação titular.";
+            }
+
+            if (
+                !starter.canPlay()
+            ) {
+
+                if (
+                    starter.isInjured()
+                ) {
+
+                    return starter.getName() +
+                        " está lesionado. Substitua-o antes da partida.";
+                }
+
+                if (
+                    starter.isSuspended()
+                ) {
+
+                    return starter.getName() +
+                        " está suspenso. Substitua-o antes da partida.";
                 }
             }
         }
 
-        Label infoLbl = new Label("Posição: " + pos + "º  |  Pontos: " + pts, game.skin, "font-label", StyleFactory.SOFT_YELLOW);
-        infoLbl.setFontScale(0.68f);
-        box.add(infoLbl).padBottom(4).row();
-
-        // Linha da Forma Recente Dinâmica
-        Table formTable = new Table();
-        formTable.add(new Label("Forma: ", game.skin, "font-label", Color.LIGHT_GRAY)).padRight(2);
-
-        List<Character> recentForm = getRecentForm(team);
-        for (char result : recentForm) {
-            Color color;
-            if (result == 'V') {
-                color = Color.GREEN;
-            } else if (result == 'E') {
-                color = Color.LIGHT_GRAY;
-            } else if (result == 'D') {
-                color = Color.RED;
-            } else {
-                color = Color.DARK_GRAY;
-            }
-
-            Label letter = new Label(String.valueOf(result), game.skin, "font-bold", color);
-            letter.setFontScale(0.72f);
-            formTable.add(letter).padRight(3);
-        }
-
-        box.add(formTable);
-        return box;
-    }
-
-    private Table createVerticalBar(int percentage, Color barColor) {
-        Table barContainer = new Table();
-        barContainer.background(getSolidDrawable(Color.valueOf("1F1F1F")));
-        barContainer.top();
-
-        Table fill = new Table();
-        fill.background(getSolidDrawable(barColor));
-
-        float normalized = Math.max(0f, Math.min(100f, percentage)) / 100f;
-        barContainer.add(fill).growX().height(45 * normalized).bottom();
-        return barContainer;
-    }
-
-    private Table buildLineupsTable() {
-        Table root = new Table();
-
-        Table homeCol = buildTeamLineupColumn(match.getHomeTeam());
-        Table awayCol = buildTeamLineupColumn(match.getAwayTeam());
-
-        root.add(homeCol).expandX().fillX().padRight(6);
-        root.add(awayCol).expandX().fillX().padLeft(6);
-
-        return root;
-    }
-
-    private Table buildTeamLineupColumn(Club team) {
-        Table panel = new Table();
-        panel.background(StyleFactory.createRoundedPanel(StyleFactory.METAL_DARK, StyleFactory.DARK_GOLD));
-        panel.pad(8);
-
-        Label nameLbl = new Label(team.getName().toUpperCase(), game.skin, "font-bold", StyleFactory.GOLD);
-        nameLbl.setFontScale(0.85f);
-        panel.add(nameLbl).left().padBottom(2).row();
-
-        Formation form = team.getFormation();
-        String formName = form != null ? form.getName() : "4-3-3";
-        Label formLbl = new Label("Formação: " + formName, game.skin, "font-label", Color.LIGHT_GRAY);
-        formLbl.setFontScale(0.75f);
-        panel.add(formLbl).left().padBottom(8).row();
-
-        Table squadList = new Table();
-        squadList.top().left();
-
-        List<String> defaultSlots = List.of("GK", "LB", "CB", "CB", "RB", "CM", "CM", "CM", "LW", "ST", "RW");
-        List<String> slots = (form != null && form.getPositionSlots() != null && !form.getPositionSlots().isEmpty())
-            ? form.getPositionSlots() : defaultSlots;
-
-        List<Player> starters = new ArrayList<>(team.getTacticsMap().values());
-
-        for (int i = 0; i < 11; i++) {
-            String slotPos = (i < slots.size()) ? slots.get(i) : "CM";
-            final Player p = (i < starters.size()) ? starters.get(i) : null;
-
-            Table row = new Table();
-            row.left().padBottom(3);
-
-            Label posBadge = new Label(slotPos, game.skin, "font-bold", StyleFactory.getPositionColor(slotPos));
-            posBadge.setFontScale(0.72f);
-            row.add(posBadge).width(40).left();
-
-            String pName = p != null ? p.getName() : "...";
-            Label namePlayer = new Label(pName, game.skin, "font-label", Color.WHITE);
-            namePlayer.setFontScale(0.75f);
-            namePlayer.setEllipsis(true);
-            row.add(namePlayer).expandX().left();
-
-            if (p != null) {
-                row.setTouchable(com.badlogic.gdx.scenes.scene2d.Touchable.enabled);
-                row.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent event, float x, float y) {
-                        showPlayerCardModal(p);
-                    }
-                });
-            }
-
-            squadList.add(row).growX().row();
-        }
-
-        panel.add(squadList).growX().left();
-        return panel;
-    }
-
-    private void showPlayerCardModal(Player player) {
-        Dialog dialog = new Dialog("", game.skin);
-        dialog.background(StyleFactory.createRoundedPanel(StyleFactory.PRUSSIAN_GREEN, StyleFactory.GOLD));
-        dialog.pad(16);
-
-        Table content = dialog.getContentTable();
-        content.defaults().pad(4);
-
-        Label nameLbl = new Label(player.getName().toUpperCase(), game.skin, "font-bold", StyleFactory.GOLD);
-        nameLbl.setFontScale(1.1f);
-        nameLbl.setAlignment(Align.center);
-        content.add(nameLbl).colspan(2).center().padBottom(2).row();
-
-        Label posLbl = new Label("POSIÇÃO: " + player.getPosition(), game.skin, "font-label", Color.LIGHT_GRAY);
-        posLbl.setFontScale(0.78f);
-        posLbl.setAlignment(Align.center);
-        content.add(posLbl).colspan(2).center().padBottom(12).row();
-
-        TechnicalAttributes attrs = player.getTechnicalAttributes();
-        int atk = attrs != null ? attrs.getAtaque() : 70;
-        int pass = attrs != null ? attrs.getPasse() : 70;
-        int drb = attrs != null ? attrs.getDrible() : 70;
-        int phy = attrs != null ? attrs.getFisico() : 70;
-
-        content.add(new Label("ATAQUE", game.skin, "font-bold", Color.WHITE)).left();
-        content.add(new Label(String.valueOf(atk), game.skin, "font-bold", StyleFactory.SOFT_YELLOW)).right().row();
-
-        content.add(new Label("PASSE", game.skin, "font-bold", Color.WHITE)).left();
-        content.add(new Label(String.valueOf(pass), game.skin, "font-bold", StyleFactory.SOFT_YELLOW)).right().row();
-
-        content.add(new Label("DRIBLE", game.skin, "font-bold", Color.WHITE)).left();
-        content.add(new Label(String.valueOf(drb), game.skin, "font-bold", StyleFactory.SOFT_YELLOW)).right().row();
-
-        content.add(new Label("FÍSICO", game.skin, "font-bold", Color.WHITE)).left();
-        content.add(new Label(String.valueOf(phy), game.skin, "font-bold", StyleFactory.SOFT_YELLOW)).right().padBottom(10).row();
-
-        Table divider = new Table();
-        divider.background(getSolidDrawable(StyleFactory.GOLD));
-        content.add(divider).colspan(2).growX().height(1).padBottom(8).row();
-
-        content.add(new Label("OVERALL", game.skin, "font-bold", StyleFactory.GOLD)).left();
-        Label ovrVal = new Label(String.valueOf(player.getOverall()), game.skin, "font-bold", Color.WHITE);
-        ovrVal.setFontScale(1.15f);
-        content.add(ovrVal).right().row();
-
-        TextButton btnClose = new TextButton("FECHAR", game.skin);
-        btnClose.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                dialog.hide();
-            }
-        });
-
-        dialog.getButtonTable().padTop(12);
-        dialog.button(btnClose);
-        dialog.show(stage);
-    }
-
-    private Table buildAbsencesTable() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createRoundedPanel(StyleFactory.PRUSSIAN_GREEN, StyleFactory.GOLD));
-        panel.pad(10);
-
-        Label title = new Label("DESFALQUES", game.skin, "font-bold", Color.WHITE);
-        title.setFontScale(0.85f);
-        panel.add(title).colspan(2).center().padBottom(8).row();
-
-        Table homeAbs = buildAbsenceCounts(match.getHomeTeam());
-        Table awayAbs = buildAbsenceCounts(match.getAwayTeam());
-
-        panel.add(homeAbs).expandX().fillX().top().padRight(8);
-        panel.add(awayAbs).expandX().fillX().top().padLeft(8);
-
-        return panel;
-    }
-
-    private Table buildAbsenceCounts(Club team) {
-        Table box = new Table();
-        box.top().left();
-
-        Label nameLbl = new Label(team.getName().toUpperCase(), game.skin, "font-bold", StyleFactory.GOLD);
-        nameLbl.setFontScale(0.80f);
-        box.add(nameLbl).left().padBottom(6).row();
-
-        List<Player> absentees = new ArrayList<>();
-        for (Player p : team.getSquad()) {
-            if (!p.canPlay()) {
-                absentees.add(p);
-            }
-        }
-
-        if (absentees.isEmpty()) {
-            Label noAbsence = new Label("Nenhum desfalque", game.skin, "font-label", Color.LIGHT_GRAY);
-            noAbsence.setFontScale(0.72f);
-            box.add(noAbsence).left();
-        } else {
-            for (Player p : absentees) {
-                Table row = new Table();
-                row.left().padBottom(4);
-
-                String icon = p.isInjured() ? "🩹 " : "🔴 ";
-                String reason = p.isInjured() ? "Lesionado (" + p.getInjuryDuration() + "J)" : "Suspenso (" + p.getSuspendedMatches() + "J)";
-
-                Label playerLbl = new Label(icon + p.getName(), game.skin, "font-bold", Color.WHITE);
-                playerLbl.setFontScale(0.75f);
-
-                Label reasonLbl = new Label(reason, game.skin, "font-label", Color.LIGHT_GRAY);
-                reasonLbl.setFontScale(0.68f);
-
-                row.add(playerLbl).left().row();
-                row.add(reasonLbl).left().padLeft(16);
-
-                row.setTouchable(com.badlogic.gdx.scenes.scene2d.Touchable.enabled);
-                row.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent event, float x, float y) {
-                        showPlayerCardModal(p);
-                    }
-                });
-
-                box.add(row).growX().left().row();
-            }
-        }
-
-        return box;
-    }
-
-    private Table buildRoundMatchesTable() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createRoundedPanel(StyleFactory.METAL_DARK, StyleFactory.DARK_GOLD));
-        panel.pad(10);
-
-        int roundNum = (game.league != null) ? game.league.getCurrentRound() : 12;
-        Label title = new Label("JOGOS DA RODADA " + roundNum, game.skin, "font-bold", StyleFactory.GOLD);
-        title.setFontScale(0.85f);
-        panel.add(title).center().padBottom(10).row();
-
-        Table list = new Table();
-        list.top().defaults().growX().padBottom(6);
-
-        List<Match> roundMatches = new ArrayList<>();
-        if (game.league != null) {
-            roundMatches = game.league.getCurrentRoundMatches();
-        }
-
-        if (roundMatches.isEmpty()) {
-            roundMatches.add(match);
-        }
-
-        for (Match m : roundMatches) {
-            boolean isUserMatch = (m == match);
-            int[] odds = calculateAdvancedOdds(m.getHomeTeam(), m.getAwayTeam());
-
-            Table outerRow = new Table();
-            Color bgRow = isUserMatch ? StyleFactory.WINE_RED : StyleFactory.METAL_DARK;
-            Color borderRow = isUserMatch ? StyleFactory.GOLD : Color.CLEAR;
-            outerRow.background(StyleFactory.createRoundedPanel(bgRow, borderRow));
-            outerRow.pad(6);
-
-            Label timeLbl = new Label("15:00", game.skin, "font-bold", Color.GRAY);
-            timeLbl.setFontScale(0.65f);
-            outerRow.add(timeLbl).colspan(5).center().padBottom(2).row();
-
-            Label homeName = new Label(m.getHomeTeam().getName(), game.skin, "font-label", Color.WHITE);
-            homeName.setFontScale(0.72f);
-            homeName.setEllipsis(true);
-
-            Label homeOdds = new Label(odds[0] + "%", game.skin, "font-bold", StyleFactory.SOFT_YELLOW);
-            homeOdds.setFontScale(0.72f);
-
-            Label xLbl = new Label("───", game.skin, "font-bold", Color.GRAY);
-            xLbl.setFontScale(0.72f);
-
-            Label awayOdds = new Label(odds[2] + "%", game.skin, "font-bold", StyleFactory.SOFT_YELLOW);
-            awayOdds.setFontScale(0.72f);
-
-            Label awayName = new Label(m.getAwayTeam().getName(), game.skin, "font-label", Color.WHITE);
-            awayName.setFontScale(0.72f);
-            awayName.setEllipsis(true);
-
-            outerRow.add(homeName).width(160).left();
-            outerRow.add(homeOdds).width(45).right();
-            outerRow.add(xLbl).width(40).center();
-            outerRow.add(awayOdds).width(45).left();
-            outerRow.add(awayName).width(160).right();
-
-            if (isUserMatch) {
-                outerRow.row().padTop(4);
-                Label badge = new Label("▶ VOCÊ ESTÁ AQUI", game.skin, "font-bold", StyleFactory.GOLD);
-                badge.setFontScale(0.68f);
-                outerRow.add(badge).colspan(5).center();
-            }
-
-            list.add(outerRow).row();
-        }
-
-        panel.add(list).growX();
-        return panel;
-    }
-
-    private int[] calculateAdvancedOdds(Club home, Club away) {
-        double homePower = calculateComprehensiveTeamPower(home, true);
-        double awayPower = calculateComprehensiveTeamPower(away, false);
-
-        double diff = homePower - awayPower;
-
-        double rawHomeOdds = Math.max(1.15, 2.20 - (diff * 0.045));
-        double rawAwayOdds = Math.max(1.15, 2.20 + (diff * 0.045));
-        double rawDrawOdds = Math.max(2.80, 3.40 - (Math.abs(diff) * 0.015));
-
-        double pHomeImp = (1.0 / rawHomeOdds) * 100.0;
-        double pAwayImp = (1.0 / rawAwayOdds) * 100.0;
-        double pDrawImp = (1.0 / rawDrawOdds) * 100.0;
-
-        double totalMarket = pHomeImp + pAwayImp + pDrawImp;
-
-        int homePct = (int) Math.round((pHomeImp / totalMarket) * 100.0);
-        int drawPct = (int) Math.round((pDrawImp / totalMarket) * 100.0);
-        int awayPct = 100 - homePct - drawPct;
-
-        return new int[]{homePct, drawPct, awayPct};
-    }
-
-    private double calculateComprehensiveTeamPower(Club club, boolean isHome) {
-        if (club == null || club.getSquad().isEmpty()) return 70.0;
-
-        double squadPower = club.getSquad().stream()
-            .mapToInt(Player::getOverall)
-            .average().orElse(70.0);
-
-        List<Player> starters = new ArrayList<>(club.getTacticsMap().values());
-        double startersPower = starters.stream()
-            .filter(p -> p != null && p.canPlay())
-            .mapToInt(Player::getOverall)
-            .average().orElse(squadPower);
-
-        // --- CÁLCULO DE IMPACTO DA MORAL ---
-        double moraleAvg = starters.stream()
-            .filter(p -> p != null && p.canPlay())
-            .mapToInt(Player::getMorale)
-            .average().orElse(
-                club.getSquad().stream().mapToInt(Player::getMorale).average().orElse(75.0)
-            );
-        // Transforma a escala 0-100 em multiplicador entre 0.85 (moral zero) e 1.15 (moral 100)
-        double moraleImpact = 0.85 + (0.30 * (moraleAvg / 100.0));
-
-        double fatigueAvg = starters.stream()
-            .filter(p -> p != null)
-            .mapToInt(Player::getFatigue)
-            .average().orElse(100.0);
-        double fatigueImpact = 0.75 + (0.25 * (fatigueAvg / 100.0));
-
-        int absences = 0;
-        for (Player p : club.getSquad()) {
-            if (!p.canPlay()) absences++;
-        }
-        double absencePenalty = Math.max(0.85, 1.0 - (absences * 0.025));
-
-        Player gk = starters.stream()
-            .filter(p -> p != null && "GK".equalsIgnoreCase(p.getPosition()) && p.canPlay())
-            .findFirst().orElse(null);
-        double gkPower = gk != null ? gk.getOverall() : 65.0;
-
-        TacticalModifiers mods = TacticalEngine.calculateModifiers(
-            club.getTempo(), club.getMentalityValue(), club.getPassing(), club.getWidth(), club.getPressure()
-        );
-        double tacticPowerBonus = mods.attackMultiplier * 0.05;
-
-        double homeBonus = isHome ? 1.08 : 1.00;
-
-        // A força total passa a considerar a variável moraleImpact
-        return ((startersPower * 0.50) + (squadPower * 0.25) + (gkPower * 0.25))
-            * fatigueImpact * moraleImpact * absencePenalty * homeBonus * (1.0 + tacticPowerBonus);
-    }
-
-    private com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable getSolidDrawable(Color color) {
-        com.badlogic.gdx.graphics.Pixmap pixmap = new com.badlogic.gdx.graphics.Pixmap(1, 1, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
-        pixmap.setColor(color);
-        pixmap.fill();
-        Texture texture = new Texture(pixmap);
-        pixmap.dispose();
-        return new com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable(new com.badlogic.gdx.graphics.g2d.TextureRegion(texture));
-    }
-
-    private String getShortName(Club club) {
-        if (club == null || club.getName() == null) return "TIME";
-        String name = club.getName().trim();
-        if (name.contains(" ")) {
-            return name.split(" ")[0].toUpperCase();
-        }
-        return name.toUpperCase();
-    }
-
-    private Texture loadLogo(Club club) {
-        if (club != null && club.getLogoPath() != null && Gdx.files.internal(club.getLogoPath()).exists()) {
-            try {
-                return new Texture(Gdx.files.internal(club.getLogoPath()));
-            } catch (Exception ignored) {}
-        }
         return null;
     }
 
-    private List<Character> getRecentForm(Club team) {
-        List<Character> form = new ArrayList<>();
-        if (game.league == null) {
-            return List.of('V', 'V', 'E', 'V', 'D');
+    // =========================================================
+    // VALIDATION DIALOG
+    // =========================================================
+
+    private void showValidationModal(
+        String message
+    ) {
+
+        Dialog dialog =
+            new Dialog(
+                "",
+                game.skin
+            );
+
+        Table content =
+            dialog.getContentTable();
+
+        content.background(
+            StyleFactory.createRoundedPanel(
+                StyleFactory.PRUSSIAN_GREEN,
+                StyleFactory.GOLD
+            )
+        );
+
+        content.pad(
+            24f
+        );
+
+        Label title =
+            new Label(
+                "ATENÇÃO",
+                game.skin,
+                "font-title"
+            );
+
+        title.setFontScale(
+            0.66f
+        );
+
+        title.setColor(
+            ScreenUI.WARNING
+        );
+
+        content
+            .add(title)
+            .center()
+            .padBottom(12f)
+            .row();
+
+        Label text =
+            new Label(
+                message,
+                game.skin
+            );
+
+        text.setWrap(
+            true
+        );
+
+        text.setAlignment(
+            Align.center
+        );
+
+        text.setColor(
+            StyleFactory.CREME_AGED
+        );
+
+        content
+            .add(text)
+            .width(420f)
+            .center();
+
+        dialog.button(
+            "OK"
+        );
+
+        dialog.show(
+            stage
+        );
+    }
+
+    // =========================================================
+    // PLAYER DETAILS
+    // =========================================================
+
+    private void showPlayerModal(
+        Player player
+    ) {
+
+        Dialog dialog =
+            new Dialog(
+                "",
+                game.skin
+            );
+
+        Table content =
+            dialog.getContentTable();
+
+        content.background(
+            StyleFactory.createRoundedPanel(
+                ScreenUI.PANEL,
+                StyleFactory.GOLD
+            )
+        );
+
+        content.pad(
+            22f
+        );
+
+        // =====================================================
+        // NAME
+        // =====================================================
+
+        Label name =
+            new Label(
+                player.getName()
+                    .toUpperCase(),
+                game.skin,
+                "font-title"
+            );
+
+        name.setFontScale(
+            0.68f
+        );
+
+        name.setColor(
+            StyleFactory.GOLD
+        );
+
+        content
+            .add(name)
+            .colspan(2)
+            .center()
+            .padBottom(12f)
+            .row();
+
+        // =====================================================
+        // INFO
+        // =====================================================
+
+        addPlayerDetail(
+            content,
+            "POSIÇÃO",
+            player.getPosition()
+        );
+
+        addPlayerDetail(
+            content,
+            "OVERALL",
+            String.valueOf(
+                player.getOverall()
+            )
+        );
+
+        addPlayerDetail(
+            content,
+            "IDADE",
+            String.valueOf(
+                player.getAge()
+            )
+        );
+
+        addPlayerDetail(
+            content,
+            "MORAL",
+            String.valueOf(
+                player.getMorale()
+            )
+        );
+
+        addPlayerDetail(
+            content,
+            "CONDIÇÃO",
+            player.getFatigue() +
+                "%"
+        );
+
+        addPlayerDetail(
+            content,
+            "ATAQUE",
+            String.valueOf(
+                player
+                    .getTechnicalAttributes()
+                    .getAtaque()
+            )
+        );
+
+        addPlayerDetail(
+            content,
+            "PASSE",
+            String.valueOf(
+                player
+                    .getTechnicalAttributes()
+                    .getPasse()
+            )
+        );
+
+        addPlayerDetail(
+            content,
+            "DEFESA",
+            String.valueOf(
+                player
+                    .getTechnicalAttributes()
+                    .getDefesa()
+            )
+        );
+
+        addPlayerDetail(
+            content,
+            "FÍSICO",
+            String.valueOf(
+                player
+                    .getTechnicalAttributes()
+                    .getFisico()
+            )
+        );
+
+        addPlayerDetail(
+            content,
+            "DRIBLE",
+            String.valueOf(
+                player
+                    .getTechnicalAttributes()
+                    .getDrible()
+            )
+        );
+
+        dialog.button(
+            "FECHAR"
+        );
+
+        dialog.show(
+            stage
+        );
+    }
+
+    // =========================================================
+    // PLAYER DETAIL ROW
+    // =========================================================
+
+    private void addPlayerDetail(
+        Table table,
+        String label,
+        String value
+    ) {
+
+        table
+            .add(
+                ScreenUI.createSubtitle(
+                    game.skin,
+                    label
+                )
+            )
+            .left()
+            .width(150f)
+            .padBottom(6f);
+
+        table
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    value,
+                    StyleFactory.CREME_AGED,
+                    Align.right
+                )
+            )
+            .right()
+            .width(120f)
+            .padBottom(6f)
+            .row();
+    }
+
+    // =========================================================
+    // ODDS
+    // =========================================================
+
+    private int[] calculateAdvancedOdds(
+        Club home,
+        Club away
+    ) {
+
+        double homePower =
+            calculateComprehensiveTeamPower(
+                home,
+                true
+            );
+
+        double awayPower =
+            calculateComprehensiveTeamPower(
+                away,
+                false
+            );
+
+        double diff =
+            homePower -
+                awayPower;
+
+        // =====================================================
+        // RAW ODDS
+        // =====================================================
+
+        double rawHomeOdds =
+            Math.max(
+                1.15,
+                2.20 -
+                    diff *
+                        0.045
+            );
+
+        double rawAwayOdds =
+            Math.max(
+                1.15,
+                2.20 +
+                    diff *
+                        0.045
+            );
+
+        double rawDrawOdds =
+            Math.max(
+                2.80,
+                3.40 -
+                    Math.abs(
+                        diff
+                    ) *
+                        0.015
+            );
+
+        // =====================================================
+        // PROBABILITIES
+        // =====================================================
+
+        double pHome =
+            1.0 /
+                rawHomeOdds;
+
+        double pAway =
+            1.0 /
+                rawAwayOdds;
+
+        double pDraw =
+            1.0 /
+                rawDrawOdds;
+
+        double total =
+            pHome +
+                pAway +
+                pDraw;
+
+        int homePercent =
+            (int) Math.round(
+                pHome /
+                    total *
+                    100
+            );
+
+        int drawPercent =
+            (int) Math.round(
+                pDraw /
+                    total *
+                    100
+            );
+
+        int awayPercent =
+            100 -
+                homePercent -
+                drawPercent;
+
+        return new int[]{
+            homePercent,
+            drawPercent,
+            awayPercent
+        };
+    }
+
+    // =========================================================
+    // TEAM POWER
+    // =========================================================
+
+    private double calculateComprehensiveTeamPower(
+        Club club,
+        boolean home
+    ) {
+
+        if (
+            club == null ||
+                club.getSquad()
+                    .isEmpty()
+        ) {
+
+            return 70.0;
         }
 
-        List<Match> teamMatches = new ArrayList<>();
-        if (game.league != null && game.league.getSchedule() != null) {
-            for (Match m : game.league.getSchedule()) {
-                if (m.isPlayed() && (m.getHomeTeam() == team || m.getAwayTeam() == team)) {
-                    teamMatches.add(m);
-                }
+        // =====================================================
+        // SQUAD
+        // =====================================================
+
+        double squadPower =
+            club.getSquad()
+                .stream()
+                .mapToInt(
+                    Player::getOverall
+                )
+                .average()
+                .orElse(
+                    70.0
+                );
+
+        // =====================================================
+        // STARTERS
+        // =====================================================
+
+        List<Player> starters =
+            new ArrayList<>(
+                club.getTacticsMap()
+                    .values()
+            );
+
+        double startersPower =
+            starters
+                .stream()
+                .filter(
+                    p ->
+                        p != null &&
+                            p.canPlay()
+                )
+                .mapToInt(
+                    Player::getOverall
+                )
+                .average()
+                .orElse(
+                    squadPower
+                );
+
+        // =====================================================
+        // MORALE
+        // =====================================================
+
+        double morale =
+            starters
+                .stream()
+                .filter(
+                    p ->
+                        p != null &&
+                            p.canPlay()
+                )
+                .mapToInt(
+                    Player::getMorale
+                )
+                .average()
+                .orElse(
+                    75.0
+                );
+
+        // =====================================================
+        // FATIGUE
+        // =====================================================
+
+        double fatigue =
+            starters
+                .stream()
+                .filter(
+                    p ->
+                        p != null
+                )
+                .mapToInt(
+                    Player::getFatigue
+                )
+                .average()
+                .orElse(
+                    100.0
+                );
+
+        // =====================================================
+        // ABSENCES
+        // =====================================================
+
+        int absences =
+            0;
+
+        for (
+            Player player :
+            club.getSquad()
+        ) {
+
+            if (
+                !player.canPlay()
+            ) {
+
+                absences++;
             }
         }
 
-        int start = Math.max(0, teamMatches.size() - 5);
-        for (int i = start; i < teamMatches.size(); i++) {
-            Match m = teamMatches.get(i);
-            int homeGoals = m.getHomeGoals();
-            int awayGoals = m.getAwayGoals();
+        double moraleImpact =
+            0.85 +
+                0.30 *
+                    morale /
+                    100.0;
 
-            if (m.getHomeTeam().equals(team)) {
-                if (homeGoals > awayGoals) form.add('V');
-                else if (homeGoals == awayGoals) form.add('E');
-                else form.add('D');
+        double fatigueImpact =
+            0.75 +
+                0.25 *
+                    fatigue /
+                    100.0;
+
+        double absenceImpact =
+            Math.max(
+                0.85,
+                1.0 -
+                    absences *
+                        0.025
+            );
+
+        // =====================================================
+        // GK
+        // =====================================================
+
+        double gkPower =
+            65.0;
+
+        for (
+            Player player :
+            starters
+        ) {
+
+            if (
+                player != null &&
+                    "GK".equalsIgnoreCase(
+                        player.getPosition()
+                    ) &&
+                    player.canPlay()
+            ) {
+
+                gkPower =
+                    player.getOverall();
+
+                break;
+            }
+        }
+
+        // =====================================================
+        // TACTICS
+        // =====================================================
+
+        TacticalModifiers modifiers =
+            TacticalEngine.calculateModifiers(
+                club.getTempo(),
+                club.getMentalityValue(),
+                club.getPassing(),
+                club.getWidth(),
+                club.getPressure()
+            );
+
+        double tacticalBonus =
+            modifiers.attackMultiplier *
+                0.05;
+
+        // =====================================================
+        // HOME ADVANTAGE
+        // =====================================================
+
+        double homeBonus =
+            home
+                ? 1.08
+                : 1.0;
+
+        return (
+            startersPower *
+                0.50
+                +
+                squadPower *
+                    0.25
+                +
+                gkPower *
+                    0.25
+        )
+            *
+            fatigueImpact
+            *
+            moraleImpact
+            *
+            absenceImpact
+            *
+            homeBonus
+            *
+            (
+                1.0 +
+                    tacticalBonus
+            );
+    }
+
+    // =========================================================
+    // LEAGUE POSITION
+    // =========================================================
+
+    private int getLeaguePosition(
+        Club team
+    ) {
+
+        if (
+            game.league == null
+        ) {
+
+            return 1;
+        }
+
+        List<StandingsRow> standings =
+            game.league
+                .getFullStandings(
+                    null
+                );
+
+        for (
+            int i = 0;
+            i < standings.size();
+            i++
+        ) {
+
+            if (
+                standings
+                    .get(i)
+                    .club ==
+                    team
+            ) {
+
+                return i + 1;
+            }
+        }
+
+        return 1;
+    }
+
+    // =========================================================
+    // LEAGUE POINTS
+    // =========================================================
+
+    private int getLeaguePoints(
+        Club team
+    ) {
+
+        if (
+            game.league == null
+        ) {
+
+            return 0;
+        }
+
+        for (
+            StandingsRow row :
+            game.league
+                .getFullStandings(
+                    null
+                )
+        ) {
+
+            if (
+                row.club ==
+                    team
+            ) {
+
+                return row.points;
+            }
+        }
+
+        return 0;
+    }
+
+    // =========================================================
+    // RECENT FORM
+    // =========================================================
+
+    private Table createRecentForm(
+        Club team
+    ) {
+
+        Table form =
+            new Table();
+
+        for (
+            char result :
+            getRecentForm(
+                team
+            )
+        ) {
+
+            Color color;
+
+            if (
+                result ==
+                    'V'
+            ) {
+
+                color =
+                    ScreenUI.SUCCESS;
+
+            } else if (
+                result ==
+                    'D'
+            ) {
+
+                color =
+                    ScreenUI.DANGER;
+
+            } else if (
+                result ==
+                    'E'
+            ) {
+
+                color =
+                    ScreenUI.WARNING;
+
             } else {
-                if (awayGoals > homeGoals) form.add('V');
-                else if (awayGoals == homeGoals) form.add('E');
-                else form.add('D');
-            }
-        }
 
-        while (form.size() < 5) {
-            form.add(0, '-');
+                color =
+                    Color.GRAY;
+            }
+
+            Table badge =
+                ScreenUI.createBadge(
+                    game.skin,
+                    String.valueOf(
+                        result
+                    ),
+                    color
+                );
+
+            form
+                .add(badge)
+                .width(27f)
+                .height(23f)
+                .padRight(3f);
         }
 
         return form;
     }
 
-    @Override
-    public void render(float delta) {
-        Gdx.gl.glClearColor(0.05f, 0.05f, 0.06f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+    // =========================================================
+    // GET FORM
+    // =========================================================
 
-        stage.act(delta);
+    private List<Character> getRecentForm(
+        Club team
+    ) {
+
+        List<Character> form =
+            new ArrayList<>();
+
+        if (
+            game.league == null ||
+                game.league.getSchedule() ==
+                    null
+        ) {
+
+            fillEmptyForm(
+                form
+            );
+
+            return form;
+        }
+
+        List<Match> matches =
+            new ArrayList<>();
+
+        for (
+            Match previous :
+            game.league
+                .getSchedule()
+        ) {
+
+            if (
+                previous.isPlayed() &&
+                    (
+                        previous.getHomeTeam() ==
+                            team ||
+                            previous.getAwayTeam() ==
+                                team
+                    )
+            ) {
+
+                matches.add(
+                    previous
+                );
+            }
+        }
+
+        int start =
+            Math.max(
+                0,
+                matches.size() -
+                    5
+            );
+
+        for (
+            int i = start;
+            i < matches.size();
+            i++
+        ) {
+
+            Match previous =
+                matches.get(i);
+
+            int teamGoals =
+                previous.getHomeTeam() ==
+                    team
+                    ? previous.getHomeGoals()
+                    : previous.getAwayGoals();
+
+            int opponentGoals =
+                previous.getHomeTeam() ==
+                    team
+                    ? previous.getAwayGoals()
+                    : previous.getHomeGoals();
+
+            if (
+                teamGoals >
+                    opponentGoals
+            ) {
+
+                form.add(
+                    'V'
+                );
+
+            } else if (
+                teamGoals ==
+                    opponentGoals
+            ) {
+
+                form.add(
+                    'E'
+                );
+
+            } else {
+
+                form.add(
+                    'D'
+                );
+            }
+        }
+
+        fillEmptyForm(
+            form
+        );
+
+        return form;
+    }
+
+    // =========================================================
+    // FILL EMPTY FORM
+    // =========================================================
+
+    private void fillEmptyForm(
+        List<Character> form
+    ) {
+
+        while (
+            form.size() <
+                5
+        ) {
+
+            form.add(
+                0,
+                '-'
+            );
+        }
+    }
+
+    // =========================================================
+    // DEFAULT FORMATION
+    // =========================================================
+
+    private List<String> createDefaultSlots() {
+
+        List<String> slots =
+            new ArrayList<>();
+
+        slots.add("GK");
+
+        slots.add("LB");
+        slots.add("CB");
+        slots.add("CB");
+        slots.add("RB");
+
+        slots.add("CM");
+        slots.add("CM");
+        slots.add("CM");
+
+        slots.add("LW");
+        slots.add("ST");
+        slots.add("RW");
+
+        return slots;
+    }
+
+    // =========================================================
+    // SHORT CLUB NAME
+    // =========================================================
+
+    private String getShortName(
+        Club club
+    ) {
+
+        if (
+            club == null ||
+                club.getName() ==
+                    null
+        ) {
+
+            return "TIME";
+        }
+
+        String[] parts =
+            club.getName()
+                .trim()
+                .split(" ");
+
+        return parts[0]
+            .toUpperCase();
+    }
+
+    // =========================================================
+    // LOAD LOGO
+    // =========================================================
+
+    private Texture loadLogo(
+        Club club
+    ) {
+
+        if (
+            club == null ||
+                club.getLogoPath() ==
+                    null
+        ) {
+
+            return null;
+        }
+
+        try {
+
+            if (
+                Gdx.files
+                    .internal(
+                        club.getLogoPath()
+                    )
+                    .exists()
+            ) {
+
+                Texture texture =
+                    new Texture(
+                        Gdx.files.internal(
+                            club.getLogoPath()
+                        )
+                    );
+
+                texture.setFilter(
+                    Texture.TextureFilter.Linear,
+                    Texture.TextureFilter.Linear
+                );
+
+                return texture;
+            }
+
+        } catch (
+            Exception ignored
+        ) {
+        }
+
+        return null;
+    }
+
+    // =========================================================
+    // RENDER
+    // =========================================================
+
+    @Override
+    public void render(
+        float delta
+    ) {
+
+        Gdx.gl.glClearColor(
+            0f,
+            0f,
+            0f,
+            1f
+        );
+
+        Gdx.gl.glClear(
+            GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        stage.act(
+            delta
+        );
+
         stage.draw();
     }
 
-    @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
-    @Override public void pause() {}
-    @Override public void resume() {}
-    @Override public void hide() {}
+    // =========================================================
+    // RESIZE
+    // =========================================================
+
+    @Override
+    public void resize(
+        int width,
+        int height
+    ) {
+
+        stage
+            .getViewport()
+            .update(
+                width,
+                height,
+                true
+            );
+    }
+
+    // =========================================================
+    // SCREEN METHODS
+    // =========================================================
+
+    @Override
+    public void pause() {
+    }
+
+    @Override
+    public void resume() {
+    }
+
+    @Override
+    public void hide() {
+    }
+
+    // =========================================================
+    // DISPOSE
+    // =========================================================
 
     @Override
     public void dispose() {
+
         stage.dispose();
-        if (bgTexture != null) bgTexture.dispose();
-        if (homeLogoTexture != null) homeLogoTexture.dispose();
-        if (awayLogoTexture != null) awayLogoTexture.dispose();
+
+        if (
+            backgroundTexture != null
+        ) {
+
+            backgroundTexture.dispose();
+        }
+
+        if (
+            homeLogoTexture != null
+        ) {
+
+            homeLogoTexture.dispose();
+        }
+
+        if (
+            awayLogoTexture != null
+        ) {
+
+            awayLogoTexture.dispose();
+        }
     }
 }

@@ -12,10 +12,13 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
+
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Formation;
 import io.github.some_example_name.model.Player;
+import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
 import java.util.ArrayList;
@@ -24,538 +27,1953 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 public class TacticsDialog extends Dialog {
+
     private static final int MAX_SUBSTITUTIONS = 5;
+    private static final int MAX_BENCH_PLAYERS = 7;
 
     private final Main game;
     private final Club club;
+
     private final Runnable onCloseCallback;
     private final BiConsumer<Player, Player> onSubstitutionListener;
     private final Runnable onTacticsChangedListener;
 
-    private Player selectedPlayer = null;
-    private Integer selectedSlot = null;
+    private Player selectedPlayer;
+    private Integer selectedSlot;
+
     private Texture pitchTexture;
-    private Texture kitTexture;
+
     private Table contentTable;
-    private Label subCounterLabel;
+
+    private Label substitutionCounterLabel;
+    private Label selectedInfoLabel;
 
     private final List<Player> substitutedPlayers;
+    private final List<Player> matchBenchPlayers;
+    private boolean injuryReplacementPending;
+
     private int substitutionsUsed;
 
-    public TacticsDialog(Main game, Club club,
-                         int initialSubstitutionsUsed,
-                         List<Player> substitutedPlayers,
-                         Runnable onCloseCallback,
-                         BiConsumer<Player, Player> onSubstitutionListener,
-                         Runnable onTacticsChangedListener) {
-        super("", game.skin);
-        this.game = game;
-        this.club = club;
-        this.substitutionsUsed = initialSubstitutionsUsed;
-        this.substitutedPlayers = substitutedPlayers != null ? substitutedPlayers : new ArrayList<>();
-        this.onCloseCallback = onCloseCallback;
-        this.onSubstitutionListener = onSubstitutionListener;
-        this.onTacticsChangedListener = onTacticsChangedListener;
+    public TacticsDialog(
+        Main game,
+        Club club,
+        int initialSubstitutionsUsed,
+        List<Player> substitutedPlayers,
+        List<Player> matchBenchPlayers,
+        boolean injuryReplacementPending,
+        Runnable onCloseCallback,
+        BiConsumer<Player, Player> onSubstitutionListener,
+        Runnable onTacticsChangedListener
+    ) {
 
-        if (Gdx.files.internal("uniforme_santos.png").exists()) {
-            kitTexture = new Texture(Gdx.files.internal("uniforme_santos.png"));
-        }
-        generate2DPitchTexture();
+        super(
+            "",
+            game.skin
+        );
+
+        this.game =
+            game;
+
+        this.club =
+            club;
+
+        this.substitutionsUsed =
+            initialSubstitutionsUsed;
+
+        this.substitutedPlayers =
+            substitutedPlayers != null
+                ? substitutedPlayers
+                : new ArrayList<>();
+
+        this.matchBenchPlayers =
+            matchBenchPlayers != null
+                ? new ArrayList<>(
+                    matchBenchPlayers
+                )
+                : new ArrayList<>();
+
+        this.injuryReplacementPending =
+            injuryReplacementPending;
+
+        this.onCloseCallback =
+            onCloseCallback;
+
+        this.onSubstitutionListener =
+            onSubstitutionListener;
+
+        this.onTacticsChangedListener =
+            onTacticsChangedListener;
 
         ensureStartersPopulated();
 
-        setModal(true);
-        setMovable(false);
+        if (
+            matchBenchPlayers == null
+        ) {
+
+            initializeMatchBench();
+        }
+
+        generatePitchTexture();
+
+        setModal(
+            true
+        );
+
+        setMovable(
+            false
+        );
+
         buildUI();
     }
 
+    // =========================================================
+    // INITIALIZATION
+    // =========================================================
+
     private void ensureStartersPopulated() {
-        Formation f = club.getFormation();
-        if (f == null && Formation.values().length > 0) {
-            f = Formation.values()[0];
-            club.setFormation(f);
+
+        Formation formation =
+            club.getFormation();
+
+        if (
+            formation == null &&
+                Formation.values().length > 0
+        ) {
+
+            formation =
+                Formation.values()[0];
+
+            club.setFormation(
+                formation
+            );
         }
 
-        Map<Integer, Player> map = club.getTacticsMap();
-        List<Player> startingXI = club.getStartingXI();
+        Map<Integer, Player> map =
+            club.getTacticsMap();
 
-        for (int i = 0; i < 11; i++) {
-            if (!map.containsKey(i) || map.get(i) == null) {
-                if (i < startingXI.size()) {
-                    map.put(i, startingXI.get(i));
-                } else if (i < club.getSquad().size()) {
-                    map.put(i, club.getSquad().get(i));
-                }
-            }
+        if (
+            !map.isEmpty()
+        ) {
+
+            return;
+        }
+
+        List<Player> startingXI =
+            club.getStartingXI();
+
+        for (
+            int i = 0;
+            i < startingXI.size() &&
+                i < 11;
+            i++
+        ) {
+
+            map.put(
+                i,
+                startingXI.get(i)
+            );
         }
     }
+
+    // =========================================================
+    // MAIN UI
+    // =========================================================
 
     private void buildUI() {
-        getContentTable().clear();
 
-        Table root = new Table();
-        root.background(StyleFactory.createRoundedPanel(StyleFactory.PRUSSIAN_GREEN, StyleFactory.GOLD));
-        root.pad(14);
+        getContentTable()
+            .clear();
 
-        Table headerTable = new Table();
-        Label titleLbl = new Label("ESCALAÇÃO & SUBSTITUIÇÕES", game.skin, "font-bold", Color.WHITE);
-        titleLbl.setFontScale(1.05f);
-        headerTable.add(titleLbl).left().padRight(15);
+        Table root =
+            getContentTable();
 
-        headerTable.add(new Label("FORMAÇÃO:", game.skin, "font-bold", StyleFactory.GOLD)).padRight(6);
+        root.background(
+            StyleFactory.createMetallicBoard(
+                1220,
+                720,
+                Color.valueOf(
+                    "141A16"
+                )
+            )
+        );
 
-        final SelectBox<Formation> selectBox = new SelectBox<>(game.skin);
-        selectBox.setItems(Formation.values());
-        if (club.getFormation() != null) {
-            selectBox.setSelected(club.getFormation());
-        }
-        selectBox.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                club.setFormation(selectBox.getSelected());
-                if (onTacticsChangedListener != null) {
-                    onTacticsChangedListener.run();
-                }
-                refreshContent();
-            }
-        });
-        headerTable.add(selectBox).width(130).padRight(15);
+        root.pad(
+            12f
+        );
 
-        subCounterLabel = new Label("SUBS: " + substitutionsUsed + "/" + MAX_SUBSTITUTIONS, game.skin, "font-bold",
-            substitutionsUsed >= MAX_SUBSTITUTIONS ? Color.RED : StyleFactory.SOFT_YELLOW);
-        headerTable.add(subCounterLabel).left();
+        // =====================================================
+        // HEADER
+        // =====================================================
 
-        headerTable.add().expandX();
+        root
+            .add(
+                createHeader()
+            )
+            .growX()
+            .height(64f)
+            .padBottom(8f)
+            .row();
 
-        TextButton btnClose = new TextButton(" X ", game.skin);
-        btnClose.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                hide();
-                if (onCloseCallback != null) {
-                    onCloseCallback.run();
-                }
-            }
-        });
-        headerTable.add(btnClose).right().height(34);
+        // =====================================================
+        // CONTENT
+        // =====================================================
 
-        root.add(headerTable).growX().padBottom(12).row();
+        contentTable =
+            new Table();
 
-        contentTable = new Table();
-        root.add(contentTable).width(1120).height(580).row();
+        root
+            .add(contentTable)
+            .width(1160f)
+            .height(565f)
+            .row();
+
         refreshContent();
-
-        getContentTable().add(root);
     }
 
-    private void refreshContent() {
-        if (subCounterLabel != null) {
-            subCounterLabel.setText("SUBS: " + substitutionsUsed + "/" + MAX_SUBSTITUTIONS);
-            subCounterLabel.setColor(substitutionsUsed >= MAX_SUBSTITUTIONS ? Color.RED : StyleFactory.SOFT_YELLOW);
+    // =========================================================
+    // HEADER
+    // =========================================================
+
+    private Table createHeader() {
+
+        Table header =
+            ScreenUI.createPanel();
+
+        // =====================================================
+        // TITLE
+        // =====================================================
+
+        Table titleArea =
+            new Table();
+
+        Label title =
+            new Label(
+                "TÁTICAS DURANTE A PARTIDA",
+                game.skin,
+                "font-title"
+            );
+
+        title.setFontScale(
+            0.70f
+        );
+
+        title.setColor(
+            StyleFactory.GOLD
+        );
+
+        titleArea
+            .add(title)
+            .left()
+            .row();
+
+        Label clubName =
+            new Label(
+                club.getName()
+                    .toUpperCase(),
+                game.skin,
+                "font-bold"
+            );
+
+        clubName.setFontScale(
+            0.47f
+        );
+
+        clubName.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        titleArea
+            .add(clubName)
+            .left();
+
+        header
+            .add(titleArea)
+            .left()
+            .padRight(20f);
+
+        // =====================================================
+        // FORMATION
+        // =====================================================
+
+        Label formationLabel =
+            ScreenUI.createSubtitle(
+                game.skin,
+                "FORMAÇÃO"
+            );
+
+        header
+            .add(formationLabel)
+            .padRight(7f);
+
+        final SelectBox<Formation> formationBox =
+            ScreenUI.createSelectBox(
+                game.skin
+            );
+
+        formationBox.setItems(
+            Formation.values()
+        );
+
+        if (
+            club.getFormation() != null
+        ) {
+
+            formationBox.setSelected(
+                club.getFormation()
+            );
         }
+
+        formationBox.addListener(
+            new ChangeListener() {
+
+                @Override
+                public void changed(
+                    ChangeEvent event,
+                    Actor actor
+                ) {
+
+                    Formation formation =
+                        formationBox
+                            .getSelected();
+
+                    if (
+                        formation == null
+                    ) {
+
+                        return;
+                    }
+
+                    club.setFormation(
+                        formation
+                    );
+
+                    selectedPlayer =
+                        null;
+
+                    selectedSlot =
+                        null;
+
+                    if (
+                        onTacticsChangedListener != null
+                    ) {
+
+                        onTacticsChangedListener.run();
+                    }
+
+                    refreshContent();
+                }
+            }
+        );
+
+        header
+            .add(formationBox)
+            .width(200f)
+            .height(50f)
+            .padRight(16f);
+
+        // =====================================================
+        // SUBS
+        // =====================================================
+
+        substitutionCounterLabel =
+            new Label(
+                "",
+                game.skin,
+                "font-bold"
+            );
+
+        substitutionCounterLabel.setFontScale(
+            0.58f
+        );
+
+        updateSubstitutionCounter();
+
+        header
+            .add(substitutionCounterLabel)
+            .left()
+            .padRight(12f);
+
+        header
+            .add()
+            .expandX();
+
+        // =====================================================
+        // CLOSE
+        // =====================================================
+
+        ImageTextButton close =
+            IconTextButton.create(
+                "FECHAR",
+                game.skin,
+                "Icons8/icons8-fechar-janela-50.png"
+            );
+
+        close
+            .getLabel()
+            .setFontScale(
+                0.55f
+            );
+
+        close.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    closeDialog();
+                }
+            }
+        );
+
+        header
+            .add(close)
+            .width(125f)
+            .height(40f);
+
+        return header;
+    }
+
+    // =========================================================
+    // CONTENT
+    // =========================================================
+
+    private void refreshContent() {
+
+        if (
+            contentTable == null
+        ) {
+
+            return;
+        }
+
+        updateSubstitutionCounter();
 
         contentTable.clear();
 
-        Table leftArea = new Table();
-        leftArea.add(createPitchLayout2D()).grow().padBottom(8).row();
-        leftArea.add(createSelectedPlayerPanel()).growX().height(80);
+        Table left =
+            new Table();
 
-        contentTable.add(leftArea).expand().fill().padRight(12);
-        contentTable.add(createSquadPanelContent()).width(380).growY();
+        left.top();
+
+        // =====================================================
+        // PITCH
+        // =====================================================
+
+        left
+            .add(
+                createPitchPanel()
+            )
+            .grow()
+            .padBottom(8f)
+            .row();
+
+        // =====================================================
+        // SELECTED PLAYER
+        // =====================================================
+
+        left
+            .add(
+                createSelectedPlayerPanel()
+            )
+            .growX()
+            .height(88f);
+
+        contentTable
+            .add(left)
+            .grow()
+            .padRight(10f);
+
+        // =====================================================
+        // RIGHT PANEL
+        // =====================================================
+
+        contentTable
+            .add(
+                createSquadPanel()
+            )
+            .width(390f)
+            .growY();
     }
 
-    private Table createPitchLayout2D() {
-        Table pitch = new Table();
-        pitch.background(new TextureRegionDrawable(new TextureRegion(pitchTexture)));
-        pitch.pad(8);
+    // =========================================================
+    // PITCH
+    // =========================================================
 
-        Formation f = club.getFormation();
-        if (f == null || f.getPositionSlots() == null) return pitch;
+    private Table createPitchPanel() {
 
-        List<String> slots = f.getPositionSlots();
+        Table panel =
+            ScreenUI.createPanel();
 
-        Table stRow = createRowTable();
-        Table wingRow = createRowTable();
-        Table camRow = createRowTable();
-        Table midRow = createRowTable();
-        Table cdmRow = createRowTable();
-        Table wingbackRow = createRowTable();
-        Table defRow = createRowTable();
-        Table gkRow = createRowTable();
+        panel.top();
 
-        for (int i = 0; i < Math.min(11, slots.size()); i++) {
-            final int slotIndex = i;
-            String targetPos = slots.get(slotIndex);
-            Player p = club.getTacticsMap().get(slotIndex);
+        Table heading =
+            new Table();
 
-            Table card = createMiniPlayerCard(p, targetPos, slotIndex);
-            int layer = getPositionDepthLayer(targetPos);
+        heading
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "ESCALAÇÃO"
+                )
+            )
+            .left()
+            .expandX();
 
-            switch (layer) {
-                case 7: stRow.add(card).pad(2, 5, 2, 5); break;
-                case 6: wingRow.add(card).expandX().pad(2, 4, 2, 4); break;
-                case 5: camRow.add(card).pad(2, 5, 2, 5); break;
-                case 4: midRow.add(card).expandX().pad(2, 4, 2, 4); break;
-                case 3: cdmRow.add(card).pad(2, 5, 2, 5); break;
-                case 2: wingbackRow.add(card).expandX().pad(2, 4, 2, 4); break;
-                case 1: defRow.add(card).expandX().pad(2, 4, 2, 4); break;
-                default: gkRow.add(card).pad(2); break;
+        Label hint =
+            ScreenUI.createSubtitle(
+                game.skin,
+                "Clique em dois titulares para trocar posições"
+            );
+
+        heading
+            .add(hint)
+            .right();
+
+        panel
+            .add(heading)
+            .growX()
+            .padBottom(7f)
+            .row();
+
+        Table pitch =
+            createPitchLayout();
+
+        panel
+            .add(pitch)
+            .grow();
+
+        return panel;
+    }
+
+    private Table createPitchLayout() {
+
+        Table pitch =
+            new Table();
+
+        pitch.background(
+            new TextureRegionDrawable(
+                new TextureRegion(
+                    pitchTexture
+                )
+            )
+        );
+
+        pitch.pad(
+            7f
+        );
+
+        Formation formation =
+            club.getFormation();
+
+        if (
+            formation == null ||
+                formation.getPositionSlots() == null
+        ) {
+
+            return pitch;
+        }
+
+        List<String> slots =
+            formation.getPositionSlots();
+
+        Table st =
+            createLine();
+
+        Table wing =
+            createLine();
+
+        Table cam =
+            createLine();
+
+        Table mid =
+            createLine();
+
+        Table cdm =
+            createLine();
+
+        Table wingback =
+            createLine();
+
+        Table defense =
+            createLine();
+
+        Table goalkeeper =
+            createLine();
+
+        for (
+            int i = 0;
+            i < Math.min(
+                11,
+                slots.size()
+            );
+            i++
+        ) {
+
+            String position =
+                slots.get(i);
+
+            Player player =
+                club.getTacticsMap()
+                    .get(i);
+
+            Table card =
+                createPlayerCard(
+                    player,
+                    position,
+                    i
+                );
+
+            switch (
+                getPositionDepthLayer(
+                    position
+                )
+            ) {
+
+                case 7:
+                    st.add(card)
+                        .pad(2f, 5f, 2f, 5f);
+                    break;
+
+                case 6:
+                    wing.add(card)
+                        .expandX()
+                        .pad(2f, 4f, 2f, 4f);
+                    break;
+
+                case 5:
+                    cam.add(card)
+                        .pad(2f, 5f, 2f, 5f);
+                    break;
+
+                case 4:
+                    mid.add(card)
+                        .expandX()
+                        .pad(2f, 4f, 2f, 4f);
+                    break;
+
+                case 3:
+                    cdm.add(card)
+                        .pad(2f, 5f, 2f, 5f);
+                    break;
+
+                case 2:
+                    wingback.add(card)
+                        .expandX()
+                        .pad(2f, 4f, 2f, 4f);
+                    break;
+
+                case 1:
+                    defense.add(card)
+                        .expandX()
+                        .pad(2f, 4f, 2f, 4f);
+                    break;
+
+                default:
+                    goalkeeper.add(card)
+                        .pad(2f);
+                    break;
             }
         }
 
-        pitch.add(stRow).expand().fillX().center().row();
-        pitch.add(wingRow).expand().fillX().center().row();
-        pitch.add(camRow).expand().center().row();
-        pitch.add(midRow).expand().fillX().center().row();
-        pitch.add(cdmRow).expand().center().row();
-        pitch.add(wingbackRow).expand().fillX().center().row();
-        pitch.add(defRow).expand().fillX().center().row();
-        pitch.add(gkRow).expand().center().row();
+        pitch
+            .add(st)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(wing)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(cam)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(mid)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(cdm)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(wingback)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(defense)
+            .expand()
+            .fillX()
+            .row();
+
+        pitch
+            .add(goalkeeper)
+            .expand()
+            .fillX()
+            .row();
 
         return pitch;
     }
 
-    private Table createRowTable() {
-        Table row = new Table();
-        row.center();
-        return row;
-    }
+    private Table createPlayerCard(
+        Player player,
+        String targetPosition,
+        int slotIndex
+    ) {
 
-    private Table createMiniPlayerCard(final Player p, String targetPos, final int slotIndex) {
-        Table outerCard = new Table();
-        outerCard.setTransform(true);
-        outerCard.setOrigin(Align.center);
+        Table card =
+            new Table();
 
-        boolean isSelected = (p != null && p == selectedPlayer);
-        boolean isSubstitutedOut = (p != null && substitutedPlayers.contains(p));
-        boolean isInjured = (p != null && p.isInjured());
-        boolean isSuspended = (p != null && p.isSuspended());
+        boolean selected =
+            player != null &&
+                player == selectedPlayer;
 
-        Color borderColor = isSelected ? StyleFactory.GOLD : StyleFactory.DARK_GOLD;
+        boolean unavailable =
+            player != null &&
+                (
+                    player.isInjured() ||
+                        player.isSuspended() ||
+                        substitutedPlayers.contains(
+                            player
+                        )
+                );
 
-        Stack stack = new Stack();
+        Color background =
+            unavailable
+                ? Color.valueOf(
+                "281919"
+            )
+                : selected
+                ? Color.valueOf(
+                "302604"
+            )
+                : ScreenUI.PANEL;
 
-        Table kitLayer = new Table();
-        kitLayer.top();
-        if (p != null && kitTexture != null) {
-            Image kitImg = new Image(kitTexture);
-            kitLayer.add(kitImg).size(76, 76).padTop(-38).center();
-        }
+        card.background(
+            StyleFactory.createRoundedPanel(
+                background,
+                selected
+                    ? StyleFactory.PLAYOFF_GOLD
+                    : StyleFactory.DARK_GOLD
+            )
+        );
 
-        Table cardFront = new Table();
-        Color cardBg = (isSubstitutedOut || isInjured || isSuspended) ? Color.valueOf("2A1A1A") : StyleFactory.METAL_DARK;
-        cardFront.background(StyleFactory.createRoundedPanel(cardBg, borderColor));
-        cardFront.pad(3);
+        card.pad(
+            4f
+        );
 
-        if (p != null) {
-            int effOvr = p.getEffectiveOverallForPosition(targetPos);
-            boolean isOutOfPosition = !p.getPosition().equalsIgnoreCase(targetPos) || effOvr < p.getOverall();
+        if (
+            player == null
+        ) {
 
-            String displayName = p.getName();
-            if (isSubstitutedOut) displayName += " 🔄";
-            else if (isInjured) displayName += " 🚑";
-            else if (isSuspended) displayName += " ⛔";
-            else if (isOutOfPosition) displayName += " ⚠";
+            Label position =
+                new Label(
+                    targetPosition,
+                    game.skin,
+                    "font-bold"
+                );
 
-            Color nameColor = (isInjured || isSuspended) ? Color.valueOf("FF4D4D") : (isSubstitutedOut ? Color.GRAY : (isOutOfPosition ? Color.valueOf("FF9800") : Color.WHITE));
-
-            Label nameLbl = new Label(displayName, game.skin, "font-bold", nameColor);
-            nameLbl.setFontScale(0.65f);
-            nameLbl.setEllipsis(true);
-            cardFront.add(nameLbl).width(80).center().padTop(1).padBottom(2).row();
-
-            Label posOvrLbl = new Label(
-                targetPos.toUpperCase() + " " + effOvr,
-                game.skin,
-                "font-bold",
-                (isInjured || isSuspended) ? Color.GRAY : StyleFactory.SOFT_YELLOW
+            position.setFontScale(
+                0.60f
             );
-            posOvrLbl.setFontScale(0.65f);
-            cardFront.add(posOvrLbl).padBottom(2).row();
 
-            float fatigue = p.getFatigue();
-            cardFront.add(createFatigueBar(fatigue)).width(70).height(4).row();
+            position.setColor(
+                StyleFactory.GOLD
+            );
+
+            card
+                .add(position)
+                .center()
+                .row();
+
+            Label empty =
+                new Label(
+                    "VAZIO",
+                    game.skin
+                );
+
+            empty.setFontScale(
+                0.47f
+            );
+
+            empty.setColor(
+                Color.GRAY
+            );
+
+            card
+                .add(empty)
+                .center();
+
         } else {
-            Label posLbl = new Label(targetPos.toUpperCase(), game.skin, "font-bold", Color.GRAY);
-            posLbl.setFontScale(0.75f);
-            cardFront.add(posLbl).padBottom(1).row();
 
-            Label emptyLbl = new Label("[ VAZIO ]", game.skin, "font-label", Color.LIGHT_GRAY);
-            emptyLbl.setFontScale(0.60f);
-            cardFront.add(emptyLbl).row();
+            String name =
+                ScreenUI.shorten(
+                    player.getName(),
+                    12
+                );
+
+            Label nameLabel =
+                new Label(
+                    name,
+                    game.skin,
+                    "font-bold"
+                );
+
+            nameLabel.setFontScale(
+                0.51f
+            );
+
+            nameLabel.setColor(
+                unavailable
+                    ? ScreenUI.DANGER
+                    : Color.WHITE
+            );
+
+            nameLabel.setAlignment(
+                Align.center
+            );
+
+            card
+                .add(nameLabel)
+                .width(92f)
+                .center()
+                .row();
+
+            int effective =
+                player
+                    .getEffectiveOverallForPosition(
+                        targetPosition
+                    );
+
+            Table details =
+                new Table();
+
+            details
+                .add(
+                    ScreenUI.createBadge(
+                        game.skin,
+                        targetPosition,
+                        StyleFactory
+                            .getPositionColor(
+                                targetPosition
+                            )
+                    )
+                )
+                .height(22f)
+                .padRight(4f);
+
+            Label overall =
+                new Label(
+                    String.valueOf(
+                        effective
+                    ),
+                    game.skin,
+                    "font-bold"
+                );
+
+            overall.setFontScale(
+                0.57f
+            );
+
+            overall.setColor(
+                effective < player.getOverall()
+                    ? ScreenUI.WARNING
+                    : StyleFactory.SOFT_YELLOW
+            );
+
+            details
+                .add(overall);
+
+            card
+                .add(details)
+                .center()
+                .padTop(2f)
+                .padBottom(3f)
+                .row();
+
+            card
+                .add(
+                    ScreenUI.createBlockProgress(
+                        game.skin,
+                        player.getFatigue(),
+                        7,
+                        getFatigueColor(
+                            player.getFatigue()
+                        )
+                    )
+                )
+                .center();
         }
 
-        stack.add(kitLayer);
-        stack.add(cardFront);
-        outerCard.add(stack).grow();
+        final Player clickedPlayer =
+            player;
 
-        outerCard.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                if (p != null && substitutedPlayers.contains(p)) return;
+        final int clickedSlot =
+            slotIndex;
 
-                if (selectedPlayer != null && selectedSlot == null) {
-                    if (substitutionsUsed >= MAX_SUBSTITUTIONS) return;
+        card.addListener(
+            new ClickListener() {
 
-                    if (selectedPlayer.canPlay() && !substitutedPlayers.contains(selectedPlayer)) {
-                        Player oldStarter = club.getTacticsMap().get(slotIndex);
-                        if (oldStarter != null) {
-                            substitutedPlayers.add(oldStarter);
-                            substitutionsUsed++;
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
 
-                            if (onSubstitutionListener != null) {
-                                onSubstitutionListener.accept(oldStarter, selectedPlayer);
-                            }
-                        }
-
-                        club.assignPlayerToSlot(slotIndex, selectedPlayer);
-                        if (onTacticsChangedListener != null) {
-                            onTacticsChangedListener.run();
-                        }
-                        selectedPlayer = null;
-                        selectedSlot = null;
-                    }
+                    handlePitchClick(
+                        clickedPlayer,
+                        clickedSlot
+                    );
                 }
-                else if (selectedSlot != null && selectedSlot != slotIndex) {
-                    Player p1 = club.getTacticsMap().get(selectedSlot);
-                    Player p2 = club.getTacticsMap().get(slotIndex);
-
-                    if ((p1 == null || !substitutedPlayers.contains(p1)) && (p2 == null || !substitutedPlayers.contains(p2))) {
-                        club.assignPlayerToSlot(selectedSlot, p2);
-                        club.assignPlayerToSlot(slotIndex, p1);
-                        if (onTacticsChangedListener != null) {
-                            onTacticsChangedListener.run();
-                        }
-                    }
-                    selectedPlayer = null;
-                    selectedSlot = null;
-                }
-                else if (p != null) {
-                    selectedPlayer = p;
-                    selectedSlot = slotIndex;
-                } else {
-                    selectedPlayer = null;
-                    selectedSlot = null;
-                }
-                refreshContent();
             }
-        });
+        );
 
-        return outerCard;
+        return card;
     }
+
+    // =========================================================
+    // PITCH CLICK
+    // =========================================================
+
+    private void handlePitchClick(
+        Player player,
+        int slotIndex
+    ) {
+
+        if (
+            player != null &&
+                substitutedPlayers
+                    .contains(
+                        player
+                    )
+        ) {
+
+            return;
+        }
+
+        /*
+         * Reserva selecionado.
+         * Clicar num slot realiza a substituição.
+         */
+        if (
+            selectedPlayer != null &&
+                selectedSlot == null
+        ) {
+
+            if (
+                substitutionsUsed >= MAX_SUBSTITUTIONS ||
+                    !selectedPlayer.canPlay()
+            ) {
+
+                return;
+            }
+
+            Player oldStarter =
+                club.getTacticsMap()
+                    .get(slotIndex);
+
+            if (
+                !registerSubstitution(
+                    oldStarter,
+                    selectedPlayer
+                )
+            ) {
+
+                return;
+            }
+
+            club.assignPlayerToSlot(
+                slotIndex,
+                selectedPlayer
+            );
+
+            notifyTacticsChanged();
+
+            selectedPlayer =
+                null;
+
+            selectedSlot =
+                null;
+
+            refreshContent();
+
+            return;
+        }
+
+        /*
+         * Um titular já foi selecionado.
+         * Segundo titular troca de posição.
+         */
+        if (
+            selectedSlot != null &&
+                selectedSlot != slotIndex
+        ) {
+
+            Player first =
+                club.getTacticsMap()
+                    .get(
+                        selectedSlot
+                    );
+
+            Player second =
+                club.getTacticsMap()
+                    .get(
+                        slotIndex
+                    );
+
+            boolean firstLocked =
+                first != null &&
+                    substitutedPlayers
+                        .contains(
+                            first
+                        );
+
+            boolean secondLocked =
+                second != null &&
+                    substitutedPlayers
+                        .contains(
+                            second
+                        );
+
+            if (
+                !firstLocked &&
+                    !secondLocked
+            ) {
+
+                club.assignPlayerToSlot(
+                    selectedSlot,
+                    second
+                );
+
+                club.assignPlayerToSlot(
+                    slotIndex,
+                    first
+                );
+
+                notifyTacticsChanged();
+            }
+
+            selectedPlayer =
+                null;
+
+            selectedSlot =
+                null;
+
+            refreshContent();
+
+            return;
+        }
+
+        /*
+         * Seleciona titular.
+         */
+        if (
+            player != null
+        ) {
+
+            selectedPlayer =
+                player;
+
+            selectedSlot =
+                slotIndex;
+
+        } else {
+
+            selectedPlayer =
+                null;
+
+            selectedSlot =
+                null;
+        }
+
+        refreshContent();
+    }
+
+    // =========================================================
+    // SELECTED PLAYER
+    // =========================================================
 
     private Table createSelectedPlayerPanel() {
-        Table panel = new Table();
-        panel.background(StyleFactory.createRoundedPanel(StyleFactory.METAL_DARK, StyleFactory.GOLD));
-        panel.pad(6);
 
-        if (selectedPlayer == null) {
-            String msg = (substitutionsUsed >= MAX_SUBSTITUTIONS)
-                ? "Limite de 5 substituições atingido nesta partida"
-                : "Clique em um titular no campo para trocar por um reserva do banco";
-            Label noSel = new Label(msg, game.skin, "font-label", Color.LIGHT_GRAY);
-            noSel.setFontScale(0.82f);
-            panel.add(noSel).center();
+        Table panel =
+            ScreenUI.createPanel();
+
+        if (
+            selectedPlayer == null
+        ) {
+
+            String text =
+                substitutionsUsed >= MAX_SUBSTITUTIONS
+                    ? "Limite de 5 substituições atingido. Ainda é possível reorganizar os titulares."
+                    : "Selecione um titular para trocar posição ou escolha um reserva para fazer uma substituição.";
+
+            Label hint =
+                ScreenUI.createValueLabel(
+                    game.skin,
+                    text,
+                    ScreenUI.MUTED_TEXT,
+                    Align.center
+                );
+
+            hint.setWrap(
+                true
+            );
+
+            panel
+                .add(hint)
+                .width(640f)
+                .center();
+
             return panel;
         }
 
-        Table infoTable = new Table();
-        infoTable.defaults().left().padRight(12);
+        Table badge =
+            ScreenUI.createBadge(
+                game.skin,
+                selectedPlayer
+                    .getPosition(),
+                StyleFactory
+                    .getPositionColor(
+                        selectedPlayer
+                            .getPosition()
+                    )
+            );
 
-        Label nameLbl = new Label(selectedPlayer.getName().toUpperCase(), game.skin, "font-bold", StyleFactory.GOLD);
-        nameLbl.setFontScale(0.88f);
+        panel
+            .add(badge)
+            .height(28f)
+            .padRight(12f);
 
-        Label posLbl = new Label("Posição: " + selectedPlayer.getPosition(), game.skin, "font-label", Color.WHITE);
-        posLbl.setFontScale(0.78f);
+        Table info =
+            new Table();
 
-        Label ovrLbl = new Label("OVR: " + selectedPlayer.getOverall(), game.skin, "font-bold", StyleFactory.SOFT_YELLOW);
-        ovrLbl.setFontScale(0.78f);
+        Label name =
+            new Label(
+                selectedPlayer
+                    .getName()
+                    .toUpperCase(),
+                game.skin,
+                "font-bold"
+            );
 
-        String statusText = "Pronto";
-        Color statusColor = Color.GREEN;
-        if (selectedPlayer.isInjured()) {
-            statusText = "LESIONADO (" + selectedPlayer.getInjuryDuration() + " jogos)";
-            statusColor = Color.valueOf("FF4D4D");
-        } else if (selectedPlayer.isSuspended()) {
-            statusText = "SUSPENSO (" + selectedPlayer.getSuspendedMatches() + " jogos)";
-            statusColor = Color.valueOf("FF4D4D");
-        }
+        name.setFontScale(
+            0.64f
+        );
 
-        Label statusLbl = new Label("Status: " + statusText, game.skin, "font-bold", statusColor);
-        statusLbl.setFontScale(0.78f);
+        name.setColor(
+            StyleFactory.GOLD
+        );
 
-        infoTable.add(nameLbl).colspan(2).padBottom(2).row();
-        infoTable.add(posLbl);
-        infoTable.add(ovrLbl).row();
-        infoTable.add(statusLbl).colspan(2);
+        info
+            .add(name)
+            .left()
+            .row();
 
-        panel.add(infoTable).expand().fill();
+        String actionText =
+            selectedSlot != null
+                ? "Titular selecionado • clique em outro titular para inverter posição."
+                : "Reserva selecionado • clique no titular que deverá sair.";
+
+        selectedInfoLabel =
+            new Label(
+                actionText,
+                game.skin
+            );
+
+        selectedInfoLabel.setFontScale(
+            0.49f
+        );
+
+        selectedInfoLabel.setColor(
+            ScreenUI.MUTED_TEXT
+        );
+
+        info
+            .add(selectedInfoLabel)
+            .left()
+            .padTop(3f);
+
+        panel
+            .add(info)
+            .left()
+            .expandX();
+
+        Table stats =
+            ScreenUI.createStatusBox(
+                game.skin,
+                "OVR",
+                String.valueOf(
+                    selectedPlayer.getOverall()
+                ),
+                StyleFactory.SOFT_YELLOW
+            );
+
+        panel
+            .add(stats)
+            .width(125f)
+            .height(40f)
+            .padRight(7f);
+
+        TextButton cancel =
+            ScreenUI.createSecondaryButton(
+                game.skin,
+                "CANCELAR"
+            );
+
+        cancel.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    selectedPlayer =
+                        null;
+
+                    selectedSlot =
+                        null;
+
+                    refreshContent();
+                }
+            }
+        );
+
+        panel
+            .add(cancel)
+            .width(105f)
+            .height(36f);
+
         return panel;
     }
 
-    private Table createSquadPanelContent() {
-        Table content = new Table();
-        content.background(StyleFactory.createRoundedPanel(StyleFactory.METAL_DARK, StyleFactory.GOLD));
-        content.pad(8);
+    // =========================================================
+    // SQUAD PANEL
+    // =========================================================
 
-        List<Player> starters = new ArrayList<>(club.getTacticsMap().values());
+    private Table createSquadPanel() {
 
-        List<Player> benchPlayers = new ArrayList<>();
-        for (Player p : club.getSquad()) {
-            if (!starters.contains(p) && !substitutedPlayers.contains(p) && p.canPlay()) {
-                benchPlayers.add(p);
-                if (benchPlayers.size() == 7) break;
-            }
-        }
+        Table panel =
+            ScreenUI.createPanel();
 
-        Table listContent = new Table();
-        listContent.top().defaults().growX().padBottom(5);
+        panel.top();
 
-        Label benchTitle = new Label("BANCO DE RESERVAS (" + (MAX_SUBSTITUTIONS - substitutionsUsed) + " SUBS RESTANTES)", game.skin, "font-bold", StyleFactory.SOFT_YELLOW);
-        benchTitle.setFontScale(0.82f);
-        listContent.add(benchTitle).left().padTop(4).padBottom(6).row();
+        Table heading =
+            new Table();
 
-        if (benchPlayers.isEmpty()) {
-            Label emptyLbl = new Label("Nenhum reserva disponível", game.skin, "font-label", Color.GRAY);
-            emptyLbl.setFontScale(0.80f);
-            listContent.add(emptyLbl).left().padTop(10).row();
+        heading
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "BANCO DE RESERVAS"
+                )
+            )
+            .left()
+            .expandX();
+
+        int remaining =
+            Math.max(
+                0,
+                MAX_SUBSTITUTIONS -
+                    substitutionsUsed
+            );
+
+        heading
+            .add(
+                ScreenUI.createBadge(
+                    game.skin,
+                    remaining +
+                        " RESTANTES",
+                    remaining > 0
+                        ? Color.valueOf(
+                        "285B45"
+                    )
+                        : Color.valueOf(
+                        "623636"
+                    )
+                )
+            )
+            .height(26f);
+
+        panel
+            .add(heading)
+            .growX()
+            .padBottom(8f)
+            .row();
+
+        Table list =
+            new Table();
+
+        list.top();
+
+        List<Player> bench =
+            getBenchPlayers();
+
+        if (
+            bench.isEmpty()
+        ) {
+
+            list
+                .add(
+                    ScreenUI.createSubtitle(
+                        game.skin,
+                        "Nenhum jogador disponível."
+                    )
+                )
+                .left()
+                .pad(12f)
+                .row();
+
         } else {
-            for (Player p : benchPlayers) {
-                listContent.add(createSquadRow(p)).row();
+
+            int index =
+                0;
+
+            for (
+                Player player :
+                bench
+            ) {
+
+                list
+                    .add(
+                        createBenchRow(
+                            player,
+                            index++
+                        )
+                    )
+                    .growX()
+                    .height(48f)
+                    .padBottom(3f)
+                    .row();
             }
         }
 
-        ScrollPane scroll = new ScrollPane(listContent, game.skin);
-        scroll.setFadeScrollBars(false);
-        content.add(scroll).grow();
+        ScrollPane scroll =
+            new ScrollPane(
+                list,
+                game.skin
+            );
 
-        return content;
+        scroll.setFadeScrollBars(
+            false
+        );
+
+        panel
+            .add(scroll)
+            .grow();
+
+        return panel;
     }
 
-    private Table createSquadRow(final Player p) {
-        Table row = new Table();
-        row.setTransform(true);
-        row.setOrigin(Align.center);
+    private Table createBenchRow(
+        Player player,
+        int index
+    ) {
 
-        boolean isSelected = (p == selectedPlayer);
-        Color bg = isSelected ? StyleFactory.WINE_RED : StyleFactory.METAL_DARK;
-        row.background(StyleFactory.createRoundedPanel(bg, isSelected ? StyleFactory.GOLD : Color.CLEAR));
-        row.pad(6);
+        Table row =
+            ScreenUI.createRow(
+                index
+            );
 
-        Label posLbl = new Label(p.getPosition(), game.skin, "font-bold", StyleFactory.GOLD);
-        posLbl.setFontScale(0.82f);
+        boolean selected =
+            player == selectedPlayer;
 
-        String displayName = p.getName();
-        if (p.isInjured()) displayName += " 🚑";
-        else if (p.isSuspended()) displayName += " ⛔";
+        if (
+            selected
+        ) {
 
-        Label nameLbl = new Label(displayName, game.skin, "font-label", p.canPlay() ? Color.WHITE : Color.valueOf("FF4D4D"));
-        nameLbl.setFontScale(0.82f);
-        nameLbl.setEllipsis(true);
+            row.background(
+                StyleFactory.createRoundedPanel(
+                    Color.valueOf(
+                        "302604"
+                    ),
+                    StyleFactory.GOLD
+                )
+            );
+        }
 
-        Label ovrLbl = new Label(String.valueOf(p.getOverall()), game.skin, "font-bold", StyleFactory.SOFT_YELLOW);
-        ovrLbl.setFontScale(0.82f);
+        row
+            .add(
+                ScreenUI.createBadge(
+                    game.skin,
+                    player.getPosition(),
+                    StyleFactory
+                        .getPositionColor(
+                            player.getPosition()
+                        )
+                )
+            )
+            .width(58f)
+            .height(25f)
+            .padLeft(5f);
 
-        row.add(posLbl).width(40).left();
-        row.add(nameLbl).expandX().left().padLeft(6);
-        row.add(ovrLbl).right().width(35);
+        Label name =
+            ScreenUI.createBoldValue(
+                game.skin,
+                ScreenUI.shorten(
+                    player.getName(),
+                    18
+                ),
+                player.canPlay()
+                    ? Color.WHITE
+                    : ScreenUI.DANGER,
+                Align.left
+            );
 
-        row.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                if (substitutedPlayers.contains(p)) return;
+        row
+            .add(name)
+            .left()
+            .expandX()
+            .padLeft(7f);
 
-                if (selectedSlot != null && p.canPlay()) {
-                    if (substitutionsUsed >= MAX_SUBSTITUTIONS) return;
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    String.valueOf(
+                        player.getOverall()
+                    ),
+                    StyleFactory.SOFT_YELLOW,
+                    Align.center
+                )
+            )
+            .width(42f);
 
-                    Player oldStarter = club.getTacticsMap().get(selectedSlot);
-                    if (oldStarter != null) {
-                        substitutedPlayers.add(oldStarter);
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    player.getFatigue() +
+                        "%",
+                    getFatigueColor(
+                        player.getFatigue()
+                    ),
+                    Align.center
+                )
+            )
+            .width(55f)
+            .padRight(5f);
 
-                        if (onSubstitutionListener != null) {
-                            onSubstitutionListener.accept(oldStarter, p);
+        row.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    if (
+                        substitutionsUsed >= MAX_SUBSTITUTIONS ||
+                            !player.canPlay()
+                    ) {
+
+                        return;
+                    }
+
+                    /*
+                     * Um titular foi selecionado.
+                     * Clicar no reserva faz a substituição.
+                     */
+                    if (
+                        selectedSlot != null
+                    ) {
+
+                        Player oldStarter =
+                            club.getTacticsMap()
+                                .get(
+                                    selectedSlot
+                                );
+
+                        if (
+                            !registerSubstitution(
+                                oldStarter,
+                                player
+                            )
+                        ) {
+
+                            return;
                         }
+
+                        club.assignPlayerToSlot(
+                            selectedSlot,
+                            player
+                        );
+
+                        notifyTacticsChanged();
+
+                        selectedPlayer =
+                            null;
+
+                        selectedSlot =
+                            null;
+
+                        refreshContent();
+
+                        return;
                     }
 
-                    club.assignPlayerToSlot(selectedSlot, p);
-                    if (onTacticsChangedListener != null) {
-                        onTacticsChangedListener.run();
-                    }
-                    selectedPlayer = null;
-                    selectedSlot = null;
+                    /*
+                     * Seleciona reserva primeiro.
+                     */
+                    selectedPlayer =
+                        selectedPlayer == player
+                            ? null
+                            : player;
+
+                    selectedSlot =
+                        null;
+
+                    refreshContent();
                 }
-                else {
-                    if (selectedPlayer == p) {
-                        selectedPlayer = null;
-                    } else if (p.canPlay()) {
-                        selectedPlayer = p;
-                    }
-                    selectedSlot = null;
-                }
-                refreshContent();
             }
-        });
+        );
 
         return row;
     }
 
-    private void generate2DPitchTexture() {
-        if (pitchTexture != null) pitchTexture.dispose();
-        int w = 550, h = 650;
-        Pixmap pixmap = new Pixmap(w, h, Pixmap.Format.RGBA8888);
-        pixmap.setColor(Color.valueOf("1E4620"));
-        pixmap.fill();
-        pixmap.setColor(Color.valueOf("1B3E1C"));
-        int stripeHeight = h / 10;
-        for (int i = 0; i < 10; i += 2) {
-            pixmap.fillRectangle(0, i * stripeHeight, w, stripeHeight);
+    private boolean registerSubstitution(
+        Player outPlayer,
+        Player inPlayer
+    ) {
+
+        if (
+            outPlayer == null &&
+                !injuryReplacementPending
+        ) {
+
+            return false;
         }
-        pixmap.setColor(new Color(1f, 1f, 1f, 0.4f));
-        pixmap.drawRectangle(10, 10, w - 20, h - 20);
-        int midY = h / 2;
-        pixmap.drawLine(10, midY, w - 10, midY);
-        pixmap.drawCircle(w / 2, midY, 55);
-        pitchTexture = new Texture(pixmap);
-        pixmap.dispose();
+
+        if (
+            outPlayer != null &&
+                !substitutedPlayers.contains(
+                    outPlayer
+                )
+        ) {
+
+            substitutedPlayers.add(
+                outPlayer
+            );
+        }
+
+        if (
+            outPlayer == null
+        ) {
+
+            injuryReplacementPending =
+                false;
+        }
+
+        substitutionsUsed++;
+
+        if (
+            onSubstitutionListener != null
+        ) {
+
+            onSubstitutionListener.accept(
+                outPlayer,
+                inPlayer
+            );
+        }
+
+        return true;
     }
 
-    private Table createFatigueBar(float fatiguePercent) {
-        Table outerBar = new Table();
-        outerBar.background(getSolidDrawable(Color.DARK_GRAY));
-        Color barColor = fatiguePercent >= 70 ? Color.valueOf("4CAF50") : (fatiguePercent >= 40 ? Color.valueOf("FFC107") : Color.valueOf("F44336"));
-        Table fillBar = new Table();
-        fillBar.background(getSolidDrawable(barColor));
-        float normalized = Math.max(0, Math.min(100, fatiguePercent)) / 100f;
-        outerBar.add(fillBar).width(70 * normalized).height(4).left().expandX();
-        return outerBar;
+    // =========================================================
+    // BENCH
+    // =========================================================
+
+    private List<Player> getBenchPlayers() {
+
+        List<Player> starters =
+            new ArrayList<>(
+                club.getTacticsMap()
+                    .values()
+            );
+
+        List<Player> bench =
+            new ArrayList<>();
+
+        for (
+            Player player :
+            matchBenchPlayers
+        ) {
+
+            if (
+                !starters.contains(
+                    player
+                ) &&
+                    !substitutedPlayers
+                        .contains(
+                            player
+                        ) &&
+                    player.canPlay()
+            ) {
+
+                bench.add(
+                    player
+                );
+            }
+        }
+
+        return bench;
     }
 
-    private TextureRegionDrawable getSolidDrawable(Color color) {
-        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixmap.setColor(color);
+    private void initializeMatchBench() {
+
+        List<Player> starters =
+            new ArrayList<>(
+                club.getTacticsMap()
+                    .values()
+            );
+
+        for (
+            Player player :
+            club.getSquad()
+        ) {
+
+            if (
+                !starters.contains(
+                    player
+                ) &&
+                    player.canPlay()
+            ) {
+
+                matchBenchPlayers.add(
+                    player
+                );
+
+                if (
+                    matchBenchPlayers.size() ==
+                        MAX_BENCH_PLAYERS
+                ) {
+
+                    return;
+                }
+            }
+        }
+    }
+
+    // =========================================================
+    // COUNTER
+    // =========================================================
+
+    private void updateSubstitutionCounter() {
+
+        if (
+            substitutionCounterLabel ==
+                null
+        ) {
+
+            return;
+        }
+
+        substitutionCounterLabel.setText(
+            "SUBSTITUIÇÕES  " +
+                substitutionsUsed +
+                "/" +
+                MAX_SUBSTITUTIONS
+        );
+
+        substitutionCounterLabel.setColor(
+            substitutionsUsed >=
+                MAX_SUBSTITUTIONS
+                ? ScreenUI.DANGER
+                : StyleFactory.SOFT_YELLOW
+        );
+    }
+
+    // =========================================================
+    // PITCH TEXTURE
+    // =========================================================
+
+    private void generatePitchTexture() {
+
+        if (
+            pitchTexture != null
+        ) {
+
+            pitchTexture.dispose();
+        }
+
+        int width =
+            600;
+
+        int height =
+            650;
+
+        Pixmap pixmap =
+            new Pixmap(
+                width,
+                height,
+                Pixmap.Format.RGBA8888
+            );
+
+        pixmap.setColor(
+            Color.valueOf(
+                "173C20"
+            )
+        );
+
         pixmap.fill();
-        Texture texture = new Texture(pixmap);
+
+        pixmap.setColor(
+            Color.valueOf(
+                "1D4926"
+            )
+        );
+
+        int stripe =
+            height /
+                10;
+
+        for (
+            int i = 0;
+            i < 10;
+            i += 2
+        ) {
+
+            pixmap.fillRectangle(
+                0,
+                i *
+                    stripe,
+                width,
+                stripe
+            );
+        }
+
+        pixmap.setColor(
+            new Color(
+                1f,
+                1f,
+                1f,
+                0.40f
+            )
+        );
+
+        pixmap.drawRectangle(
+            12,
+            12,
+            width - 24,
+            height - 24
+        );
+
+        int middle =
+            height /
+                2;
+
+        pixmap.drawLine(
+            12,
+            middle,
+            width - 12,
+            middle
+        );
+
+        pixmap.drawCircle(
+            width /
+                2,
+            middle,
+            58
+        );
+
+        pixmap.drawRectangle(
+            width /
+                2 -
+                130,
+            12,
+            260,
+            95
+        );
+
+        pixmap.drawRectangle(
+            width /
+                2 -
+                130,
+            height - 107,
+            260,
+            95
+        );
+
+        pitchTexture =
+            new Texture(
+                pixmap
+            );
+
         pixmap.dispose();
-        return new TextureRegionDrawable(new TextureRegion(texture));
     }
 
-    private int getPositionDepthLayer(String pos) {
-        if (pos == null) return 0;
-        String p = pos.trim().toUpperCase();
-        if (p.equals("ST") || p.equals("CF") || p.equals("SS") || p.equals("RF") || p.equals("LF")) return 7;
-        if (p.equals("LW") || p.equals("RW")) return 6;
-        if (p.contains("CAM") || p.equals("RAM") || p.equals("LAM") || p.equals("AM")) return 5;
-        if (p.contains("CM") || p.equals("LM") || p.equals("RM")) return 4;
-        if (p.contains("DM")) return 3;
-        if (p.contains("WB")) return 2;
-        if (p.contains("CB") || p.equals("LB") || p.equals("RB") || p.equals("SW")) return 1;
+    // =========================================================
+    // HELPERS
+    // =========================================================
+
+    private Table createLine() {
+
+        Table row =
+            new Table();
+
+        row.center();
+
+        return row;
+    }
+
+    private Color getFatigueColor(
+        float fatigue
+    ) {
+
+        if (
+            fatigue >=
+                70
+        ) {
+
+            return ScreenUI.SUCCESS;
+        }
+
+        if (
+            fatigue >=
+                40
+        ) {
+
+            return ScreenUI.WARNING;
+        }
+
+        return ScreenUI.DANGER;
+    }
+
+    private void notifyTacticsChanged() {
+
+        if (
+            onTacticsChangedListener !=
+                null
+        ) {
+
+            onTacticsChangedListener.run();
+        }
+    }
+
+    private void closeDialog() {
+
+        hide();
+
+        if (
+            onCloseCallback != null
+        ) {
+
+            onCloseCallback.run();
+        }
+    }
+
+    private int getPositionDepthLayer(
+        String position
+    ) {
+
+        if (
+            position == null
+        ) {
+
+            return 0;
+        }
+
+        String p =
+            position
+                .trim()
+                .toUpperCase();
+
+        if (
+            p.equals("ST") ||
+                p.equals("CF") ||
+                p.equals("SS") ||
+                p.equals("RF") ||
+                p.equals("LF")
+        ) {
+            return 7;
+        }
+
+        if (
+            p.equals("LW") ||
+                p.equals("RW")
+        ) {
+            return 6;
+        }
+
+        if (
+            p.contains("CAM") ||
+                p.equals("RAM") ||
+                p.equals("LAM") ||
+                p.equals("AM")
+        ) {
+            return 5;
+        }
+
+        if (
+            p.equals("CM") ||
+                p.equals("LM") ||
+                p.equals("RM")
+        ) {
+            return 4;
+        }
+
+        if (
+            p.equals("CDM") ||
+                p.contains("DM")
+        ) {
+            return 3;
+        }
+
+        if (
+            p.contains("WB")
+        ) {
+            return 2;
+        }
+
+        if (
+            p.equals("CB") ||
+                p.equals("LB") ||
+                p.equals("RB") ||
+                p.equals("SW")
+        ) {
+            return 1;
+        }
+
         return 0;
     }
 
+    // =========================================================
+    // CLEANUP
+    // =========================================================
+
     @Override
     public boolean remove() {
-        if (pitchTexture != null) pitchTexture.dispose();
-        if (kitTexture != null) kitTexture.dispose();
+
+        if (
+            pitchTexture != null
+        ) {
+
+            pitchTexture.dispose();
+
+            pitchTexture =
+                null;
+        }
+
         return super.remove();
     }
 }

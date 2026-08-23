@@ -10,6 +10,15 @@ public class SmartTradeEvaluator {
      */
     public static long getPerceivedPlayerValue(Club receivingClub, Player player) {
         long baseTradeValue = TradeValueCalculator.calculateTradeValue(player);
+        return getPerceivedPlayerValue(receivingClub, player, baseTradeValue, -1);
+    }
+
+    public static long getPerceivedPlayerValue(Club receivingClub, Player player, int currentSeasonYear) {
+        long baseTradeValue = TradeValueCalculator.calculateTradeValue(player, currentSeasonYear);
+        return getPerceivedPlayerValue(receivingClub, player, baseTradeValue, currentSeasonYear);
+    }
+
+    private static long getPerceivedPlayerValue(Club receivingClub, Player player, long baseTradeValue, int currentSeasonYear) {
         Map<String, Integer> positionNeeds = ClubNeedEvaluator.calculatePositionNeeds(receivingClub);
         ClubNeedEvaluator.TeamPhase phase = ClubNeedEvaluator.getTeamPhase(receivingClub);
 
@@ -65,6 +74,13 @@ public class SmartTradeEvaluator {
             }
         }
 
+        if (currentSeasonYear >= 0) {
+            int remaining = player.getRemainingContractYears(currentSeasonYear);
+            if (remaining == 0) phaseMultiplier *= 0.78;
+            else if (remaining == 1) phaseMultiplier *= 0.88;
+            else if (remaining >= 4) phaseMultiplier *= 1.08;
+        }
+
         return Math.round(baseTradeValue * needMultiplier * phaseMultiplier);
     }
 
@@ -72,7 +88,7 @@ public class SmartTradeEvaluator {
      * Calcula o valor percebido total de um pacote completo (Jogadores + Picks).
      */
     public static long calculateTotalPerceivedValue(Club evaluatingClub, List<Player> players, List<DraftPick> picks, int currentSeasonYear) {
-        long playerVal = players.stream().mapToLong(p -> getPerceivedPlayerValue(evaluatingClub, p)).sum();
+        long playerVal = players.stream().mapToLong(p -> getPerceivedPlayerValue(evaluatingClub, p, currentSeasonYear)).sum();
         long pickVal = picks.stream().mapToLong(p -> DraftPickEvaluator.getPerceivedPickValue(evaluatingClub, p, currentSeasonYear)).sum();
         return playerVal + pickVal;
     }
@@ -81,13 +97,20 @@ public class SmartTradeEvaluator {
      * Decisão Final da IA sobre aceitar ou recusar a proposta
      */
     public static TradeResult evaluateContextualOffer(TradeOffer offer) {
+        TradeRulesValidator.ValidationResult ruleCheck = TradeRulesValidator.validateRules(offer);
+        if (!ruleCheck.isValid) {
+            return new TradeResult(false, "A proposta não atende ao regulamento: " + ruleCheck.reason);
+        }
+
         Club targetClub = offer.getTargetClub();
 
-        long valueTargetReceives = offer.getUserPlayers().stream()
-            .mapToLong(p -> getPerceivedPlayerValue(targetClub, p)).sum();
+        long valueTargetReceives = calculateTotalPerceivedValue(
+            targetClub, offer.getUserPlayers(), offer.getUserPicks(), -1
+        );
 
-        long valueTargetGivesUp = offer.getTargetPlayers().stream()
-            .mapToLong(p -> getPerceivedPlayerValue(targetClub, p)).sum();
+        long valueTargetGivesUp = calculateTotalPerceivedValue(
+            targetClub, offer.getTargetPlayers(), offer.getTargetPicks(), -1
+        );
 
         long newPayroll = targetClub.getFinance().getAnnualPayroll()
             - offer.getTargetPlayers().stream().mapToLong(Player::getAnnualSalary).sum()
@@ -108,16 +131,24 @@ public class SmartTradeEvaluator {
      * Calcula a pontuação de interesse do clube alvo na proposta (0 a 100).
      */
     public static int calculateInterestScore(TradeOffer offer) {
+        return calculateInterestScore(offer, -1);
+    }
+
+    public static int calculateInterestScore(TradeOffer offer, int currentSeasonYear) {
         Club targetClub = offer.getTargetClub();
 
-        long valueReceived = offer.getUserPlayers().stream()
-            .mapToLong(p -> getPerceivedPlayerValue(targetClub, p)).sum();
+        long valueReceived = calculateTotalPerceivedValue(
+            targetClub, offer.getUserPlayers(), offer.getUserPicks(), currentSeasonYear
+        );
 
-        long valueGivenUp = offer.getTargetPlayers().stream()
-            .mapToLong(p -> getPerceivedPlayerValue(targetClub, p)).sum();
+        long valueGivenUp = calculateTotalPerceivedValue(
+            targetClub, offer.getTargetPlayers(), offer.getTargetPicks(), currentSeasonYear
+        );
 
         if (valueGivenUp == 0) {
-            return valueReceived > 0 ? 100 : 0;
+            // Até que os dois lados tenham ativos, não existe uma proposta
+            // completa para a IA demonstrar interesse real.
+            return 0;
         }
 
         double ratio = (double) valueReceived / (double) valueGivenUp;

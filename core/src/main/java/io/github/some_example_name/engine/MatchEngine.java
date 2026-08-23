@@ -15,10 +15,34 @@ public class MatchEngine {
     private final Random random = new Random();
 
     public void simulate(Match match) {
+        prepareMatchLineups(match);
+
         for (int min = 1; min <= 90; min++) {
             simulateMinute(match, min);
         }
         finalizeMatch(match);
+    }
+
+    /** Atualiza a formação ideal dos clubes da IA antes de cada partida. */
+    public void prepareMatchLineups(Match match) {
+        if (match == null) {
+            return;
+        }
+
+        prepareClubLineup(match.getHomeTeam());
+        prepareClubLineup(match.getAwayTeam());
+    }
+
+    private void prepareClubLineup(Club club) {
+        if (club == null) {
+            return;
+        }
+
+        if (club.isUserControlled()) {
+            club.removeUnavailablePlayersFromStartingXI();
+        } else {
+            club.autoSelectBestFormationAndXI();
+        }
     }
 
     public MatchEvent simulateMinute(Match match, int minute) {
@@ -37,10 +61,10 @@ public class MatchEngine {
         );
 
         // 2. Processamento de Lesões (frequência aumentada)
-        MatchEvent homeInjury = processInjuryCheck(hStarters, home, minute, hMods);
+        MatchEvent homeInjury = processInjuryCheck(hStarters, home, minute, hMods, true);
         if (homeInjury != null) return homeInjury;
 
-        MatchEvent awayInjury = processInjuryCheck(aStarters, away, minute, aMods);
+        MatchEvent awayInjury = processInjuryCheck(aStarters, away, minute, aMods, false);
         if (awayInjury != null) return awayInjury;
 
         // 3. Determinação de Posse de Bola delegada à PossessionEngine
@@ -72,6 +96,15 @@ public class MatchEngine {
         boolean isCounterAttack = random.nextDouble() < (0.20 * attMods.counterAttackMultiplier);
         double atkPower = AttackEngine.calculateAttackPower(attacker, attMods, isCounterAttack);
         double defPower = DefenseEngine.calculateDefensePower(defender, defMods);
+
+        /* Fadiga, moral e mando de campo influenciam todos os lances. */
+        atkPower *= calculateLineupCondition(attStarters);
+        defPower *= calculateLineupCondition(defStarters);
+        if (homeAttacking) {
+            atkPower *= 1.04;
+        } else {
+            defPower *= 1.04;
+        }
 
         double actionRoll = random.nextDouble();
 
@@ -128,7 +161,7 @@ public class MatchEngine {
         }
     }
 
-    private MatchEvent processInjuryCheck(List<Player> starters, Club club, int minute, TacticalModifiers mods) {
+    private MatchEvent processInjuryCheck(List<Player> starters, Club club, int minute, TacticalModifiers mods, boolean isHomeTeam) {
         if (random.nextDouble() > 0.015) return null;
 
         List<Player> activeStarters = starters.stream()
@@ -145,12 +178,13 @@ public class MatchEngine {
         if (random.nextDouble() < totalRisk || random.nextDouble() < 0.35) {
             int gamesOut = 1 + random.nextInt(5);
             victim.setInjuryDuration(gamesOut);
+            club.removeUnavailablePlayersFromStartingXI();
 
             return new MatchEvent(
                 minute,
                 "LESÃO! " + victim.getName() + " (" + club.getName() + ") sente dores musculares e precisa deixar o gramado! (Fora por " + gamesOut + " jogos)",
                 "LESIONADO",
-                club.equals(club)
+                isHomeTeam
             );
         }
 
@@ -193,8 +227,14 @@ public class MatchEngine {
         if (onTarget) {
             int gkReflexes = goalkeeper != null ? goalkeeper.getTechnicalAttributes().getGoleiro() : 60;
 
-            double baseGoalProb = (shooterAtkAttr * 1.1) / (shooterAtkAttr * 1.1 + gkReflexes * 1.1 + (defPower * 0.3));
-            double goalProbability = Math.min(0.85, Math.max(0.12, baseGoalProb * disparityMultiplier));
+            double goalkeeperFactor = Math.max(
+                0.72,
+                1.12 - ((gkReflexes - 60) / 180.0)
+            );
+            double goalProbability = Math.min(
+                0.62,
+                Math.max(0.03, xGValue * goalkeeperFactor)
+            );
 
             if (random.nextDouble() < goalProbability) {
                 if (homeAttacking) match.setHomeGoals(match.getHomeGoals() + 1);
@@ -262,7 +302,8 @@ public class MatchEngine {
 
         if (random.nextDouble() < 0.22) {
             Player taker = getBestAvailableAttacker(attStarters);
-            boolean isGoalFromFreeKick = random.nextDouble() < (taker.getTechnicalAttributes().getAtaque() / 200.0);
+            boolean isGoalFromFreeKick = random.nextDouble() <
+                (0.035 + (taker.getTechnicalAttributes().getAtaque() / 1200.0));
 
             if (isGoalFromFreeKick) {
                 if (homeAttacking) match.setHomeGoals(match.getHomeGoals() + 1);
@@ -289,6 +330,7 @@ public class MatchEngine {
 
         if (severityRoll > 1.20) {
             foulCommitter.addRedCard();
+            defender.removeUnavailablePlayersFromStartingXI();
             match.addCard(foulCommitter, "Vermelho");
             if (isDefenderHome) match.addHomeRedCard(); else match.addAwayRedCard();
 
@@ -302,6 +344,7 @@ public class MatchEngine {
 
         if (foulCommitter.getYellowCards() >= 1 && severityRoll >= 0.50) {
             foulCommitter.addYellowCard();
+            defender.removeUnavailablePlayersFromStartingXI();
             match.addCard(foulCommitter, "Vermelho");
             if (isDefenderHome) match.addHomeRedCard(); else match.addAwayRedCard();
 
@@ -334,71 +377,300 @@ public class MatchEngine {
     }
 
     public void finalizeMatch(Match match) {
-        Club home = match.getHomeTeam();
-        Club away = match.getAwayTeam();
+
+        Club home =
+            match.getHomeTeam();
+
+        Club away =
+            match.getAwayTeam();
+
+        // ==============================
+        // SUSPENSÕES / LESÕES
+        // ==============================
 
         for (Player p : home.getSquad()) {
-            if (p.getMatchRedCards() == 0 && p.isSuspended()) {
+
+            if (
+                p.getMatchRedCards() == 0 &&
+                    p.isSuspended()
+            ) {
                 p.decreaseSuspension();
             }
-            if (p.isInjured() && p.getInjuryDuration() > 0) {
+
+            if (
+                p.isInjured() &&
+                    p.getInjuryDuration() > 0 &&
+                    !p.wasInjuredInCurrentMatch()
+            ) {
                 p.decreaseInjury();
             }
+
             p.resetMatchStats();
         }
 
         for (Player p : away.getSquad()) {
-            if (p.getMatchRedCards() == 0 && p.isSuspended()) {
+
+            if (
+                p.getMatchRedCards() == 0 &&
+                    p.isSuspended()
+            ) {
                 p.decreaseSuspension();
             }
-            if (p.isInjured() && p.getInjuryDuration() > 0) {
+
+            if (
+                p.isInjured() &&
+                    p.getInjuryDuration() > 0 &&
+                    !p.wasInjuredInCurrentMatch()
+            ) {
                 p.decreaseInjury();
             }
+
             p.resetMatchStats();
         }
 
-        for (Player p : home.getStartingXI()) p.applyMatchFatigue();
-        for (Player p : away.getStartingXI()) p.applyMatchFatigue();
+        // ==============================
+        // FADIGA
+        // ==============================
 
-        match.setResult(match.getHomeGoals(), match.getAwayGoals());
+        for (
+            Player p :
+            home.getStartingXI()
+        ) {
+            p.applyMatchFatigue();
+        }
+
+        for (
+            Player p :
+            away.getStartingXI()
+        ) {
+            p.applyMatchFatigue();
+        }
+
+        // ==============================
+        // RESULTADO
+        // ==============================
+
+        int homeGoals =
+            match.getHomeGoals();
+
+        int awayGoals =
+            match.getAwayGoals();
+
+        registerSeasonPerformance(
+            home,
+            homeGoals,
+            awayGoals,
+            match
+        );
+
+        registerSeasonPerformance(
+            away,
+            awayGoals,
+            homeGoals,
+            match
+        );
+
+        match.setResult(
+            homeGoals,
+            awayGoals
+        );
+
         match.setPlayed(true);
 
-        // --- ATUALIZAÇÃO DA MORAL DAS EQUIPES ---
-        double homeOvr = home.getOverall();
-        double awayOvr = away.getOverall();
-        int homeGoals = match.getHomeGoals();
-        int awayGoals = match.getAwayGoals();
+        // ==============================
+        // ESTATÍSTICAS HISTÓRICAS CLUBES
+        // ==============================
+
+        /*
+         * Isso alimenta:
+         *
+         * jogos
+         * vitórias
+         * derrotas
+         * empates
+         * gols feitos
+         * gols sofridos
+         * maior vitória
+         * invencibilidade
+         */
+
+        home.recordMatchResult(
+            homeGoals,
+            awayGoals
+        );
+
+        away.recordMatchResult(
+            awayGoals,
+            homeGoals
+        );
+
+        // ==============================
+        // MORAL
+        // ==============================
+
+        double homeOvr =
+            home.getOverall();
+
+        double awayOvr =
+            away.getOverall();
 
         Club winner = null;
-        if (homeGoals > awayGoals) {
-            home.updateSquadMorale(1, awayOvr);  // Vitória Mandante
-            away.updateSquadMorale(-1, homeOvr); // Derrota Visitante
+
+        if (
+            homeGoals >
+                awayGoals
+        ) {
+
+            home.updateSquadMorale(
+                1,
+                awayOvr
+            );
+
+            away.updateSquadMorale(
+                -1,
+                homeOvr
+            );
+
             winner = home;
-        } else if (awayGoals > homeGoals) {
-            home.updateSquadMorale(-1, awayOvr); // Derrota Mandante
-            away.updateSquadMorale(1, homeOvr);  // Vitória Visitante
+
+        } else if (
+            awayGoals >
+                homeGoals
+        ) {
+
+            home.updateSquadMorale(
+                -1,
+                awayOvr
+            );
+
+            away.updateSquadMorale(
+                1,
+                homeOvr
+            );
+
             winner = away;
+
         } else {
-            home.updateSquadMorale(0, awayOvr);  // Empate Mandante
-            away.updateSquadMorale(0, homeOvr);  // Empate Visitante
+
+            home.updateSquadMorale(
+                0,
+                awayOvr
+            );
+
+            away.updateSquadMorale(
+                0,
+                homeOvr
+            );
         }
 
-        // --- INJEÇÃO DAS PREMIAÇÕES WFL ---
+        // ==============================
+        // PREMIAÇÕES WFL
+        // ==============================
+
         if (winner != null) {
-            // 1. Premiação Padrão por Vitória ($50.000)
-            winner.getFinance().addPrizeMoney(ClubFinance.PRIZE_MATCH_WIN);
 
-            // 2. Bônus por partida de Playoffs ($500.000)
-            if (match.isPlayoffs()) {
-                winner.getFinance().addPrizeMoney(ClubFinance.PRIZE_PLAYOFFS_QUAL);
+            // Vitória normal.
+            winner
+                .getFinance()
+                .addPrizeMoney(
+                    ClubFinance.PRIZE_MATCH_WIN
+                );
+
+            // Vitória em playoffs.
+            if (
+                match.isPlayoffs()
+            ) {
+
+                winner
+                    .getFinance()
+                    .addPrizeMoney(
+                        ClubFinance.PRIZE_PLAYOFFS_QUAL
+                    );
             }
 
-            // 3. Bônus por Vencer a Final ($1.000.000 + $3.000.000 pelo Título)
-            if (match.isFinalMatch()) {
-                winner.getFinance().addPrizeMoney(ClubFinance.PRIZE_FINAL_QUAL);
-                winner.getFinance().addPrizeMoney(ClubFinance.PRIZE_CHAMPION);
+            // Vitória na Final.
+            if (
+                match.isFinalMatch()
+            ) {
+
+                winner
+                    .getFinance()
+                    .addPrizeMoney(
+                        ClubFinance.PRIZE_FINAL_QUAL
+                    );
+
+                winner
+                    .getFinance()
+                    .addPrizeMoney(
+                        ClubFinance.PRIZE_CHAMPION
+                    );
             }
         }
+    }
+
+    private void registerSeasonPerformance(
+        Club club,
+        int goalsScored,
+        int goalsConceded,
+        Match match
+    ) {
+
+        for (
+            Player player :
+            club.getStartingXI()
+        ) {
+
+            player.addSeasonAppearance();
+
+            if (
+                goalsConceded == 0 &&
+                    player.getPosition() != null &&
+                    player.getPosition()
+                        .matches(
+                            "GK|CB|LB|RB|LWB|RWB"
+                        )
+            ) {
+
+                player.addCleanSheet();
+            }
+
+            player.addSeasonRating(
+                calculateSeasonMatchRating(
+                    player,
+                    goalsScored,
+                    goalsConceded,
+                    match
+                )
+            );
+        }
+    }
+
+    private double calculateSeasonMatchRating(
+        Player player,
+        int goalsScored,
+        int goalsConceded,
+        Match match
+    ) {
+        double rating = 6.0;
+        if (goalsScored > goalsConceded) rating += 0.5;
+        if (goalsScored < goalsConceded) rating -= 0.3;
+
+        long goals = match.getGoalScorers().stream().filter(player::equals).count();
+        long assists = match.getAssisters().stream().filter(player::equals).count();
+        rating += goals * 1.4 + assists * 0.8;
+
+        String position = player.getPosition();
+        boolean goalkeeper = "GK".equalsIgnoreCase(position);
+        boolean defender = position != null && position.matches("CB|LB|RB|LWB|RWB");
+        if (goalsConceded == 0 && goalkeeper) rating += 1.2;
+        else if (goalsConceded == 0 && defender) rating += 0.6;
+        else if (goalkeeper) rating -= goalsConceded * 0.4;
+        else if (defender) rating -= goalsConceded * 0.2;
+
+        String card = match.getCards().get(player);
+        if ("Amarelo".equalsIgnoreCase(card) || "YELLOW".equalsIgnoreCase(card)) rating -= 0.6;
+        if ("Vermelho".equalsIgnoreCase(card) || "RED".equalsIgnoreCase(card)) rating -= 2.2;
+        return Math.max(1.0, Math.min(10.0, rating));
     }
 
     private double calculateSectorPower(List<Player> starters, String sectorAttr) {
@@ -411,6 +683,22 @@ public class MatchEngine {
                 return baseVal * fatigueImpact;
             })
             .average().orElse(50.0);
+    }
+
+    private double calculateLineupCondition(List<Player> starters) {
+        if (starters == null || starters.isEmpty()) {
+            return 0.75;
+        }
+
+        return starters.stream()
+            .filter(player -> player.getMatchRedCards() == 0 && !player.isInjured())
+            .mapToDouble(player -> {
+                double fitness = 0.68 + (0.32 * player.getFatigue() / 100.0);
+                double morale = 0.90 + (0.10 * player.getMorale() / 100.0);
+                return fitness * morale;
+            })
+            .average()
+            .orElse(0.75);
     }
 
     private Player getBestAvailableAttacker(List<Player> starters) {
