@@ -384,10 +384,10 @@ public class Club {
         List<Player> starters = getStartingXI();
         if (starters.isEmpty()) return 60.0;
         return starters.stream()
-            .filter(p -> p.getPosition() != null && p.getPosition().matches("ST|CF|RW|LW|CAM"))
+            .filter(p -> p.getPrimaryPosition() != null && p.getPrimaryPosition().name().matches("ST|CF|RW|LW|CAM"))
             .mapToInt(Player::getOverall)
             .average()
-            .orElse(getOverall());
+            .orElse(0.0);
     }
 
     public double getDefensiveRating() {

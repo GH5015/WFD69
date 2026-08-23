@@ -31,6 +31,7 @@ public class Main extends Game {
     public Club playerClub;
     public Drawable background;
 
+
     @Override
     public void create() {
         background = StyleFactory.createCheckerboard();

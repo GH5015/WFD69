@@ -7,12 +7,18 @@ public class Player {
     private String id;
     private String name;
     private String nationality;
-    private String position;
+    private Position primaryPosition;
+    private Position secondaryPosition;
     private int age;
     private TechnicalAttributes technicalAttributes;
     private int overall;
     private int potential;
-    private double salary;
+    double salary;
+
+    // --- VÍNCULO DE CLUB E CONTRATO ---
+    private Club currentClub; 
+    private int contractYears;
+    private int contractEndYear;
 
     private int seasonGoals = 0, seasonAssists = 0, seasonYellowCards = 0, seasonRedCards = 0;
 
@@ -46,13 +52,17 @@ public class Player {
      * Bônus = 1% para cada ponto de Potencial acima do OVR
      */
     public long getMonthlySalary() {
-        double baseSalary = 6000.0 * Math.exp(0.11 * (this.overall - 60));
+        // Se já tiver um salário negociado salvo em 'salary', utiliza-o
+        if (this.salary > 0) {
+            return Math.round(this.salary);
+        }
 
+        // Caso contrário, calcula pela fórmula de regulamento WFL 1969
+        double baseSalary = 6000.0 * Math.exp(0.11 * (this.overall - 60));
         int potentialDiff = Math.max(0, this.potential - this.overall);
         double potentialBonus = 1.0 + (potentialDiff * 0.01);
 
         double finalMonthlySalary = baseSalary * potentialBonus;
-
         return Math.max(6000L, Math.round(finalMonthlySalary));
     }
 
@@ -63,12 +73,13 @@ public class Player {
         return getMonthlySalary() * 12L;
     }
 
-    public Player(String name, String nationality, String position, int age,
+    public Player(String name, String nationality, Position primaryPosition, Position secondaryPosition, int age,
                   TechnicalAttributes technicalAttributes, int potential, double salary) {
         this.id = UUID.randomUUID().toString();
         this.name = name;
         this.nationality = nationality;
-        this.position = position;
+        this.primaryPosition = primaryPosition;
+        this.secondaryPosition = secondaryPosition;
         this.age = age;
         this.technicalAttributes = technicalAttributes != null ? technicalAttributes : new TechnicalAttributes();
         this.potential = potential;
@@ -76,11 +87,34 @@ public class Player {
         calculateOverall();
     }
 
-    public void calculateOverall() {
-        this.overall = calculateOverallForPosition(this.position);
+    // --- LÓGICA DE GERENCIAMENTO DE CONTRATO E TRANSFERÊNCIA ---
+
+    /**
+     * Transfere o jogador para um novo clube mantendo os termos do contrato ativos.
+     */
+    public void transferTo(Club newClub) {
+        if (this.currentClub != null) {
+            this.currentClub.getSquad().remove(this);
+        }
+        this.currentClub = newClub;
+        if (newClub != null && !newClub.getSquad().contains(this)) {
+            newClub.getSquad().add(this);
+        }
     }
 
-    public int calculateOverallForPosition(String targetPos) {
+    public boolean isFreeAgent(int currentYear) {
+        return currentClub == null || contractEndYear <= currentYear;
+    }
+
+    public int getRemainingContractYears(int currentYear) {
+        return Math.max(0, contractEndYear - currentYear);
+    }
+
+    public void calculateOverall() {
+        this.overall = calculateOverallForPosition(this.primaryPosition);
+    }
+
+    public int calculateOverallForPosition(Position targetPos) {
         if (targetPos == null || technicalAttributes == null) {
             return this.overall;
         }
@@ -92,44 +126,42 @@ public class Player {
         int dri = technicalAttributes.getDrible();
         int gk  = technicalAttributes.getGoleiro();
 
-        String pos = targetPos.toUpperCase();
-
-        switch (pos) {
-            case "GK":
+        switch (targetPos) {
+            case GK:
                 return (int) Math.round(gk * 0.76 + fis * 0.12 + pas * 0.12);
 
-            case "CB":
+            case CB:
                 return (int) Math.round(def * 0.45 + fis * 0.30 + pas * 0.15 + atk * 0.05 + dri * 0.05);
 
-            case "LB":
-            case "RB":
+            case LB:
+            case RB:
                 return (int) Math.round(def * 0.30 + pas * 0.25 + fis * 0.25 + atk * 0.10 + dri * 0.10);
 
-            case "LWB":
-            case "RWB":
+            case LWB:
+            case RWB:
                 return (int) Math.round(pas * 0.25 + atk * 0.20 + def * 0.20 + fis * 0.20 + dri * 0.15);
 
-            case "CDM":
+            case CDM:
                 return (int) Math.round(pas * 0.30 + def * 0.30 + fis * 0.25 + dri * 0.10 + atk * 0.05);
 
-            case "CM":
+            case CM:
                 return (int) Math.round(pas * 0.35 + atk * 0.20 + def * 0.15 + fis * 0.15 + dri * 0.15);
 
-            case "CAM":
+            case CAM:
                 return (int) Math.round(pas * 0.30 + atk * 0.25 + dri * 0.25 + fis * 0.10 + def * 0.10);
 
-            case "LM":
-            case "RM":
+            case LM:
+            case RM:
                 return (int) Math.round(pas * 0.25 + dri * 0.25 + atk * 0.20 + fis * 0.20 + def * 0.10);
 
-            case "LW":
-            case "RW":
+            case LW:
+            case RW:
                 return (int) Math.round(atk * 0.30 + dri * 0.30 + fis * 0.20 + pas * 0.15 + def * 0.05);
 
-            case "CF":
+            case CF:
                 return (int) Math.round(atk * 0.35 + dri * 0.20 + pas * 0.20 + fis * 0.15 + def * 0.10);
 
-            case "ST":
+            case ST:
                 return (int) Math.round(atk * 0.45 + fis * 0.25 + pas * 0.15 + dri * 0.10 + def * 0.05);
 
             default:
@@ -137,22 +169,24 @@ public class Player {
         }
     }
 
-    public int getEffectiveOverallForPosition(String targetPos) {
-        if (targetPos == null || this.position == null) {
+    public int getEffectiveOverallForPosition(Position targetPos) {
+        if (targetPos == null || this.primaryPosition == null) {
             return this.overall;
         }
 
-        boolean targetIsGK = targetPos.equalsIgnoreCase("GK");
-        boolean playerIsGK = this.position.equalsIgnoreCase("GK");
+        boolean targetIsGK = targetPos.isGoalkeeper();
+        boolean playerIsGK = this.primaryPosition.isGoalkeeper();
 
         int base;
 
         if (playerIsGK != targetIsGK) {
             base = Math.max(15, (int) (this.overall * 0.25f));
-        } else if (this.position.equalsIgnoreCase(targetPos)) {
+        } else if (this.primaryPosition == targetPos) {
             base = this.overall;
+        } else if (this.secondaryPosition == targetPos) {
+            base = (int) Math.round(calculateOverallForPosition(targetPos) * 0.95);
         } else {
-            base = (int) (calculateOverallForPosition(targetPos) * 0.85f);
+            base = (int) Math.round(calculateOverallForPosition(targetPos) * 0.85);
         }
 
         if (fatigue >= 60) {
@@ -164,15 +198,15 @@ public class Player {
     }
 
     public int getPositionWeight() {
-        if (position.equalsIgnoreCase("GK")) return 1;
-        if (position.matches("(?i)CB|RB|LB|RWB|LWB")) return 2;
-        if (position.matches("(?i)CDM|CM|CAM|RM|LM")) return 3;
+        if (primaryPosition.isGoalkeeper()) return 1;
+        if (primaryPosition.name().matches("CB|RB|LB|RWB|LWB")) return 2;
+        if (primaryPosition.name().matches("CDM|CM|CAM|RM|LM")) return 3;
         return 4;
     }
 
     public void applyMatchFatigue() {
         int loss = 25 + (int) (Math.random() * 20);
-        if (position.equalsIgnoreCase("GK")) loss = 10;
+        if (primaryPosition.isGoalkeeper()) loss = 10;
         this.fatigue = Math.max(0, this.fatigue - loss);
     }
 
@@ -221,7 +255,6 @@ public class Player {
         this.injuryType = type;
     }
 
-    // Métodos utilitários compatíveis com a Engine de Partida
     public void setInjuryDuration(int matches) {
         injure(matches, "Muscular");
     }
@@ -237,14 +270,23 @@ public class Player {
     public boolean canPlay() { return !isSuspended() && !isInjured(); }
 
     // Getters & Setters
+    public Club getCurrentClub() { return currentClub; }
+    public void setCurrentClub(Club currentClub) { this.currentClub = currentClub; }
+    public int getContractYears() { return contractYears; }
+    public void setContractYears(int contractYears) { this.contractYears = contractYears; }
+    public int getContractEndYear() { return contractEndYear; }
+    public void setContractEndYear(int contractEndYear) { this.contractEndYear = contractEndYear; }
+    
     public String getId() { return id; }
     public String getName() { return name; }
     public String getNationality() { return nationality; }
-    public String getPosition() { return position; }
+    public Position getPrimaryPosition() { return primaryPosition; }
+    public Position getSecondaryPosition() { return secondaryPosition; }
     public int getOverall() { return overall; }
-    public int getEffectiveOverall() { return getEffectiveOverallForPosition(position); }
+    public int getEffectiveOverall() { return getEffectiveOverallForPosition(primaryPosition); }
     public int getPotential() { return potential; }
     public double getSalary() { return salary; }
+    public void setSalary(double salary) { this.salary = salary; }
     public int getFatigue() { return fatigue; }
     public int getAge() { return age; }
     public void setAge(int age) { this.age = age; }

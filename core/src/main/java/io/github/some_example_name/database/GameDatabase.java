@@ -3,6 +3,7 @@ package io.github.some_example_name.database;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.utils.NameGenerator;
+import io.github.some_example_name.utils.ContractGenerator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,6 +15,18 @@ import io.github.some_example_name.model.TechnicalAttributes;
 public class GameDatabase {
     private List<Club> clubs;
     private Random random = new Random();
+
+    private void applyInitialContractsAndBindClubs(int currentYear) {
+        for (Club club : clubs) {
+            for (Player player : club.getSquad()) {
+                // Associa o clube ao jogador
+                player.setCurrentClub(club);
+
+                // Gera contrato considerando idade + potencial
+                ContractGenerator.generateInitialContract(player, currentYear);
+            }
+        }
+    }
 
     public GameDatabase() {
         this.clubs = new ArrayList<>();
@@ -444,7 +457,7 @@ public class GameDatabase {
         attrs.put("ataque", atk);
         attrs.put("passe", pas);
         attrs.put("defesa", def);
-        return new Player(name, nationality, pos, age, new TechnicalAttributes(attrs), pot, salary);
+        return new Player(name, nationality, pos, null, age, new TechnicalAttributes(attrs), pot, salary);
     }
 
     private void fillRemainingSquads() {
