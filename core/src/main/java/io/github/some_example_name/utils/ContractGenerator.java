@@ -8,7 +8,7 @@ public class ContractGenerator {
     public static void generateInitialContract(Player player, int currentYear) {
         int years = calculateContractLength(player);
 
-        // Se o salário ainda não foi atribuído no construtor (está <= 0), 
+        // Se o salário ainda não foi atribuído no construtor (está <= 0),
         // sincroniza com a fórmula do método financeiro getMonthlySalary()
         if (player.getSalary() <= 0) {
             player.setSalary(player.getMonthlySalary());
