@@ -17,6 +17,8 @@ public class Match {
     private Map<Player, String> cards;
     private Date date;
     private String stage = "REGULAR";
+    private String playoffSeriesId;
+    private int playoffGameNumber;
 
     private int homeShots, awayShots;
     private int homeShotsOnTarget, awayShotsOnTarget;
@@ -50,6 +52,8 @@ public class Match {
     public Map<Player, String> getCards() { return cards; }
     public Date getDate() { return date; }
     public String getStage() { return stage; }
+    public String getPlayoffSeriesId() { return playoffSeriesId; }
+    public int getPlayoffGameNumber() { return playoffGameNumber; }
     public int getHomeShots() { return homeShots; }
     public int getAwayShots() { return awayShots; }
     public int getHomeShotsOnTarget() { return homeShotsOnTarget; }
@@ -87,6 +91,8 @@ public class Match {
     public void setMomentum(float hM) { this.homeMomentum = hM; this.awayMomentum = 1.0f - hM; }
     public void setDate(Date date) { this.date = date; }
     public void setStage(String stage) { this.stage = stage; }
+    public void setPlayoffSeriesId(String playoffSeriesId) { this.playoffSeriesId = playoffSeriesId; }
+    public void setPlayoffGameNumber(int playoffGameNumber) { this.playoffGameNumber = playoffGameNumber; }
     public void setResult(int h, int a) { this.homeGoals = h; this.awayGoals = a; this.played = true; }
     public void addGoalScorer(Player p) { this.goalScorers.add(p); }
     public void addAssister(Player p) { this.assisters.add(p); }
@@ -106,7 +112,7 @@ public class Match {
     // Adicionar em io.github.some_example_name.model.Match
 
     public boolean isPlayoffs() {
-        return "PLAYOFFS".equalsIgnoreCase(stage) || "FINALS".equalsIgnoreCase(stage) || "FINAL".equalsIgnoreCase(stage);
+        return !"REGULAR".equalsIgnoreCase(stage);
     }
 
     public boolean isFinalMatch() {

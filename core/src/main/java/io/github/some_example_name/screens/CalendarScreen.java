@@ -11,7 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
@@ -72,7 +72,7 @@ public class CalendarScreen implements Screen {
 
         this.stage =
             new Stage(
-                new ScreenViewport()
+                new ResponsiveViewport()
             );
 
         try {
@@ -218,6 +218,15 @@ public class CalendarScreen implements Screen {
             .padBottom(10f)
             .row();
 
+        page
+            .add(
+                createAnnualLeagueCalendar()
+            )
+            .growX()
+            .height(320f)
+            .padBottom(10f)
+            .row();
+
         // =====================================================
         // CONTROLES / RESUMO
         // =====================================================
@@ -274,6 +283,93 @@ public class CalendarScreen implements Screen {
             true
         );
 
+        CareerOverlay.attach(
+            stage,
+            game,
+            playerClub
+        );
+
+    }
+
+    // =========================================================
+    // CALENDÁRIO ANUAL DA WFL
+    // =========================================================
+
+    private Table createAnnualLeagueCalendar() {
+        Table panel = ScreenUI.createPanel();
+        panel.top();
+
+        Table heading = new Table();
+        heading.add(ScreenUI.createSectionTitle(game.skin, "CALENDÁRIO ANUAL DA WFL")).left().expandX();
+        Label deadline = ScreenUI.createSubtitle(game.skin, "TRADE DEADLINE • 15 DE SETEMBRO");
+        deadline.setColor(ScreenUI.WARNING);
+        heading.add(deadline).right();
+        panel.add(heading).growX().padBottom(5f).row();
+
+        Table table = new Table();
+        Table header = ScreenUI.createTableHeaderRow();
+        addAnnualHeader(header, "PERÍODO", 145f);
+        addAnnualHeader(header, "COMPETIÇÃO", 205f);
+        addAnnualHeader(header, "TROCAS", 155f);
+        addAnnualHeader(header, "RENOVAÇÃO", 195f);
+        addAnnualHeader(header, "FREE AGENCY", 185f);
+        addAnnualHeader(header, "DRAFT / SCOUTING", 205f);
+        table.add(header).growX().height(29f).row();
+
+        String[][] rows = {
+            { "JANEIRO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "FEVEREIRO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "MARÇO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "ABRIL", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "MAIO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "JUNHO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "JULHO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "AGOSTO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "1–15 SETEMBRO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "16–30 SETEMBRO", "REGULAR", "ENCERRADAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "OUTUBRO", "PLAYOFFS", "ENCERRADAS", "ENCERRADA", "FECHADA", "SCOUTING" },
+            { "NOVEMBRO", "OFFSEASON", "ABERTAS", "PRÓPRIOS FA", "ABERTA", "SCOUTING" },
+            { "DEZEMBRO", "DRAFT / OFFSEASON", "ABERTAS", "ABERTAS", "ABERTA", "DRAFT + SCOUTING" }
+        };
+
+        for (int index = 0; index < rows.length; index++) {
+            Table row = ScreenUI.createRow(index);
+            addAnnualValue(row, rows[index][0], Color.WHITE, 145f);
+            addAnnualValue(row, rows[index][1], competitionColor(rows[index][1]), 205f);
+            addAnnualValue(row, rows[index][2], calendarStatusColor(rows[index][2]), 155f);
+            addAnnualValue(row, rows[index][3], calendarStatusColor(rows[index][3]), 195f);
+            addAnnualValue(row, rows[index][4], calendarStatusColor(rows[index][4]), 185f);
+            addAnnualValue(row, rows[index][5], calendarStatusColor(rows[index][5]), 205f);
+            table.add(row).growX().height(18f).row();
+        }
+
+        panel.add(table).growX();
+        return panel;
+    }
+
+    private void addAnnualHeader(Table table, String text, float width) {
+        Label label = ScreenUI.createTableHeaderLabel(game.skin, text, Align.center);
+        label.setFontScale(0.40f);
+        table.add(label).width(width).center();
+    }
+
+    private void addAnnualValue(Table table, String text, Color color, float width) {
+        Label label = ScreenUI.createBoldValue(game.skin, text, color, Align.center);
+        label.setFontScale(0.39f);
+        table.add(label).width(width).center();
+    }
+
+    private Color calendarStatusColor(String status) {
+        if (status.contains("ENCERR") || status.contains("FECHADA")) return ScreenUI.DANGER;
+        if (status.contains("SCOUT") || status.contains("DRAFT")) return StyleFactory.SOFT_YELLOW;
+        if (status.contains("PRÓPRIOS")) return ScreenUI.WARNING;
+        return ScreenUI.SUCCESS;
+    }
+
+    private Color competitionColor(String competition) {
+        if (competition.contains("PLAYOFF")) return StyleFactory.SOFT_YELLOW;
+        if (competition.contains("OFFSEASON") || competition.contains("DRAFT")) return ScreenUI.WARNING;
+        return ScreenUI.SUCCESS;
     }
 
     // =========================================================

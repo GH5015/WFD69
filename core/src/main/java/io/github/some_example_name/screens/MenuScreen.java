@@ -11,7 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.Main;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.StyleFactory;
@@ -23,7 +23,7 @@ public class MenuScreen implements Screen {
 
     public MenuScreen(Main game) {
         this.game = game;
-        this.stage = new Stage(new ScreenViewport());
+        this.stage = new Stage(new ResponsiveViewport());
         this.backgroundTexture = new Texture(Gdx.files.internal("background.png"));
     }
 

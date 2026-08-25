@@ -22,6 +22,7 @@ import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
@@ -110,8 +111,8 @@ public final class CareerOverlay
         );
 
         setSize(
-            Gdx.graphics.getWidth(),
-            Gdx.graphics.getHeight()
+            ResponsiveViewport.DESIGN_WIDTH,
+            ResponsiveViewport.DESIGN_HEIGHT
         );
 
         // =====================================================
@@ -260,10 +261,12 @@ public final class CareerOverlay
         float delta
     ) {
 
-        setSize(
-            Gdx.graphics.getWidth(),
-            Gdx.graphics.getHeight()
-        );
+        if (getStage() != null) {
+            setSize(
+                getStage().getWidth(),
+                getStage().getHeight()
+            );
+        }
 
         updatePositions();
 
@@ -275,10 +278,10 @@ public final class CareerOverlay
     private void updatePositions() {
 
         float width =
-            Gdx.graphics.getWidth();
+            getWidth();
 
         float height =
-            Gdx.graphics.getHeight();
+            getHeight();
 
         // =====================================================
         // PRÓXIMA PARTIDA NO TOPO DIREITO
@@ -471,10 +474,24 @@ public final class CareerOverlay
                         .getCurrentStage()
                 );
 
+            boolean offseason =
+                "OFFSEASON".equals(
+                    game.league
+                        .getCurrentStage()
+                );
+
+            boolean leagueStillPlaying =
+                game.league
+                    .getNextMatch() != null;
+
             Label status =
                 new Label(
-                    playoffs
-                        ? "PLAYOFFS FINALIZADOS"
+                    offseason
+                        ? "OFFSEASON • MERCADO E DRAFT"
+                        : playoffs
+                        ? leagueStillPlaying
+                            ? "PLAYOFFS EM ANDAMENTO"
+                            : "PLAYOFFS FINALIZADOS"
                         : "FASE REGULAR CONCLUÍDA",
                     game.skin,
                     "font-bold"
@@ -498,8 +515,12 @@ public final class CareerOverlay
                 .center();
 
             advanceButton.setText(
-                playoffs
-                    ? "NOVA TEMPORADA"
+                offseason
+                    ? "AVANÇAR DIA"
+                    : playoffs
+                    ? leagueStillPlaying
+                        ? "AVANÇAR DIA"
+                        : "INICIAR OFFSEASON"
                     : "INICIAR PLAYOFFS"
             );
 
@@ -759,8 +780,23 @@ public final class CareerOverlay
         // =====================================================
 
         if (
-            userMatch == null
+            userMatch == null &&
+                game.league.getNextMatch() == null
         ) {
+
+            if (
+                "OFFSEASON".equals(
+                    game.league.getCurrentStage()
+                )
+            ) {
+
+                advanceOffseasonDay(
+                    game,
+                    club
+                );
+
+                return;
+            }
 
             game.league
                 .checkAndAdvanceStage();
@@ -809,41 +845,11 @@ public final class CareerOverlay
             game.league
                 .getCurrentDate();
 
-        // =====================================================
-        // FECHAMENTO MENSAL
-        // =====================================================
-
-        if (
-            changedMonth(
-                previousDate,
-                newDate
-            )
-        ) {
-
-            processMonthlyFinances(
-                game
-            );
-        }
-
-        // =====================================================
-        // SCOUTING
-        // =====================================================
-
-        if (
-            game.draftScoutManager != null
-        ) {
-
-            game.draftScoutManager
-                .advanceDay();
-        }
-
-        // =====================================================
-        // RECUPERAÇÃO
-        // =====================================================
-
-        recoverAllPlayers(
+        processDailyActivities(
             game,
-            1
+            club,
+            previousDate,
+            newDate
         );
 
         // =====================================================
@@ -854,6 +860,55 @@ public final class CareerOverlay
             game,
             club
         );
+    }
+
+    /** A offseason também avança dia a dia para movimentações e scouting. */
+    private static void advanceOffseasonDay(
+        Main game,
+        Club club
+    ) {
+        Date previousDate = game.league.getCurrentDate();
+        game.league.advanceDateOneDay();
+        Date newDate = game.league.getCurrentDate();
+        processDailyActivities(game, club, previousDate, newDate);
+
+        if (isFirstDayOfNewSeason(game, newDate)) {
+            game.league.startNewSeason();
+            game.seasonSimulator.createSchedule(game.league);
+            if (!game.league.getSchedule().isEmpty()) {
+                game.league.setLastProcessedDate(game.league.getSchedule().get(0).getDate());
+            }
+        }
+    }
+
+    private static void processDailyActivities(
+        Main game,
+        Club club,
+        Date previousDate,
+        Date newDate
+    ) {
+        if (changedMonth(previousDate, newDate)) {
+            processMonthlyFinances(game);
+        }
+        if (game.draftScoutManager != null) {
+            game.draftScoutManager.advanceDay();
+        }
+        recoverAllPlayers(game, 1);
+        if (changedWeek(previousDate, newDate) && game.developmentEngine != null) {
+            game.developmentEngine.updateWeekly(game.league);
+        }
+        if (game.freeAgencyService != null) {
+            game.freeAgencyService.processPendingOffers(club, game.league.getCurrentSeason());
+        }
+    }
+
+    private static boolean isFirstDayOfNewSeason(Main game, Date date) {
+        if (date == null) return false;
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        return calendar.get(Calendar.MONTH) == Calendar.JANUARY
+            && calendar.get(Calendar.DAY_OF_MONTH) == 1
+            && calendar.get(Calendar.YEAR) > game.league.getCurrentSeason();
     }
 
     // =========================================================
@@ -903,6 +958,28 @@ public final class CareerOverlay
                     current.get(
                         Calendar.YEAR
                     );
+    }
+
+    private static boolean changedWeek(
+        Date previousDate,
+        Date newDate
+    ) {
+
+        if (
+            previousDate == null ||
+                newDate == null
+        ) {
+
+            return false;
+        }
+
+        Calendar previous = Calendar.getInstance();
+        previous.setTime(previousDate);
+        Calendar current = Calendar.getInstance();
+        current.setTime(newDate);
+
+        return previous.get(Calendar.WEEK_OF_YEAR) != current.get(Calendar.WEEK_OF_YEAR) ||
+            previous.get(Calendar.YEAR) != current.get(Calendar.YEAR);
     }
 
     // =========================================================

@@ -23,12 +23,13 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.ContractRenewalService;
 import io.github.some_example_name.model.Player;
+import io.github.some_example_name.model.SeasonCalendar;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
@@ -54,7 +55,7 @@ public class ContractRenewalScreen implements Screen {
     ) {
         this.game = game;
         this.club = club;
-        this.stage = new Stage(new ScreenViewport());
+        this.stage = new Stage(new ResponsiveViewport());
         this.backgroundTexture = new Texture(
             Gdx.files.internal("prancheta.png")
         );
@@ -87,7 +88,10 @@ public class ContractRenewalScreen implements Screen {
             ScreenUI.createHeader(
                 game.skin,
                 "RENOVAÇÃO DE CONTRATOS",
-                club.getName().toUpperCase() + " • " + currentYear
+                club.getName().toUpperCase() + " • " + currentYear + " • " +
+                    (SeasonCalendar.isRenewalWindowOpen(game.league)
+                        ? "RENOVAÇÕES ABERTAS"
+                        : "PAUSA DOS PLAYOFFS")
             )
         ).growX().height(ScreenUI.HEADER_HEIGHT).padBottom(10f).row();
 
@@ -247,6 +251,9 @@ public class ContractRenewalScreen implements Screen {
         boolean canNegotiate
     ) {
         int remaining = player.getRemainingContractYears(currentYear);
+        if (!SeasonCalendar.isRenewalWindowOpen(game.league)) {
+            return ScreenUI.createBadge(game.skin, "PAUSA DOS PLAYOFFS", ScreenUI.DANGER);
+        }
         if (remaining == 0) {
             return ScreenUI.createBadge(game.skin, "FREE AGENT", ScreenUI.DANGER);
         }
@@ -263,7 +270,8 @@ public class ContractRenewalScreen implements Screen {
     }
 
     private boolean canNegotiate(Player player, int currentYear) {
-        return player.getRemainingContractYears(currentYear) <= 2
+        return SeasonCalendar.isRenewalWindowOpen(game.league)
+            && player.getRemainingContractYears(currentYear) <= 2
             && player.canNegotiateContract(currentYear);
     }
 
@@ -470,6 +478,10 @@ public class ContractRenewalScreen implements Screen {
     }
 
     private void renewPlayer(Player player, long annualSalary, int years) {
+        if (!SeasonCalendar.isRenewalWindowOpen(game.league)) {
+            refreshUI();
+            return;
+        }
         player.renewContract(annualSalary, years, game.league.getCurrentSeason());
         refreshUI();
     }

@@ -14,6 +14,7 @@ public class Player {
     private TechnicalAttributes technicalAttributes;
     private int overall;
     private int potential;
+    private PlayerDevelopment development;
     double salary;
     private double negotiatedMonthlySalary = -1.0;
 
@@ -252,8 +253,19 @@ public class Player {
         this.age = age;
         this.technicalAttributes = technicalAttributes != null ? technicalAttributes : new TechnicalAttributes();
         this.potential = potential;
+        this.development = new PlayerDevelopment(
+            potential,
+            selectDevelopmentCurve(name)
+        );
         this.salary = salary;
         calculateOverall();
+        development.initialize(this.technicalAttributes, this.overall);
+    }
+
+    private DevelopmentCurve selectDevelopmentCurve(String playerName) {
+        DevelopmentCurve[] curves = DevelopmentCurve.values();
+        int index = Math.abs((playerName != null ? playerName : "").hashCode()) % curves.length;
+        return curves[index];
     }
 
     // --- LÓGICA DE GERENCIAMENTO DE CONTRATO E TRANSFERÊNCIA ---
@@ -474,7 +486,34 @@ public class Player {
     public Position getSecondaryPosition() { return secondaryPosition; }
     public int getOverall() { return overall; }
     public int getEffectiveOverall() { return getEffectiveOverallForPosition(primaryPosition); }
-    public int getPotential() { return potential; }
+    public int getPotential() {
+        return development != null
+            ? development.getPerceivedPotential()
+            : potential;
+    }
+    public int getTruePotential() {
+        return development != null
+            ? development.getTruePotential()
+            : potential;
+    }
+    public PlayerDevelopment getDevelopment() { return development; }
+    public DevelopmentFocus getDevelopmentFocus() { return development.getFocus(); }
+    public void setDevelopmentFocus(DevelopmentFocus focus) { development.setFocus(focus); }
+    public DevelopmentCurve getDevelopmentCurve() { return development.getCurve(); }
+    public int getDevelopmentPercent() { return development.getDevelopmentPercent(overall); }
+    public java.util.List<Integer> getOverallDevelopmentHistory() { return development.getWeeklyOverallHistory(); }
+    public java.util.Map<Integer, Integer> getYearlyDevelopmentHistory() { return development.getYearlyOverallHistory(); }
+    public int getLastAttackDevelopment() { return development.getLastAttackChange(); }
+    public int getLastPassingDevelopment() { return development.getLastPassingChange(); }
+    public int getLastDefenseDevelopment() { return development.getLastDefenseChange(); }
+    public int getLastPhysicalDevelopment() { return development.getLastPhysicalChange(); }
+    public int getLastDribblingDevelopment() { return development.getLastDribblingChange(); }
+    public void applyDevelopmentGrowth(double attack, double passing, double defense, double physical, double dribbling, double goalkeeper) {
+        development.applyAttributeGrowth(technicalAttributes, attack, passing, defense, physical, dribbling, goalkeeper);
+        calculateOverall();
+        development.recordWeeklyOverall(overall);
+    }
+    public void recordDevelopmentYear(int year) { development.recordYearOverall(year, overall); }
     public double getSalary() { return salary; }
     public void setSalary(double salary) {
         this.salary = salary;

@@ -12,12 +12,13 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.PlayerStats;
+import io.github.some_example_name.model.PlayoffSeries;
 import io.github.some_example_name.model.StandingsRow;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.ScreenUI;
@@ -65,7 +66,7 @@ public class StandingsScreen implements Screen {
 
         this.stage =
             new Stage(
-                new ScreenViewport()
+                new ResponsiveViewport()
             );
 
         try {
@@ -583,7 +584,7 @@ public class StandingsScreen implements Screen {
             float contentHeight =
                 Math.max(
                     280f,
-                    Gdx.graphics.getHeight() -
+                    stage.getHeight() -
                         ScreenUI.PAGE_TOP -
                         ScreenUI.PAGE_BOTTOM -
                         ScreenUI.HEADER_HEIGHT -
@@ -1436,7 +1437,7 @@ public class StandingsScreen implements Screen {
         Label title =
             ScreenUI.createSectionTitle(
                 game.skin,
-                "SÉRIES DE PLAYOFF"
+                "CHAVE DOS PLAYOFFS"
             );
 
         panel
@@ -1445,12 +1446,12 @@ public class StandingsScreen implements Screen {
             .padBottom(18f)
             .row();
 
-        List<String> summaries =
+        List<PlayoffSeries> series =
             game.league
-                .getPlayoffSeriesSummaries();
+                .getPlayoffSeries();
 
         if (
-            summaries.isEmpty()
+            series.isEmpty()
         ) {
 
             Table empty =
@@ -1459,7 +1460,7 @@ public class StandingsScreen implements Screen {
             Label message =
                 new Label(
                     "Os playoffs ainda não começaram.\n" +
-                        "Os classificados serão definidos ao fim da temporada regular.",
+                        "Classificam-se 6 clubes da Conferência Ocidental e 2 da Oriental.",
                     game.skin
                 );
 
@@ -1487,59 +1488,181 @@ public class StandingsScreen implements Screen {
 
         } else {
 
-            Table seriesTable =
+            Table bracket =
                 new Table();
 
-            seriesTable.top();
+            bracket.top();
 
-            int index =
-                0;
+            bracket
+                .add(
+                    createBracketRound(
+                        "QUARTAS DE FINAL",
+                        "MELHOR DE 3",
+                        new String[] { "QF1", "QF2", "QF3", "QF4" },
+                        series
+                    )
+                )
+                .width(300f)
+                .top()
+                .padRight(18f);
 
-            for (
-                String summary :
-                summaries
-            ) {
+            bracket
+                .add(
+                    createBracketRound(
+                        "SEMIFINAIS",
+                        "MELHOR DE 3",
+                        new String[] { "SF1", "SF2" },
+                        series
+                    )
+                )
+                .width(300f)
+                .top()
+                .padRight(18f);
 
-                Table row =
-                    ScreenUI.createRow(
-                        index++
-                    );
-
-                Label label =
-                    new Label(
-                        summary,
-                        game.skin,
-                        "font-bold"
-                    );
-
-                label.setColor(
-                    StyleFactory.CREME_AGED
-                );
-
-                label.setFontScale(
-                    0.67f
-                );
-
-                row
-                    .add(label)
-                    .left()
-                    .expandX()
-                    .padLeft(18f);
-
-                seriesTable
-                    .add(row)
-                    .width(740f)
-                    .height(54f)
-                    .padBottom(5f)
-                    .row();
-            }
+            bracket
+                .add(
+                    createBracketRound(
+                        "FINAL",
+                        "JOGO ÚNICO",
+                        new String[] { "F" },
+                        series
+                    )
+                )
+                .width(300f)
+                .top();
 
             panel
-                .add(seriesTable)
+                .add(bracket)
                 .center();
         }
 
         return panel;
+    }
+
+    private Table createBracketRound(
+        String title,
+        String format,
+        String[] seriesIds,
+        List<PlayoffSeries> allSeries
+    ) {
+
+        Table column =
+            new Table();
+
+        Label roundTitle =
+            ScreenUI.createSectionTitle(
+                game.skin,
+                title
+            );
+
+        roundTitle.setFontScale(0.58f);
+        column.add(roundTitle).center().padBottom(2f).row();
+
+        Label formatLabel =
+            ScreenUI.createSubtitle(game.skin, format);
+
+        formatLabel.setFontScale(0.44f);
+        formatLabel.setColor(ScreenUI.MUTED_TEXT);
+        column.add(formatLabel).center().padBottom(12f).row();
+
+        if (seriesIds.length == 2) {
+            column.add().height(42f).row();
+        } else if (seriesIds.length == 1) {
+            column.add().height(132f).row();
+        }
+
+        for (int i = 0; i < seriesIds.length; i++) {
+            column.add(createBracketSeriesCard(findSeries(seriesIds[i], allSeries)))
+                .width(286f)
+                .height(76f)
+                .padBottom(seriesIds.length == 1 ? 0f : 18f)
+                .row();
+
+            if (seriesIds.length == 2 && i == 0) {
+                column.add().height(76f).row();
+            }
+        }
+
+        return column;
+    }
+
+    private PlayoffSeries findSeries(
+        String id,
+        List<PlayoffSeries> series
+    ) {
+
+        for (PlayoffSeries item : series) {
+            if (id.equals(item.getId())) return item;
+        }
+
+        return null;
+    }
+
+    private Table createBracketSeriesCard(PlayoffSeries series) {
+
+        Table card =
+            ScreenUI.createSubtlePanel();
+
+        card.pad(6f, 9f, 6f, 9f);
+
+        if (series == null) {
+            Label pending =
+                ScreenUI.createSubtitle(game.skin, "A DEFINIR");
+            pending.setColor(ScreenUI.MUTED_TEXT);
+            card.add(pending).center().expand();
+            return card;
+        }
+
+        boolean complete = series.isComplete();
+        card.background(
+            StyleFactory.createRoundedPanel(
+                complete ? Color.valueOf("1A3522") : ScreenUI.PANEL_ALT,
+                complete ? ScreenUI.SUCCESS : StyleFactory.DARK_GOLD
+            )
+        );
+
+        addBracketTeam(card, series.getFirstSeed(), series.getFirstSeedWins(), series.getWinner());
+        card.row();
+        addBracketTeam(card, series.getSecondSeed(), series.getSecondSeedWins(), series.getWinner());
+        card.row();
+
+        Label status = ScreenUI.createSubtitle(
+            game.skin,
+            complete
+                ? "CLASSIFICADO"
+                : "JOGO " + (series.getGamesPlayed() + 1) + " DE " + series.getBestOf()
+        );
+        status.setFontScale(0.40f);
+        status.setColor(complete ? ScreenUI.SUCCESS : ScreenUI.MUTED_TEXT);
+        card.add(status).right().padTop(2f);
+
+        return card;
+    }
+
+    private void addBracketTeam(
+        Table card,
+        Club club,
+        int wins,
+        Club winner
+    ) {
+
+        Label name = ScreenUI.createBoldValue(
+            game.skin,
+            ScreenUI.shorten(club.getName(), 24),
+            club == winner ? StyleFactory.SOFT_YELLOW : Color.WHITE,
+            Align.left
+        );
+        name.setFontScale(0.48f);
+        card.add(name).left().expandX();
+
+        Label score = ScreenUI.createBoldValue(
+            game.skin,
+            String.valueOf(wins),
+            club == winner ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT,
+            Align.right
+        );
+        score.setFontScale(0.54f);
+        card.add(score).right().width(25f);
     }
 
     // =========================================================

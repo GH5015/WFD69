@@ -16,7 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
@@ -39,7 +39,7 @@ public class CompletedScoutingScreen implements Screen {
         this.game = game;
         this.club = club;
         this.scoutManager = scoutManager;
-        this.stage = new Stage(new ScreenViewport());
+        this.stage = new Stage(new ResponsiveViewport());
         this.backgroundTexture = new Texture(Gdx.files.internal("prancheta.png"));
     }
 

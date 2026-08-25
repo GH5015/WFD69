@@ -18,6 +18,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
+import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
@@ -71,7 +72,7 @@ public final class NavigationDrawer
 
         setSize(
             WIDTH,
-            Gdx.graphics.getHeight()
+            ResponsiveViewport.DESIGN_HEIGHT
         );
 
         open =
@@ -187,6 +188,20 @@ public final class NavigationDrawer
 
         addItem(
             game,
+            "DESENV.",
+            "Icons8/icons8-em-alta-50.png",
+            active,
+            () ->
+                game.setScreen(
+                    new SquadDevelopmentScreen(
+                        game,
+                        club
+                    )
+                )
+        );
+
+        addItem(
+            game,
             "SCOUTING",
             "Icons8/icons8-pesquisar-50.png",
             active,
@@ -240,6 +255,20 @@ public final class NavigationDrawer
             () ->
                 game.setScreen(
                     new ContractRenewalScreen(
+                        game,
+                        club
+                    )
+                )
+        );
+
+        addItem(
+            game,
+            "AGENTES",
+            "Icons8/icons8-pesquisar-50.png",
+            active,
+            () ->
+                game.setScreen(
+                    new FreeAgencyScreen(
                         game,
                         club
                     )
@@ -477,8 +506,9 @@ public final class NavigationDrawer
         float delta
     ) {
 
-        float newHeight =
-            Gdx.graphics.getHeight();
+        float newHeight = getStage() != null
+            ? getStage().getHeight()
+            : getHeight();
 
         if (
             getHeight() !=

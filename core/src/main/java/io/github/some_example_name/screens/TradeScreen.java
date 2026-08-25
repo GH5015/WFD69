@@ -14,7 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.*;
@@ -87,7 +87,7 @@ public class TradeScreen implements Screen {
 
         this.stage =
             new Stage(
-                new ScreenViewport()
+                new ResponsiveViewport()
             );
 
         this.backgroundTexture =
@@ -178,7 +178,12 @@ public class TradeScreen implements Screen {
                     "CENTRAL DE TROCAS",
                     "TEMPORADA " +
                         game.league
-                            .getCurrentSeason()
+                            .getCurrentSeason() +
+                        " • " +
+                        SeasonCalendar.getTradeStatus(
+                            game.league,
+                            userClub
+                        )
                 )
             )
             .growX()
@@ -2485,7 +2490,7 @@ public class TradeScreen implements Screen {
             TradeRulesValidator
                 .validateRules(
                     currentOffer,
-                    game.league.getCurrentSeason()
+                    game.league
                 );
 
         // =====================================================
@@ -2994,7 +2999,7 @@ public class TradeScreen implements Screen {
         TradeRulesValidator.ValidationResult validation =
             TradeRulesValidator.validateRules(
                 currentOffer,
-                game.league.getCurrentSeason()
+                game.league
             );
 
         if (!validation.isValid) {

@@ -198,6 +198,21 @@ public class MatchEngine {
         Player shooter = getBestAvailableAttacker(attStarters);
         Player goalkeeper = getGoalkeeper(defStarters);
 
+        if (shooter == null) {
+            if (homeAttacking) {
+                match.addHomeShot(false);
+            } else {
+                match.addAwayShot(false);
+            }
+
+            return new MatchEvent(
+                minute,
+                attacker.getName() + " chega ao ataque, mas não encontra ninguém em condições de finalizar.",
+                "CHUTE",
+                homeAttacking
+            );
+        }
+
         int shooterAtkAttr = shooter.getTechnicalAttributes().getAtaque();
 
         double atkOverall = attacker.getOverall();
@@ -302,6 +317,16 @@ public class MatchEngine {
 
         if (random.nextDouble() < 0.22) {
             Player taker = getBestAvailableAttacker(attStarters);
+
+            if (taker == null) {
+                return new MatchEvent(
+                    minute,
+                    "Falta perigosa para o " + attacker.getName() + ", mas a cobrança não leva perigo.",
+                    "TIRO_LIVRE",
+                    homeAttacking
+                );
+            }
+
             boolean isGoalFromFreeKick = random.nextDouble() <
                 (0.035 + (taker.getTechnicalAttributes().getAtaque() / 1200.0));
 
@@ -702,13 +727,19 @@ public class MatchEngine {
     }
 
     private Player getBestAvailableAttacker(List<Player> starters) {
+        if (starters == null || starters.isEmpty()) {
+            return null;
+        }
+
         List<Player> attackers = starters.stream()
-            .filter(p -> p.getMatchRedCards() == 0 && !p.isInjured() && p.getPosition().matches("(?i)ST|CF|RW|LW|CAM"))
+            .filter(p -> p != null && p.getMatchRedCards() == 0 && !p.isInjured() && p.getPosition() != null && p.getPosition().matches("(?i)ST|CF|RW|LW|CAM"))
             .collect(Collectors.toList());
 
         if (attackers.isEmpty()) {
-            List<Player> nonRed = starters.stream().filter(p -> p.getMatchRedCards() == 0 && !p.isInjured()).collect(Collectors.toList());
-            return nonRed.isEmpty() ? starters.get(0) : nonRed.get(random.nextInt(nonRed.size()));
+            List<Player> nonRed = starters.stream()
+                .filter(p -> p != null && p.getMatchRedCards() == 0 && !p.isInjured())
+                .collect(Collectors.toList());
+            return nonRed.isEmpty() ? null : nonRed.get(random.nextInt(nonRed.size()));
         }
         return attackers.get(random.nextInt(attackers.size()));
     }

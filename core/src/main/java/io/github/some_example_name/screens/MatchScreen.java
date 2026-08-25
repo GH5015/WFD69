@@ -15,7 +15,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.utils.Timer;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 import java.util.Locale;
 
 import io.github.some_example_name.Main;
@@ -141,7 +141,7 @@ public class MatchScreen implements Screen {
 
         this.stage =
             new Stage(
-                new ScreenViewport()
+                new ResponsiveViewport()
             );
 
         homeLogoTexture =

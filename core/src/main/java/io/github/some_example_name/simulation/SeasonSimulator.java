@@ -25,10 +25,11 @@ public class SeasonSimulator {
         List<Club> rotatingList = new ArrayList<>(clubs);
         Club fixedTeam = rotatingList.remove(totalTeams - 1);
 
+        // 38 rodadas entre janeiro e 15 de setembro. Cinco intervalos de
+        // seis dias evitam que a fase regular invada a janela dos playoffs.
         Calendar cal = Calendar.getInstance();
-        cal.set(league.getCurrentSeason(), Calendar.MARCH, 1);
-        // Ajustar para o primeiro domingo
-        while (cal.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY) cal.add(Calendar.DATE, 1);
+        cal.clear();
+        cal.set(league.getCurrentSeason(), Calendar.JANUARY, 2, 12, 0, 0);
 
         List<Match> fullSchedule = new ArrayList<>();
         List<Match> turn1 = new ArrayList<>();
@@ -50,16 +51,10 @@ public class SeasonSimulator {
             Club last = rotatingList.remove(rotatingList.size() - 1);
             rotatingList.add(0, last);
 
-            // Avança para o próximo domingo ou quarta (distribuindo 38 rodadas em 36 semanas)
-            if (round % 4 == 0) cal.add(Calendar.DATE, 3); // Quarta
-            else if (cal.get(Calendar.DAY_OF_WEEK) == Calendar.WEDNESDAY) cal.add(Calendar.DATE, 4); // Domingo
-            else cal.add(Calendar.DATE, 7); // Próximo Domingo
+            advanceToNextRegularRound(cal, round, (roundsPerTurn * 2) - 1);
         }
 
         fullSchedule.addAll(turn1);
-
-        // Intervalo de meio de ano
-        cal.add(Calendar.DATE, 14);
 
         // Turno 2 (Invertido)
         for (int round = 0; round < roundsPerTurn; round++) {
@@ -71,12 +66,17 @@ public class SeasonSimulator {
                 m2.setDate(roundDate);
                 fullSchedule.add(m2);
             }
-            if (round % 4 == 0) cal.add(Calendar.DATE, 3);
-            else if (cal.get(Calendar.DAY_OF_WEEK) == Calendar.WEDNESDAY) cal.add(Calendar.DATE, 4);
-            else cal.add(Calendar.DATE, 7);
+            advanceToNextRegularRound(cal, roundsPerTurn + round, (roundsPerTurn * 2) - 1);
         }
 
         league.setSchedule(fullSchedule);
+    }
+
+    private void advanceToNextRegularRound(Calendar calendar, int completedRound, int lastRound) {
+        if (completedRound >= lastRound) return;
+        boolean compressedWeek = completedRound == 6 || completedRound == 13
+            || completedRound == 20 || completedRound == 27 || completedRound == 34;
+        calendar.add(Calendar.DATE, compressedWeek ? 6 : 7);
     }
 
     public void processEndSeason(League league) {

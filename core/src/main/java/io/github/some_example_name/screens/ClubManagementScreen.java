@@ -14,7 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
@@ -22,6 +22,7 @@ import io.github.some_example_name.model.Formation;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.TechnicalAttributes;
 import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.PlayerDevelopmentDialog;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
@@ -64,7 +65,7 @@ public class ClubManagementScreen implements Screen {
 
         stage =
             new Stage(
-                new ScreenViewport()
+                new ResponsiveViewport()
             );
 
         pranchetaTexture =
@@ -176,7 +177,7 @@ public class ClubManagementScreen implements Screen {
         float usableWidth =
             Math.max(
                 850f,
-                Gdx.graphics.getWidth() -
+                stage.getWidth() -
                     ScreenUI.PAGE_LEFT_OPEN -
                     ScreenUI.PAGE_RIGHT
             );
@@ -304,6 +305,46 @@ public class ClubManagementScreen implements Screen {
             .left()
             .expandX();
 
+        ImageTextButton playoffTestButton =
+            IconTextButton.create(
+                "TESTAR PLAYOFFS",
+                game.skin,
+                "Icons8/icons8-relógio-50.png"
+            );
+
+        playoffTestButton
+            .getLabel()
+            .setFontScale(
+                0.52f
+            );
+
+        playoffTestButton.setDisabled(
+            !"REGULAR".equals(
+                game.league.getCurrentStage()
+            )
+        );
+
+        playoffTestButton.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    simulateUntilPlayoffs();
+                }
+            }
+        );
+
+        header
+            .add(playoffTestButton)
+            .width(190f)
+            .height(42f)
+            .padRight(8f);
+
         ImageTextButton tacticsButton =
             IconTextButton.create(
                 "EDITAR TÁTICA",
@@ -343,6 +384,91 @@ public class ClubManagementScreen implements Screen {
             .height(42f);
 
         return header;
+    }
+
+    /**
+     * Atalho de desenvolvimento para avançar toda a fase regular sem abrir
+     * cada partida. A simulação para assim que a chave dos playoffs é criada.
+     */
+    private void simulateUntilPlayoffs() {
+
+        if (
+            !"REGULAR".equals(
+                game.league.getCurrentStage()
+            )
+        ) {
+
+            showPlayoffTestFeedback(
+                "Os playoffs já estão em andamento."
+            );
+
+            return;
+        }
+
+        int simulatedMatches =
+            0;
+
+        while (
+            "REGULAR".equals(
+                game.league.getCurrentStage()
+            ) &&
+                game.league.getNextMatch() != null
+        ) {
+
+            game.matchEngine.simulate(
+                game.league.getNextMatch()
+            );
+
+            game.league.advanceMatch();
+
+            simulatedMatches++;
+        }
+
+        refreshUI();
+
+        showPlayoffTestFeedback(
+            simulatedMatches +
+                " partidas da fase regular foram simuladas.\n" +
+                "A chave está disponível em TABELA > PLAYOFFS."
+        );
+    }
+
+    private void showPlayoffTestFeedback(
+        String message
+    ) {
+
+        Dialog dialog =
+            new Dialog(
+                "TESTE DE PLAYOFFS",
+                game.skin
+            );
+
+        Label text =
+            new Label(
+                message,
+                game.skin
+            );
+
+        text.setAlignment(
+            Align.center
+        );
+
+        text.setWrap(
+            true
+        );
+
+        dialog
+            .getContentTable()
+            .add(text)
+            .width(430f)
+            .pad(18f);
+
+        dialog.button(
+            "OK",
+            true
+        );
+
+        dialog.show(stage);
     }
 
     // =========================================================
@@ -950,6 +1076,16 @@ public class ClubManagementScreen implements Screen {
         addAttributeRow(attributes, "ATAQUE", values.getAtaque(), "PASSE", values.getPasse(), "DRIBLE", values.getDrible());
         addAttributeRow(attributes, "FÍSICO", values.getFisico(), "DEFESA", values.getDefesa(), "GOLEIRO", values.getGoleiro());
         content.add(attributes).width(910f).height(112f).padBottom(6f).row();
+
+        TextButton development = ScreenUI.createSecondaryButton(game.skin, "DESENVOLVIMENTO");
+        development.getLabel().setFontScale(0.48f);
+        development.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                dialog.hide();
+                new PlayerDevelopmentDialog(game.skin, player, club).show(stage);
+            }
+        });
+        dialog.button(development, false);
 
         TextButton close = ScreenUI.createPrimaryButton(game.skin, "FECHAR");
         close.getLabel().setFontScale(0.55f);

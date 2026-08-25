@@ -11,13 +11,14 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.DraftScoutManager;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.ScoutTarget;
+import io.github.some_example_name.model.SeasonCalendar;
 import io.github.some_example_name.screens.DraftSelectionDialog;
 import io.github.some_example_name.utils.PlayerReportDialog;
 import io.github.some_example_name.utils.IconTextButton;
@@ -98,7 +99,7 @@ public class DraftScoutingScreen implements Screen {
 
         this.stage =
             new Stage(
-                new ScreenViewport()
+                new ResponsiveViewport()
             );
 
         this.backgroundTexture =
@@ -181,6 +182,9 @@ public class DraftScoutingScreen implements Screen {
                 ScreenUI.createHeader(
                     game.skin,
                     "DRAFT SCOUTING • CLASSE DE 1970",
+                    (SeasonCalendar.isDraftOpen(game.league)
+                        ? "DRAFT ABERTO • "
+                        : "SCOUTING ABERTO • DRAFT EM DEZEMBRO • ") +
                     "CONHECIMENTO GERAL  " +
                         overallKnowledge +
                         "%"

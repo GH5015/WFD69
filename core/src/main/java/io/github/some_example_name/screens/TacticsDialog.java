@@ -526,7 +526,7 @@ public class TacticsDialog extends Dialog {
         Label hint =
             ScreenUI.createSubtitle(
                 game.skin,
-                "Clique em dois titulares para trocar posições"
+                "Clique em duas posições para reorganizar o time"
             );
 
         heading
@@ -740,8 +740,8 @@ public class TacticsDialog extends Dialog {
             new Table();
 
         boolean selected =
-            player != null &&
-                player == selectedPlayer;
+            selectedSlot != null &&
+                selectedSlot == slotIndex;
 
         boolean unavailable =
             player != null &&
@@ -798,6 +798,7 @@ public class TacticsDialog extends Dialog {
 
             card
                 .add(position)
+                .width(92f)
                 .center()
                 .row();
 
@@ -817,6 +818,7 @@ public class TacticsDialog extends Dialog {
 
             card
                 .add(empty)
+                .width(92f)
                 .center();
 
         } else {
@@ -1099,7 +1101,10 @@ public class TacticsDialog extends Dialog {
                 null;
 
             selectedSlot =
-                null;
+                selectedSlot != null &&
+                    selectedSlot == slotIndex
+                    ? null
+                    : slotIndex;
         }
 
         refreshContent();
@@ -1115,7 +1120,8 @@ public class TacticsDialog extends Dialog {
             ScreenUI.createPanel();
 
         if (
-            selectedPlayer == null
+            selectedPlayer == null &&
+                selectedSlot == null
         ) {
 
             String text =
@@ -1139,6 +1145,111 @@ public class TacticsDialog extends Dialog {
                 .add(hint)
                 .width(640f)
                 .center();
+
+            return panel;
+        }
+
+        if (
+            selectedPlayer == null
+        ) {
+
+            String position =
+                getSlotPosition(
+                    selectedSlot
+                );
+
+            panel
+                .add(
+                    ScreenUI.createBadge(
+                        game.skin,
+                        position,
+                        StyleFactory.getPositionColor(
+                            position
+                        )
+                    )
+                )
+                .height(28f)
+                .padRight(12f);
+
+            Table info =
+                new Table();
+
+            Label title =
+                new Label(
+                    "POSIÇÃO " +
+                        position +
+                        " VAZIA",
+                    game.skin,
+                    "font-bold"
+                );
+
+            title.setFontScale(
+                0.64f
+            );
+
+            title.setColor(
+                StyleFactory.GOLD
+            );
+
+            info
+                .add(title)
+                .left()
+                .row();
+
+            Label action =
+                new Label(
+                    injuryReplacementPending
+                        ? "Escolha um reserva para substituir o jogador lesionado."
+                        : "Clique em um titular para movê-lo para esta posição.",
+                    game.skin
+                );
+
+            action.setFontScale(
+                0.49f
+            );
+
+            action.setColor(
+                ScreenUI.MUTED_TEXT
+            );
+
+            info
+                .add(action)
+                .left()
+                .padTop(3f);
+
+            panel
+                .add(info)
+                .left()
+                .expandX();
+
+            TextButton cancel =
+                ScreenUI.createSecondaryButton(
+                    game.skin,
+                    "CANCELAR"
+                );
+
+            cancel.addListener(
+                new ClickListener() {
+
+                    @Override
+                    public void clicked(
+                        InputEvent event,
+                        float x,
+                        float y
+                    ) {
+
+                        selectedSlot =
+                            null;
+
+                        refreshContent();
+                    }
+                }
+            );
+
+            panel
+                .add(cancel)
+                .width(105f)
+                .height(36f);
 
             return panel;
         }
@@ -1263,6 +1374,30 @@ public class TacticsDialog extends Dialog {
             .height(36f);
 
         return panel;
+    }
+
+    private String getSlotPosition(
+        int slotIndex
+    ) {
+
+        Formation formation =
+            club.getFormation();
+
+        if (
+            formation == null ||
+                formation.getPositionSlots() == null ||
+                slotIndex < 0 ||
+                slotIndex >= formation
+                    .getPositionSlots()
+                    .size()
+        ) {
+
+            return "N/D";
+        }
+
+        return formation
+            .getPositionSlots()
+            .get(slotIndex);
     }
 
     // =========================================================

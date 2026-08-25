@@ -13,9 +13,11 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import io.github.some_example_name.database.DraftClass1970;
 import io.github.some_example_name.database.GameDatabase;
 import io.github.some_example_name.engine.MatchEngine;
+import io.github.some_example_name.engine.DevelopmentEngine;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.DraftScoutManager;
 import io.github.some_example_name.model.DraftOrderService;
+import io.github.some_example_name.model.FreeAgencyService;
 import io.github.some_example_name.model.League;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.screens.CareerOverlay;
@@ -36,8 +38,10 @@ public class Main extends Game {
     public League league;
 
     public MatchEngine matchEngine;
+    public DevelopmentEngine developmentEngine;
     public SeasonSimulator seasonSimulator;
     public PlayoffSimulator playoffSimulator;
+    public FreeAgencyService freeAgencyService;
 
     public Club playerClub;
     public Drawable background;
@@ -86,6 +90,7 @@ public class Main extends Game {
         database.applyInitialContractsAndBindClubs(
             league.getCurrentSeason()
         );
+        freeAgencyService = new FreeAgencyService(league);
         DraftOrderService.initializeDraftPicks(
             league,
             league.getCurrentSeason() + 1
@@ -96,6 +101,8 @@ public class Main extends Game {
         // ==============================
 
         matchEngine = new MatchEngine();
+
+        developmentEngine = new DevelopmentEngine();
 
         seasonSimulator = new SeasonSimulator();
 
@@ -465,6 +472,45 @@ public class Main extends Game {
         skin.add(
             "default",
             selectBoxStyle
+        );
+
+        // ==============================
+        // CAMPO DE TEXTO
+        // ==============================
+
+        TextField.TextFieldStyle textFieldStyle =
+            new TextField.TextFieldStyle();
+
+        textFieldStyle.font =
+            fontRegular;
+
+        textFieldStyle.fontColor =
+            Color.WHITE;
+
+        textFieldStyle.messageFontColor =
+            StyleFactory.TEXT_MUTED;
+
+        textFieldStyle.background =
+            StyleFactory.createModernButton(
+                220,
+                50,
+                Color.valueOf("17251D"),
+                StyleFactory.DARK_GOLD
+            );
+
+        textFieldStyle.cursor =
+            StyleFactory.createSolid(
+                StyleFactory.SOFT_YELLOW
+            );
+
+        textFieldStyle.selection =
+            StyleFactory.createSolid(
+                Color.valueOf("5A4A1A")
+            );
+
+        skin.add(
+            "default",
+            textFieldStyle
         );
 
         // ==============================

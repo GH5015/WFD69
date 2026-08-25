@@ -22,6 +22,19 @@ public class TradeRulesValidator {
         return validateRules(offer, -1);
     }
 
+    /** Aplica também as janelas anuais de negociação da WFL. */
+    public static ValidationResult validateRules(TradeOffer offer, League league) {
+        if (offer != null && league != null && offer.getUserClub() != null && offer.getTargetClub() != null) {
+            if (!SeasonCalendar.isTradeWindowOpen(league, offer.getUserClub())) {
+                return new ValidationResult(false, SeasonCalendar.getTradeStatus(league, offer.getUserClub()) + ".");
+            }
+            if (!SeasonCalendar.isTradeWindowOpen(league, offer.getTargetClub())) {
+                return new ValidationResult(false, offer.getTargetClub().getName() + " não pode negociar neste momento.");
+            }
+        }
+        return validateRules(offer, league != null ? league.getCurrentSeason() : -1);
+    }
+
     /**
      * @param currentSeasonYear use a season year to also prevent players whose
      *                          contracts have expired from being traded.
