@@ -19,6 +19,9 @@ import com.badlogic.gdx.utils.Align;
 
 public final class ScreenUI {
 
+    /** Escala base legível, com ajuste automático caso o botão seja estreito. */
+    private static final float DEFAULT_BUTTON_FONT_SCALE = 0.52f;
+
     private static final Color HOVER_TINT =
         Color.valueOf("FFF4C9");
 
@@ -852,10 +855,12 @@ public final class ScreenUI {
                 StyleFactory.TEXT_DISABLED
             );
 
-        TextButton button = new TextButton(
+        TextButton button = new AdaptiveTextButton(
             text,
             style
         );
+
+        button.getLabel().setFontScale(DEFAULT_BUTTON_FONT_SCALE);
 
         addHoverAnimation(button, 1.025f);
 
@@ -939,10 +944,12 @@ public final class ScreenUI {
                 StyleFactory.TEXT_DISABLED
             );
 
-        TextButton button = new TextButton(
+        TextButton button = new AdaptiveTextButton(
             text,
             style
         );
+
+        button.getLabel().setFontScale(DEFAULT_BUTTON_FONT_SCALE);
 
         addHoverAnimation(button, 1.02f);
 
@@ -955,7 +962,9 @@ public final class ScreenUI {
         Skin skin
     ) {
 
-        TextButton button = new TextButton(text, skin);
+        prepare(skin);
+        TextButton button = new AdaptiveTextButton(text, skin);
+        button.getLabel().setFontScale(DEFAULT_BUTTON_FONT_SCALE);
         addHoverAnimation(button, 1.025f);
         return button;
     }
@@ -967,7 +976,9 @@ public final class ScreenUI {
         String styleName
     ) {
 
-        TextButton button = new TextButton(text, skin, styleName);
+        prepare(skin);
+        TextButton button = new AdaptiveTextButton(text, skin, styleName);
+        button.getLabel().setFontScale(DEFAULT_BUTTON_FONT_SCALE);
         addHoverAnimation(button, 1.025f);
         return button;
     }

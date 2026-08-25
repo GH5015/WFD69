@@ -101,12 +101,18 @@ public class MatchScreen implements Screen {
     private Label scoreLabel;
     private Label minuteLabel;
 
-    private Label possessionLabel;
-    private Label shotsLabel;
-    private Label targetShotsLabel;
-    private Label cornersLabel;
-    private Label foulsLabel;
-    private Label xgLabel;
+    private Label homePossessionLabel;
+    private Label awayPossessionLabel;
+    private Label homeShotsLabel;
+    private Label awayShotsLabel;
+    private Label homeTargetShotsLabel;
+    private Label awayTargetShotsLabel;
+    private Label homeCornersLabel;
+    private Label awayCornersLabel;
+    private Label homeFoulsLabel;
+    private Label awayFoulsLabel;
+    private Label homeXgLabel;
+    private Label awayXgLabel;
 
     private Label matchStateLabel;
 
@@ -114,6 +120,10 @@ public class MatchScreen implements Screen {
 
     private Table eventTable;
     private ScrollPane eventScroll;
+
+    private Table momentumBars;
+    private final List<Float> momentumHistory =
+        new ArrayList<>();
 
     private Table goalOverlay;
 
@@ -245,8 +255,8 @@ public class MatchScreen implements Screen {
                 createScoreboard()
             )
             .growX()
-            .height(100f)
-            .padBottom(12f)
+            .height(108f)
+            .padBottom(10f)
             .row();
 
         // =====================================================
@@ -267,7 +277,7 @@ public class MatchScreen implements Screen {
             .add(
                 createRightColumn()
             )
-            .width(390f)
+            .width(440f)
             .growY();
 
         main
@@ -308,6 +318,22 @@ public class MatchScreen implements Screen {
             18f
         );
 
+        matchStateLabel =
+            new Label(
+                "●  EM JOGO",
+                game.skin,
+                "font-bold"
+            );
+
+        matchStateLabel.setFontScale(0.48f);
+        matchStateLabel.setColor(ScreenUI.SUCCESS);
+
+        bar
+            .add(matchStateLabel)
+            .width(132f)
+            .left()
+            .padRight(10f);
+
         // =====================================================
         // HOME
         // =====================================================
@@ -340,9 +366,7 @@ public class MatchScreen implements Screen {
                 "font-title"
             );
 
-        scoreLabel.setFontScale(
-            1.05f
-        );
+        scoreLabel.setFontScale(1.18f);
 
         scoreLabel.setColor(
             Color.WHITE
@@ -373,10 +397,15 @@ public class MatchScreen implements Screen {
             StyleFactory.GOLD
         );
 
+        Table minuteCard =
+            ScreenUI.createSubtlePanel();
+
+        minuteCard.add(minuteLabel).pad(3f, 16f, 3f, 16f);
+
         center
-            .add(minuteLabel)
+            .add(minuteCard)
             .center()
-            .padTop(2f);
+            .padTop(1f);
 
         bar
             .add(center)
@@ -398,30 +427,6 @@ public class MatchScreen implements Screen {
             .expandX()
             .left();
 
-        // =====================================================
-        // STATE
-        // =====================================================
-
-        matchStateLabel =
-            new Label(
-                "EM JOGO",
-                game.skin,
-                "font-bold"
-            );
-
-        matchStateLabel.setFontScale(
-            0.48f
-        );
-
-        matchStateLabel.setColor(
-            ScreenUI.SUCCESS
-        );
-
-        bar
-            .add(matchStateLabel)
-            .width(90f)
-            .right();
-
         return bar;
     }
 
@@ -434,19 +439,35 @@ public class MatchScreen implements Screen {
         Table team =
             new Table();
 
+        Table identity =
+            new Table();
+
+        Label name =
+            createScoreName(
+                club
+            );
+
+        Label formation =
+            ScreenUI.createBoldValue(
+                game.skin,
+                getFormationName(club),
+                StyleFactory.SOFT_YELLOW,
+                home ? Align.right : Align.left
+            );
+
+        formation.setFontScale(0.46f);
+
+        identity.add(name).expandX().right().row();
+        identity.add(formation).expandX().right().padTop(2f);
+
         if (
             home
         ) {
 
-            Label name =
-                createScoreName(
-                    club
-                );
-
             team
-                .add(name)
+                .add(identity)
                 .right()
-                .padRight(12f);
+                .padRight(10f);
 
             if (
                 logoTexture != null
@@ -465,8 +486,8 @@ public class MatchScreen implements Screen {
 
                 team
                     .add(logo)
-                    .width(92f)
-                    .height(58f);
+                    .width(78f)
+                    .height(70f);
             }
 
         } else {
@@ -488,19 +509,16 @@ public class MatchScreen implements Screen {
 
                 team
                     .add(logo)
-                    .width(92f)
-                    .height(58f);
+                    .width(78f)
+                    .height(70f);
             }
 
-            Label name =
-                createScoreName(
-                    club
-                );
-
+            identity.getCell(formation).align(Align.left);
+            identity.getCell(name).align(Align.left);
             team
-                .add(name)
+                .add(identity)
                 .left()
-                .padLeft(12f);
+                .padLeft(10f);
         }
 
         return team;
@@ -592,9 +610,132 @@ public class MatchScreen implements Screen {
 
         panel
             .add(tacticalField)
-            .grow();
+            .grow()
+            .padBottom(8f)
+            .row();
+
+        panel
+            .add(
+                createMatchMomentumPanel()
+            )
+            .growX()
+            .height(74f);
 
         return panel;
+    }
+
+    private Table createMatchMomentumPanel() {
+
+        Table panel =
+            ScreenUI.createSubtlePanel();
+
+        Table heading =
+            new Table();
+
+        Label title =
+            ScreenUI.createSubtitle(
+                game.skin,
+                "IMPACTO DA PARTIDA"
+            );
+
+        title.setFontScale(0.48f);
+        title.setColor(StyleFactory.CREME_AGED);
+
+        heading.add(title).left().expandX();
+        heading.add(ScreenUI.createSubtitle(game.skin, "DOMÍNIO AO VIVO")).right();
+
+        panel.add(heading).growX().padBottom(3f).row();
+
+        Table graph =
+            new Table();
+
+        if (homeLogoTexture != null) {
+            Image homeLogo = new Image(new TextureRegionDrawable(homeLogoTexture));
+            homeLogo.setScaling(Scaling.fit);
+            graph.add(homeLogo).size(36f).padRight(8f);
+        }
+
+        momentumBars = new Table();
+        momentumBars.bottom();
+        graph.add(momentumBars).growX().height(35f);
+
+        if (awayLogoTexture != null) {
+            Image awayLogo = new Image(new TextureRegionDrawable(awayLogoTexture));
+            awayLogo.setScaling(Scaling.fit);
+            graph.add(awayLogo).size(36f).padLeft(8f);
+        }
+
+        panel.add(graph).growX().height(40f);
+        renderMomentumBars();
+
+        return panel;
+    }
+
+    private void addMomentumSample() {
+
+        float homeControl =
+            match.getHomePossession()
+                + (float) (match.getHomeXG() * 15d)
+                + match.getHomeShots() * 2f
+                + match.getHomeShotsOnTarget() * 3f;
+
+        float awayControl =
+            match.getAwayPossession()
+                + (float) (match.getAwayXG() * 15d)
+                + match.getAwayShots() * 2f
+                + match.getAwayShotsOnTarget() * 3f;
+
+        float balance = Math.max(
+            -1f,
+            Math.min(
+                1f,
+                (homeControl - awayControl) / 35f
+            )
+        );
+
+        momentumHistory.add(balance);
+
+        if (momentumHistory.size() > 52) {
+            momentumHistory.remove(0);
+        }
+
+        renderMomentumBars();
+    }
+
+    private void renderMomentumBars() {
+
+        if (momentumBars == null) {
+            return;
+        }
+
+        momentumBars.clearChildren();
+
+        if (momentumHistory.isEmpty()) {
+            for (int index = 0; index < 26; index++) {
+                momentumHistory.add(0f);
+            }
+        }
+
+        for (Float value : momentumHistory) {
+            float magnitude = Math.abs(value);
+            float height = 4f + magnitude * 28f;
+            Color color = value > 0.08f
+                ? homeStatColor()
+                : value < -0.08f
+                    ? awayStatColor()
+                    : Color.valueOf("7A807A");
+
+            Table column = new Table();
+            column.bottom();
+
+            Table bar = new Table();
+            bar.background(StyleFactory.createSolid(color));
+
+            column.add().expandY().row();
+            column.add(bar).width(7f).height(height);
+
+            momentumBars.add(column).width(9f).height(35f);
+        }
     }
 
     // =========================================================
@@ -613,8 +754,8 @@ public class MatchScreen implements Screen {
                 createStatsPanel()
             )
             .growX()
-            .height(245f)
-            .padBottom(12f)
+            .height(276f)
+            .padBottom(10f)
             .row();
 
         column
@@ -645,81 +786,36 @@ public class MatchScreen implements Screen {
                 )
             )
             .left()
-            .colspan(2)
-            .padBottom(10f)
+            .colspan(3)
+            .padBottom(8f)
             .row();
 
-        possessionLabel =
-            createStatValue(
-                "50%   -   50%"
-            );
+        homePossessionLabel = createStatValue("50%", homeStatColor());
+        awayPossessionLabel = createStatValue("50%", awayStatColor());
+        homeShotsLabel = createStatValue("0", homeStatColor());
+        awayShotsLabel = createStatValue("0", awayStatColor());
+        homeTargetShotsLabel = createStatValue("0", homeStatColor());
+        awayTargetShotsLabel = createStatValue("0", awayStatColor());
+        homeCornersLabel = createStatValue("0", homeStatColor());
+        awayCornersLabel = createStatValue("0", awayStatColor());
+        homeFoulsLabel = createStatValue("0", homeStatColor());
+        awayFoulsLabel = createStatValue("0", awayStatColor());
+        homeXgLabel = createStatValue("0.00", homeStatColor());
+        awayXgLabel = createStatValue("0.00", awayStatColor());
 
-        shotsLabel =
-            createStatValue(
-                "0   -   0"
-            );
-
-        targetShotsLabel =
-            createStatValue(
-                "0   -   0"
-            );
-
-        cornersLabel =
-            createStatValue(
-                "0   -   0"
-            );
-
-        foulsLabel =
-            createStatValue(
-                "0   -   0"
-            );
-
-        xgLabel =
-            createStatValue(
-                "0.00   -   0.00"
-            );
-
-        addStat(
-            panel,
-            "POSSE",
-            possessionLabel
-        );
-
-        addStat(
-            panel,
-            "FINALIZAÇÕES",
-            shotsLabel
-        );
-
-        addStat(
-            panel,
-            "NO ALVO",
-            targetShotsLabel
-        );
-
-        addStat(
-            panel,
-            "ESCANTEIOS",
-            cornersLabel
-        );
-
-        addStat(
-            panel,
-            "FALTAS",
-            foulsLabel
-        );
-
-        addStat(
-            panel,
-            "xG",
-            xgLabel
-        );
+        addStatPair(panel, "POSSE", homePossessionLabel, awayPossessionLabel);
+        addStatPair(panel, "FINALIZAÇÕES", homeShotsLabel, awayShotsLabel);
+        addStatPair(panel, "NO ALVO", homeTargetShotsLabel, awayTargetShotsLabel);
+        addStatPair(panel, "ESCANTEIOS", homeCornersLabel, awayCornersLabel);
+        addStatPair(panel, "FALTAS", homeFoulsLabel, awayFoulsLabel);
+        addStatPair(panel, "xG", homeXgLabel, awayXgLabel);
 
         return panel;
     }
 
     private Label createStatValue(
-        String text
+        String text,
+        Color color
     ) {
 
         Label label =
@@ -729,43 +825,53 @@ public class MatchScreen implements Screen {
                 "font-bold"
             );
 
-        label.setFontScale(
-            0.57f
-        );
-
-        label.setColor(
-            StyleFactory.SOFT_YELLOW
-        );
-
-        label.setAlignment(
-            Align.right
-        );
+        label.setFontScale(0.58f);
+        label.setColor(color);
+        label.setAlignment(Align.center);
 
         return label;
     }
 
-    private void addStat(
+    private void addStatPair(
         Table table,
         String title,
-        Label value
+        Label homeValue,
+        Label awayValue
     ) {
 
-        table
-            .add(
-                ScreenUI.createSubtitle(
-                    game.skin,
-                    title
-                )
-            )
-            .left()
-            .expandX()
-            .padBottom(7f);
+        Table row =
+            ScreenUI.createSubtlePanel();
+
+        Label category =
+            ScreenUI.createSubtitle(
+                game.skin,
+                title
+            );
+
+        category.setFontScale(0.48f);
+        category.setColor(StyleFactory.CREME_AGED);
+        category.setAlignment(Align.center);
+
+        row.add(homeValue).width(72f).left();
+        row.add(category).expandX().center();
+        row.add(awayValue).width(72f).right();
 
         table
-            .add(value)
-            .right()
-            .padBottom(7f)
+            .add(row)
+            .growX()
+            .height(29f)
+            .padBottom(3f)
             .row();
+    }
+
+    private Color homeStatColor() {
+
+        return Color.valueOf("3A9BFF");
+    }
+
+    private Color awayStatColor() {
+
+        return Color.valueOf("FF5959");
     }
 
     // =========================================================
@@ -799,10 +905,12 @@ public class MatchScreen implements Screen {
         Label kickoff =
             ScreenUI.createValueLabel(
                 game.skin,
-                "0'  A bola está rolando.",
+                "0'   A bola está rolando.",
                 ScreenUI.MUTED_TEXT,
                 Align.left
             );
+
+        kickoff.setFontScale(0.50f);
 
         eventTable
             .add(kickoff)
@@ -1864,45 +1972,20 @@ public class MatchScreen implements Screen {
                 match.getAwayGoals()
         );
 
-        possessionLabel.setText(
-            match.getHomePossession() +
-                "%   -   " +
-                match.getAwayPossession() +
-                "%"
-        );
+        homePossessionLabel.setText(match.getHomePossession() + "%");
+        awayPossessionLabel.setText(match.getAwayPossession() + "%");
+        homeShotsLabel.setText(String.valueOf(match.getHomeShots()));
+        awayShotsLabel.setText(String.valueOf(match.getAwayShots()));
+        homeTargetShotsLabel.setText(String.valueOf(match.getHomeShotsOnTarget()));
+        awayTargetShotsLabel.setText(String.valueOf(match.getAwayShotsOnTarget()));
+        homeCornersLabel.setText(String.valueOf(match.getHomeCorners()));
+        awayCornersLabel.setText(String.valueOf(match.getAwayCorners()));
+        homeFoulsLabel.setText(String.valueOf(match.getHomeFouls()));
+        awayFoulsLabel.setText(String.valueOf(match.getAwayFouls()));
+        homeXgLabel.setText(String.format(Locale.US, "%.2f", match.getHomeXG()));
+        awayXgLabel.setText(String.format(Locale.US, "%.2f", match.getAwayXG()));
 
-        shotsLabel.setText(
-            match.getHomeShots() +
-                "   -   " +
-                match.getAwayShots()
-        );
-
-        targetShotsLabel.setText(
-            match.getHomeShotsOnTarget() +
-                "   -   " +
-                match.getAwayShotsOnTarget()
-        );
-
-        cornersLabel.setText(
-            match.getHomeCorners() +
-                "   -   " +
-                match.getAwayCorners()
-        );
-
-        foulsLabel.setText(
-            match.getHomeFouls() +
-                "   -   " +
-                match.getAwayFouls()
-        );
-
-        xgLabel.setText(
-            String.format(
-                Locale.US,
-                "%.2f   -   %.2f",
-                match.getHomeXG(),
-                match.getAwayXG()
-            )
-        );
+        addMomentumSample();
 
         if (
             tacticalField != null
@@ -1939,17 +2022,9 @@ public class MatchScreen implements Screen {
                 );
 
         Table block =
-            ScreenUI.createRow(
-                eventTable
-                    .getRows()
-            );
+            ScreenUI.createSubtlePanel();
 
-        block.pad(
-            6f,
-            8f,
-            6f,
-            8f
-        );
+        block.pad(6f, 8f, 6f, 8f);
 
         Color eventColor =
             getEventColor(
@@ -1972,11 +2047,25 @@ public class MatchScreen implements Screen {
             eventColor
         );
 
+        Table minuteBadge =
+            new Table();
+
+        minuteBadge.background(
+            StyleFactory.createRoundedPanel(
+                Color.valueOf("18231C"),
+                eventColor
+            )
+        );
+
+        minuteBadge.add(minute).pad(4f, 5f, 4f, 5f);
+
         block
-            .add(minute)
-            .width(45f)
+            .add(minuteBadge)
+            .width(40f)
+            .height(29f)
             .top()
-            .left();
+            .left()
+            .padRight(7f);
 
         Label text =
             new Label(
@@ -1984,17 +2073,13 @@ public class MatchScreen implements Screen {
                 game.skin
             );
 
-        text.setFontScale(
-            0.52f
-        );
+        text.setFontScale(0.48f);
 
         text.setWrap(
             true
         );
 
-        text.setColor(
-            eventColor
-        );
+        text.setColor(Color.WHITE);
 
         block
             .add(text)
@@ -2642,6 +2727,13 @@ public class MatchScreen implements Screen {
         ) {
 
             awayLogoTexture.dispose();
+        }
+
+        if (
+            tacticalField != null
+        ) {
+
+            tacticalField.dispose();
         }
     }
 }

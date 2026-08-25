@@ -31,8 +31,8 @@ public final class IconTextButton {
         style.imageUp = new TextureRegionDrawable(texture);
         style.imageOver = style.imageUp;
         style.imageDown = style.imageUp;
-        ImageTextButton button = new ImageTextButton(text, style);
-        button.getLabel().setFontScale(0.82f);
+        ImageTextButton button = new AdaptiveImageTextButton(text, style);
+        button.getLabel().setFontScale(0.52f);
         return button;
     }
 

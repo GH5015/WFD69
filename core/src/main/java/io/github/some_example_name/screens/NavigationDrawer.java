@@ -203,7 +203,7 @@ public final class NavigationDrawer
         addItem(
             game,
             "SCOUTING",
-            "Icons8/icons8-pesquisar-50.png",
+            "Icons8/icons8-binóculos-50.png",
             active,
             () ->
                 game.setScreen(
@@ -218,30 +218,13 @@ public final class NavigationDrawer
         addItem(
             game,
             "TROCAS",
-            "Icons8/icons8-menu-2-50.png",
+            "Icons8/icons8-partilhar-2-50.png",
             active,
             () -> {
-
-                Club partner =
-                    game.league
-                        .getClubs()
-                        .stream()
-                        .filter(
-                            c ->
-                                !c.equals(
-                                    club
-                                )
-                        )
-                        .findFirst()
-                        .orElse(
-                            null
-                        );
-
                 game.setScreen(
-                    new TradeScreen(
+                    new TradeHubScreen(
                         game,
-                        club,
-                        partner
+                        club
                     )
                 );
             }
@@ -250,7 +233,7 @@ public final class NavigationDrawer
         addItem(
             game,
             "CONTRATOS",
-            "Icons8/icons8-contrato-de-trabalho-50.png",
+            "Icons8/icons8-caixa-de-selecção-seleccionada-2-50.png",
             active,
             () ->
                 game.setScreen(
@@ -264,7 +247,7 @@ public final class NavigationDrawer
         addItem(
             game,
             "AGENTES",
-            "Icons8/icons8-pesquisar-50.png",
+            "Icons8/icons8-contatos-50.png",
             active,
             () ->
                 game.setScreen(
@@ -278,7 +261,7 @@ public final class NavigationDrawer
         addItem(
             game,
             "TABELA",
-            "Icons8/icons8-estádio-50.png",
+            "Icons8/icons8-lista-50.png",
             active,
             () ->
                 game.setScreen(
@@ -292,7 +275,7 @@ public final class NavigationDrawer
         addItem(
             game,
             "CALENDÁRIO",
-            "Icons8/icons8-relógio-50.png",
+            "Icons8/icons8-lembrete-de-compromissos-50.png",
             active,
             () ->
                 game.setScreen(
@@ -306,7 +289,7 @@ public final class NavigationDrawer
         addItem(
             game,
             "FINANÇAS",
-            "Icons8/icons8-menu-2-50.png",
+            "Icons8/icons8-caixa-50.png",
             active,
             () ->
                 game.setScreen(

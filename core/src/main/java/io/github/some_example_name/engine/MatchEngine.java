@@ -23,7 +23,12 @@ public class MatchEngine {
         finalizeMatch(match);
     }
 
-    /** Atualiza a formação ideal dos clubes da IA antes de cada partida. */
+    /**
+     * Valida as escalações antes do apito inicial. A IA sempre escolhe a
+     * melhor formação disponível; o clube do usuário preserva sua escalação
+     * manual quando ela já possui 11 atletas, mas é recomposto se alguma
+     * lesão, suspensão ou alteração anterior tiver deixado uma vaga vazia.
+     */
     public void prepareMatchLineups(Match match) {
         if (match == null) {
             return;
@@ -38,9 +43,13 @@ public class MatchEngine {
             return;
         }
 
-        if (club.isUserControlled()) {
-            club.removeUnavailablePlayersFromStartingXI();
-        } else {
+        if (!club.isUserControlled()) {
+            club.autoSelectBestFormationAndXI();
+            return;
+        }
+
+        club.removeUnavailablePlayersFromStartingXI();
+        if (club.getStartingXI().size() < 11) {
             club.autoSelectBestFormationAndXI();
         }
     }

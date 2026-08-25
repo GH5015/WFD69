@@ -27,24 +27,24 @@ public class SmartTradeEvaluator {
         // 1. Multiplicador de Carência de Posição
         double needMultiplier = 1.0;
         switch (needStars) {
-            case 5: needMultiplier = 1.60; break;
-            case 4: needMultiplier = 1.30; break;
+            case 5: needMultiplier = 1.30; break;
+            case 4: needMultiplier = 1.15; break;
             case 3: needMultiplier = 1.00; break;
-            case 2: needMultiplier = 0.70; break;
-            case 1: needMultiplier = 0.35; break;
+            case 2: needMultiplier = 0.82; break;
+            case 1: needMultiplier = 0.65; break;
         }
 
         // 2. Multiplicador do Momento da Franquia
         double phaseMultiplier = 1.0;
         switch (phase) {
             case CONTENDER:
-                if (player.getOverall() >= 84) phaseMultiplier = 1.35;
-                else if (player.getAge() <= 20) phaseMultiplier = 0.70;
+                if (player.getOverall() >= 84) phaseMultiplier = 1.18;
+                else if (player.getAge() <= 20) phaseMultiplier = 0.82;
                 break;
 
             case BUYER:
-                if (player.getOverall() >= 80 && player.getAge() <= 27) phaseMultiplier = 1.25;
-                else if (player.getAge() >= 32) phaseMultiplier = 0.75;
+                if (player.getOverall() >= 80 && player.getAge() <= 27) phaseMultiplier = 1.14;
+                else if (player.getAge() >= 32) phaseMultiplier = 0.84;
                 break;
 
             case SELLER:
@@ -52,14 +52,14 @@ public class SmartTradeEvaluator {
                 break;
 
             case REBUILDING:
-                if (player.getAge() <= 21 || player.getPotential() >= 86) phaseMultiplier = 1.45;
-                else if (player.getAge() >= 29) phaseMultiplier = 0.45;
+                if (player.getAge() <= 21 || player.getPotential() >= 86) phaseMultiplier = 1.20;
+                else if (player.getAge() >= 29) phaseMultiplier = 0.78;
                 break;
         }
 
         // 3. Fator Reputação do Clube vs Atração de Superstars
         if (receivingClub.getReputation() < 60 && player.getOverall() >= 85) {
-            phaseMultiplier *= 1.25;
+            phaseMultiplier *= 1.10;
         }
 
         // 4. Fator Custo Salarial (Calculado diretamente a partir do elenco)
@@ -70,15 +70,15 @@ public class SmartTradeEvaluator {
                 .orElse(0.0);
 
             if (avgSalary > 0 && player.getAnnualSalary() > (avgSalary * 1.8)) {
-                phaseMultiplier *= 0.75;
+                phaseMultiplier *= 0.85;
             }
         }
 
         if (currentSeasonYear >= 0) {
             int remaining = player.getRemainingContractYears(currentSeasonYear);
-            if (remaining == 0) phaseMultiplier *= 0.78;
-            else if (remaining == 1) phaseMultiplier *= 0.88;
-            else if (remaining >= 4) phaseMultiplier *= 1.08;
+            if (remaining == 0) phaseMultiplier *= 0.85;
+            else if (remaining == 1) phaseMultiplier *= 0.92;
+            else if (remaining >= 4) phaseMultiplier *= 1.04;
         }
 
         return Math.round(baseTradeValue * needMultiplier * phaseMultiplier);

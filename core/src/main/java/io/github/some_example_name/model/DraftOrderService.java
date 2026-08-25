@@ -23,8 +23,13 @@ public final class DraftOrderService {
 
     public static List<DraftPick> getCurrentDraftOrder(League league, int draftYear) {
         List<Club> orderByStanding = new ArrayList<>();
-        List<StandingsRow> standings = getStandingsForDraftOrder(league, true);
-        for (StandingsRow row : standings) orderByStanding.add(row.club);
+        if (league.isDraftLotteryCompleted()) {
+            orderByStanding.addAll(league.getDraftLotteryOrder());
+        } else {
+            orderByStanding.addAll(league.getDraftLotteryParticipants());
+            List<StandingsRow> standings = getStandingsForDraftOrder(league, true);
+            for (StandingsRow row : standings) if (!orderByStanding.contains(row.club)) orderByStanding.add(row.club);
+        }
 
         List<DraftPick> picks = new ArrayList<>();
         for (Club club : league.getClubs()) {

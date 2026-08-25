@@ -19,12 +19,14 @@ public class TradeValueCalculator {
             ? calculateContractScore(player.getRemainingContractYears(currentSeasonYear))
             : 70;
 
-        // OVR (62%) | Idade (14%) | Potencial (11%) | Posição (5%) | Contrato (8%)
-        double finalScore = (ovrScore * 0.62)
-            + (ageScore * 0.14)
-            + (potentialScore * 0.11)
-            + (positionScore * 0.05)
-            + (contractScore * 0.08);
+        // OVR é o fator central do mercado: os demais critérios refinam o
+        // valor, mas não devem fazer um jogador bem inferior valer mais.
+        // OVR (76%) | Idade (9%) | Potencial (6%) | Posição (3%) | Contrato (6%)
+        double finalScore = (ovrScore * 0.76)
+            + (ageScore * 0.09)
+            + (potentialScore * 0.06)
+            + (positionScore * 0.03)
+            + (contractScore * 0.06);
 
         return (int) Math.min(99, Math.max(10, Math.round(finalScore)));
     }

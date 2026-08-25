@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.EnumMap;
 import io.github.some_example_name.model.DraftPick;
 
 public class Club {
@@ -71,6 +72,7 @@ public class Club {
     private String topAssisterName = "Sem registros";
     private int topAssisterCount = 0;
     private ClubFinance finance;
+    private final Map<StaffRole, StaffMember> staffMembers = new EnumMap<>(StaffRole.class);
 
     public ClubFinance getFinance() {
         if (finance == null) {
@@ -141,11 +143,164 @@ public class Club {
         this.squad = new ArrayList<>();
         this.startingXI = new ArrayList<>();
         this.tacticsMap = new HashMap<>();
+        staffMembers.put(StaffRole.COACH, new StaffMember(StaffRole.COACH, "Treinador principal", 82, 850_000L, 1971));
+        staffMembers.put(StaffRole.SCOUT, new StaffMember(StaffRole.SCOUT, "Chefe de scouting", 76, 720_000L, 1971));
+        staffMembers.put(StaffRole.FITNESS_COACH, new StaffMember(StaffRole.FITNESS_COACH, "Preparador físico", 84, 810_000L, 1971));
+        staffMembers.put(StaffRole.DOCTOR, new StaffMember(StaffRole.DOCTOR, "Médico do clube", 72, 680_000L, 1971));
+        staffMembers.put(StaffRole.DEVELOPMENT_DIRECTOR, new StaffMember(StaffRole.DEVELOPMENT_DIRECTOR, "Diretor de desenvolvimento", 70, 700_000L, 1971));
+    }
+
+    public StaffMember getStaffMember(StaffRole role) { return staffMembers.get(role); }
+    public int getStaffLevel(StaffRole role) {
+        StaffMember member = staffMembers.get(role);
+        return member != null ? member.getEffectLevel() : 3;
+    }
+    public void setStaffLevel(StaffRole role, int level) {
+        int[] representativeQuality = {54, 64, 74, 84, 94};
+        int safeLevel = Math.max(1, Math.min(5, level));
+        StaffMember current = staffMembers.get(role);
+        staffMembers.put(role, new StaffMember(
+            role,
+            current != null ? current.getName() : role.getLabel(),
+            representativeQuality[safeLevel - 1],
+            current != null ? current.getAnnualSalary() : 700_000L,
+            current != null ? current.getContractEndYear() : currentYear + 2
+        ));
+    }
+    public void hireStaff(StaffMember member) { if (member != null) staffMembers.put(member.getRole(), member); }
+
+    /** Renovação simples de staff: dois anos, sem slider ou contraoferta. */
+    public void renewStaff(StaffRole role, int currentYear) {
+        StaffMember current = staffMembers.get(role);
+        if (current == null) return;
+        staffMembers.put(role, new StaffMember(role, current.getName(), current.getQuality(),
+            current.getAnnualSalary(), currentYear + 2));
+    }
+
+    /** Evita que um clube inicie a temporada sem um profissional em alguma função. */
+    public void replaceExpiredStaff(int currentYear) {
+        for (StaffRole role : StaffRole.values()) {
+            StaffMember current = staffMembers.get(role);
+            if (current == null || current.isExpired(currentYear)) {
+                staffMembers.put(role, new StaffMember(role, "Interino " + role.getLabel(), 62,
+                    620_000L, currentYear + 2));
+            }
+        }
+    }
+
+    private void applyStaffIdentity() {
+        if ("Tokyo Rising Sun".equals(name)) {
+            staffMembers.put(StaffRole.COACH, new StaffMember(StaffRole.COACH, "Hiroshi Tanaka", 66, 760_000L, 1971));
+            staffMembers.put(StaffRole.SCOUT, new StaffMember(StaffRole.SCOUT, "Kenji Mori", 94, 1_050_000L, 1971));
+            staffMembers.put(StaffRole.DEVELOPMENT_DIRECTOR, new StaffMember(StaffRole.DEVELOPMENT_DIRECTOR, "Akira Sato", 92, 1_020_000L, 1971));
+            staffMembers.put(StaffRole.FITNESS_COACH, new StaffMember(StaffRole.FITNESS_COACH, "Daichi Ito", 66, 700_000L, 1971));
+            staffMembers.put(StaffRole.DOCTOR, new StaffMember(StaffRole.DOCTOR, "Yuki Kato", 67, 710_000L, 1971));
+        } else if ("Milano Calcio".equals(name)) {
+            staffMembers.put(StaffRole.COACH, new StaffMember(StaffRole.COACH, "Giovanni Bianchi", 95, 1_080_000L, 1971));
+            staffMembers.put(StaffRole.SCOUT, new StaffMember(StaffRole.SCOUT, "Luca Romano", 68, 710_000L, 1971));
+            staffMembers.put(StaffRole.DEVELOPMENT_DIRECTOR, new StaffMember(StaffRole.DEVELOPMENT_DIRECTOR, "Marco Conti", 70, 740_000L, 1971));
+            staffMembers.put(StaffRole.FITNESS_COACH, new StaffMember(StaffRole.FITNESS_COACH, "Paolo Ricci", 84, 880_000L, 1971));
+            staffMembers.put(StaffRole.DOCTOR, new StaffMember(StaffRole.DOCTOR, "Franco Gallo", 84, 880_000L, 1971));
+        }
+    }
+
+    /**
+     * Identidade inicial de cada franquia. Os cinco valores já alimentam o
+     * TacticalEngine, portanto as mentalidades da IA também têm efeito real
+     * na simulação, e não são apenas texto de apresentação.
+     */
+    private void applyTacticalIdentity() {
+
+        if (name == null) return;
+
+        switch (name) {
+            case "Santos Atlântico":
+                setIdentity("Futebol ofensivo e técnico", "Ofensiva", 65f, 30f, 72f, 62f);
+                break;
+            case "Rio Imperial":
+                setIdentity("Desenvolver jovens", "Equilibrada", 55f, 42f, 60f, 55f);
+                break;
+            case "Milano Calcio":
+                setIdentity("Disciplina defensiva", "Defensiva", 42f, 42f, 38f, 68f);
+                break;
+            case "Bavaria München":
+                setIdentity("Intensidade e mentalidade vencedora", "Ofensiva", 70f, 48f, 58f, 72f);
+                break;
+            case "Manchester Albion":
+                setIdentity("Força coletiva", "Equilibrada", 62f, 55f, 76f, 66f);
+                break;
+            case "London Royals":
+                setIdentity("Estrelas e jogo pelos lados", "Ofensiva", 64f, 55f, 78f, 56f);
+                break;
+            case "Amsterdã Total":
+                setIdentity("Futebol total", "Ofensiva", 76f, 25f, 82f, 82f);
+                break;
+            case "Madrid Castilla":
+                setIdentity("Talento de elite", "Ofensiva", 62f, 38f, 68f, 58f);
+                break;
+            case "Barcelona Mediterrâneo":
+                setIdentity("Posse e formação", "Ofensiva", 52f, 20f, 66f, 72f);
+                break;
+            case "Budapest Danube":
+                setIdentity("Disciplina coletiva", "Equilibrada", 54f, 42f, 46f, 66f);
+                break;
+            case "Lisboa Atlântica":
+                setIdentity("Formar e valorizar talentos", "Equilibrada", 58f, 32f, 64f, 60f);
+                break;
+            case "Buenos Aires Plata":
+                setIdentity("Talento e garra", "Ofensiva", 66f, 36f, 66f, 72f);
+                break;
+            case "Montevideo Oriental":
+                setIdentity("Competitividade e resiliência", "Defensiva", 48f, 48f, 42f, 72f);
+                break;
+            case "Paris Lumière":
+                setIdentity("Estrelas globais", "Ofensiva", 66f, 52f, 76f, 56f);
+                break;
+            case "Belfast Northern Stars":
+                setIdentity("Jogo direto e físico", "Equilibrada", 64f, 82f, 52f, 68f);
+                break;
+            case "Tokyo Rising Sun":
+                setIdentity("Desenvolvimento de jovens", "Ofensiva", 72f, 34f, 70f, 82f);
+                break;
+            case "Seoul Tigers":
+                setIdentity("Intensidade e desenvolvimento", "Ofensiva", 76f, 50f, 66f, 86f);
+                break;
+            case "Tehran Lions":
+                setIdentity("Eficiência no mercado", "Defensiva", 46f, 68f, 40f, 56f);
+                break;
+            case "Baghdad Mesopotamia":
+                setIdentity("Identidade local e organização", "Defensiva", 44f, 72f, 36f, 62f);
+                break;
+            case "Tel Aviv Stars":
+                setIdentity("Equilíbrio competitivo", "Equilibrada", 56f, 46f, 56f, 62f);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void setIdentity(
+        String philosophy,
+        String mentality,
+        float tempo,
+        float passing,
+        float width,
+        float pressure
+    ) {
+
+        this.philosophy = philosophy;
+        this.mentality = mentality;
+        this.tempo = tempo;
+        this.passing = passing;
+        this.width = width;
+        this.pressure = pressure;
     }
 
     public Club(String name) {
         this();
         this.name = name;
+        applyStaffIdentity();
+        applyTacticalIdentity();
     }
 
     public Club(String name, String country, String confederation, int reputation, double budget, String stadiumName, String logoPath) {
@@ -157,6 +312,8 @@ public class Club {
         this.budget = budget;
         this.stadiumName = stadiumName;
         this.logoPath = logoPath;
+        applyStaffIdentity();
+        applyTacticalIdentity();
     }
 
     public void recordMatchResult(int goalsScored, int goalsConceded) {

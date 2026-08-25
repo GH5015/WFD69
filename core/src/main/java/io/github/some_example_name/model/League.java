@@ -14,6 +14,12 @@ public class League {
     private Date currentDate;
     private final Map<String, PlayoffSeries> playoffSeries = new LinkedHashMap<>();
     private final Map<Club, Integer> playoffSeeds = new HashMap<>();
+    private final List<TradeRecord> tradeHistory = new ArrayList<>();
+    private final List<Club> draftLotteryOrder = new ArrayList<>();
+    private final List<DraftSelection> draftSelections = new ArrayList<>();
+    private boolean draftFinalized;
+    private String finalHostCity;
+    private boolean offseasonTransitionProcessed;
 
     public void nextSeason() {
         this.currentSeason++;
@@ -31,6 +37,88 @@ public class League {
     public void addClub(Club club) { this.clubs.add(club); }
     public List<Club> getClubs() { return clubs; }
     public List<Match> getSchedule() { return schedule; }
+    public List<TradeRecord> getTradeHistory() { return new ArrayList<>(tradeHistory); }
+    public void recordTrade(TradeRecord record) { if (record != null) tradeHistory.add(0, record); }
+    public boolean isDraftLotteryCompleted() { return !draftLotteryOrder.isEmpty(); }
+    public List<Club> getDraftLotteryOrder() { return new ArrayList<>(draftLotteryOrder); }
+    public List<DraftSelection> getDraftSelections() { return new ArrayList<>(draftSelections); }
+    public boolean isDraftFinalized() { return draftFinalized; }
+    public void finalizeDraft() { draftFinalized = true; }
+    public boolean isDraftPickUsed(DraftPick pick) { for (DraftSelection selection : draftSelections) if (selection.getPick() == pick) return true; return false; }
+    public void recordDraftSelection(DraftPick pick, Player player) {
+        if (pick == null || player == null || isDraftPickUsed(pick)) return;
+        draftSelections.add(new DraftSelection(pick, player));
+        // Salário rookie parte de OVR, idade e potencial; a posição da pick
+        // só aplica um prêmio moderado. Assim um prospecto não supera uma
+        // estrela consolidada apenas por ter sido escolhido cedo.
+        long annualSalary = calculateRookieAnnualSalary(pick, player);
+        player.renewContract(annualSalary, pick.getRound() == 1 ? 4 : 2, currentSeason);
+        player.transferTo(pick.getCurrentOwner());
+    }
+    private long calculateRookieAnnualSalary(DraftPick pick, Player player) {
+        int overallPick = (pick.getRound() - 1) * DraftOrderService.PICKS_PER_ROUND + pick.getProjectedPosition();
+        int potentialGap = Math.max(0, player.getPotential() - player.getOverall());
+        double marketMonthly = 7_000d
+            + Math.pow(Math.max(0, player.getOverall() - 55), 2) * 30d
+            + potentialGap * 200d
+            + (player.getAge() <= 20 ? 1_500d : 0d);
+        double pickPremium = pick.getRound() == 1
+            ? 1.22d - (Math.min(20, overallPick) - 1) * 0.018d
+            : 0.70d - (Math.min(40, overallPick) - 21) * 0.012d;
+        long annual = Math.round(marketMonthly * Math.max(0.45d, pickPremium) * 12d / 10_000d) * 10_000L;
+        return pick.getRound() == 1
+            ? Math.max(260_000L, Math.min(780_000L, annual))
+            : Math.max(120_000L, Math.min(360_000L, annual));
+    }
+    public List<Club> getDraftLotteryParticipants() {
+        List<Club> participants = new ArrayList<>();
+        for (Club club : clubs) if (!playoffSeeds.containsKey(club)) participants.add(club);
+        if (participants.size() == clubs.size() && clubs.size() >= 8) {
+            List<StandingsRow> standings = getFullStandings(null); Set<Club> qualified = new HashSet<>();
+            for (int i = 0; i < Math.min(8, standings.size()); i++) qualified.add(standings.get(i).club);
+            participants.removeIf(qualified::contains);
+        }
+        participants.sort(Comparator.comparingInt((Club c) -> getClubRecordValues(c)[3]).thenComparingInt(c -> getClubRecordValues(c)[4]).thenComparing(Club::getName));
+        return participants;
+    }
+    /** Chances próximas no fundo da tabela para desestimular tanking. */
+    public Map<Club, Integer> getDraftLotteryOdds() {
+        List<Club> participants = getDraftLotteryParticipants(); int[] base = {20,17,15,14,10,7,5,4,3,2,2,1};
+        Map<Club, Integer> odds = new LinkedHashMap<>();
+        if (participants.size() == 12) for (int i=0;i<participants.size();i++) odds.put(participants.get(i), base[i]);
+        else { int remaining=100; for(int i=0;i<participants.size();i++){int chance=i==participants.size()-1?remaining:Math.max(1,(int)Math.round(100d*(participants.size()-i)/(participants.size()*(participants.size()+1)/2d)));chance=Math.min(chance,remaining-Math.max(0,participants.size()-i-1));odds.put(participants.get(i),chance);remaining-=chance;} }
+        return odds;
+    }
+    public String getClubRecord(Club club) { int[] r=getClubRecordValues(club); return r[0]+"-"+r[1]+"-"+r[2]; }
+    // vitórias, empates, derrotas, pontos e saldo da temporada regular
+    private int[] getClubRecordValues(Club club) {
+        int wins=0,draws=0,losses=0,difference=0;
+        for (Match match:schedule) { if(!match.isPlayed()||!"REGULAR".equals(match.getStage())) continue; boolean home=match.getHomeTeam()==club,away=match.getAwayTeam()==club; if(!home&&!away)continue; int scored=home?match.getHomeGoals():match.getAwayGoals(), conceded=home?match.getAwayGoals():match.getHomeGoals(); difference+=scored-conceded; if(scored>conceded)wins++;else if(scored==conceded)draws++;else losses++; }
+        return new int[]{wins,draws,losses,wins*3+draws,difference};
+    }
+    public List<Club> runDraftLottery() {
+        if (!draftLotteryOrder.isEmpty()) return getDraftLotteryOrder();
+        Map<Club,Integer> odds=getDraftLotteryOdds(); List<Club> remaining=new ArrayList<>(odds.keySet()); Random random=new Random((long)currentSeason*31L+1971L);
+        // Apenas as quatro primeiras escolhas são sorteadas. A cada prêmio os
+        // pesos dos clubes restantes são normalizados novamente pelo sorteio
+        // ponderado; o restante preserva a ordem da campanha.
+        for (int pick = 0; pick < Math.min(4, remaining.size()); pick++) {
+            int total=0;for(Club c:remaining)total+=odds.get(c);int draw=random.nextInt(Math.max(1,total));Club winner=remaining.get(0);
+            for(Club c:remaining){draw-=odds.get(c);if(draw<0){winner=c;break;}}
+            draftLotteryOrder.add(winner);remaining.remove(winner);
+        }
+        draftLotteryOrder.addAll(remaining);
+        List<Club> playoffClubs=new ArrayList<>(clubs);playoffClubs.removeAll(draftLotteryOrder);
+        playoffClubs.sort(Comparator.comparingInt((Club c)->getClubRecordValues(c)[3]).thenComparingInt(c->getClubRecordValues(c)[4]).thenComparing(Club::getName));
+        draftLotteryOrder.addAll(playoffClubs);
+        return getDraftLotteryOrder();
+    }
+    public String getFinalHostCity() { return finalHostCity; }
+    public void drawFinalHostCity() {
+        if (finalHostCity != null) return;
+        String[] cities = {"New York", "London", "Rio de Janeiro", "München", "Paris", "Tokyo", "Milano"};
+        finalHostCity = cities[new Random((long) currentSeason * 53L + 71L).nextInt(cities.length)];
+    }
 
     public void setSchedule(List<Match> schedule) {
         this.schedule = schedule;
@@ -228,6 +316,16 @@ public class League {
 
     public void beginOffseason() {
         this.currentStage = "OFFSEASON";
+        this.finalHostCity = null;
+        processOffseasonTransition();
+
+        // A transição da final para a Off Season sempre começa em novembro,
+        // deixando as janelas de renovação e Free Agency disponíveis no
+        // painel de operações logo após os playoffs.
+        Calendar calendar = Calendar.getInstance();
+        calendar.clear();
+        calendar.set(currentSeason, Calendar.NOVEMBER, 1, 12, 0, 0);
+        this.currentDate = calendar.getTime();
     }
 
     public boolean isClubStillInPlayoffs(Club club) {
@@ -246,6 +344,9 @@ public class League {
 
         // Limpa cartões e estatísticas da temporada passada
         for (Club club : clubs) {
+            // Sem decisão do usuário até o início da temporada: a diretoria
+            // contrata automaticamente uma opção básica para não quebrar sistemas.
+            club.replaceExpiredStaff(this.currentSeason);
             for (Player p : club.getSquad()) {
                 p.resetSeasonStats();
             }
@@ -257,6 +358,30 @@ public class League {
         this.schedule.clear();
         this.playoffSeries.clear();
         this.playoffSeeds.clear();
+        this.draftLotteryOrder.clear();
+        this.draftSelections.clear();
+        this.draftFinalized = false;
+        this.offseasonTransitionProcessed = false;
+        DraftOrderService.initializeDraftPicks(this, currentSeason + 1);
+    }
+
+    /** Fechamento automático: caixa, envelhecimento, aposentadorias e picks. */
+    private void processOffseasonTransition() {
+        if (offseasonTransitionProcessed) return;
+        offseasonTransitionProcessed = true;
+        for (Club club : clubs) {
+            club.getFinance().applyMonthlyBalance();
+            List<Player> retiring = new ArrayList<>();
+            for (Player player : club.getSquad()) {
+                player.recover(30);
+                player.setAge(player.getAge() + 1);
+                if (player.getAge() >= 40 && club.getSquad().size() - retiring.size() > TradeRulesValidator.MIN_ROSTER_SIZE) {
+                    retiring.add(player);
+                }
+            }
+            for (Player player : retiring) player.transferTo(null);
+        }
+        DraftOrderService.initializeDraftPicks(this, currentSeason + 1);
     }
 
     public Date getLastProcessedDate() { return lastProcessedDate; }

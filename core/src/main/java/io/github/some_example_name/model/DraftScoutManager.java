@@ -3,13 +3,15 @@ package io.github.some_example_name.model;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class DraftScoutManager {
-    private static final int MAX_SCOUTED_PLAYERS = 5; // Limite de 5 simultâneos
     private static final double DAILY_PROGRESS_RATE = 1.5;
     private final List<ScoutTarget> activeTargets;
     private final List<ScoutTarget> completedTargets;
     private int scoutStars = 3;
+    private final Set<String> favoritePlayerIds = new HashSet<>();
 
     public DraftScoutManager(int scoutStars) {
         this.activeTargets = new ArrayList<>();
@@ -60,7 +62,7 @@ public class DraftScoutManager {
 
     public List<ScoutTarget> getActiveTargets() { return activeTargets; }
     public List<ScoutTarget> getCompletedTargets() { return completedTargets; }
-    public boolean isFull() { return activeTargets.size() >= MAX_SCOUTED_PLAYERS; }
+    public boolean isFull() { return activeTargets.size() >= getMaxScoutedPlayers(); }
     public boolean isActiveTarget(ScoutTarget target) { return activeTargets.contains(target); }
     public boolean containsPlayer(Player player) {
         if (player == null) return false;
@@ -73,4 +75,8 @@ public class DraftScoutManager {
         return false;
     }
     public int getScoutStars() { return scoutStars; }
+    public void setScoutStars(int stars) { scoutStars = Math.max(1, Math.min(5, stars)); }
+    public int getMaxScoutedPlayers() { return 2 + scoutStars; }
+    public boolean isFavorite(Player player) { return player != null && favoritePlayerIds.contains(player.getId()); }
+    public void toggleFavorite(Player player) { if (player == null) return; if (!favoritePlayerIds.add(player.getId())) favoritePlayerIds.remove(player.getId()); }
 }

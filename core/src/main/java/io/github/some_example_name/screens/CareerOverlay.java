@@ -19,8 +19,10 @@ import com.badlogic.gdx.utils.Scaling;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
+import io.github.some_example_name.model.AiTradeService;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
+import io.github.some_example_name.model.StaffRole;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.utils.ScreenUI;
@@ -238,6 +240,13 @@ public final class CareerOverlay
         Main game,
         Club club
     ) {
+
+        // A Off Season possui uma interface própria, sem próximos jogos,
+        // escalação ou botões de simulação da temporada regular.
+        if (game != null && game.league != null
+            && "OFFSEASON".equals(game.league.getCurrentStage())) {
+            return null;
+        }
 
         CareerOverlay overlay =
             new CareerOverlay(
@@ -801,6 +810,10 @@ public final class CareerOverlay
             game.league
                 .checkAndAdvanceStage();
 
+            if ("OFFSEASON".equals(game.league.getCurrentStage())) {
+                game.setScreen(new SeasonSummaryScreen(game, club));
+            }
+
             return;
         }
 
@@ -891,11 +904,19 @@ public final class CareerOverlay
             processMonthlyFinances(game);
         }
         if (game.draftScoutManager != null) {
+            game.draftScoutManager.setScoutStars(club.getStaffLevel(StaffRole.SCOUT));
             game.draftScoutManager.advanceDay();
         }
         recoverAllPlayers(game, 1);
+        for (Club team : game.league.getClubs()) {
+            for (Player player : team.getSquad()) player.advanceTradeEligibilityDay();
+        }
         if (changedWeek(previousDate, newDate) && game.developmentEngine != null) {
             game.developmentEngine.updateWeekly(game.league);
+            applyMedicalRecovery(game);
+        }
+        if (changedWeek(previousDate, newDate)) {
+            AiTradeService.processWeeklyTrade(game.league, club);
         }
         if (game.freeAgencyService != null) {
             game.freeAgencyService.processPendingOffers(club, game.league.getCurrentSeason());
@@ -1087,8 +1108,20 @@ public final class CareerOverlay
             ) {
 
                 player.recover(
-                    days
+                    days,
+                    0.78d + (team.getStaffLevel(StaffRole.FITNESS_COACH) * 0.075d)
                 );
+            }
+        }
+    }
+
+    private static void applyMedicalRecovery(Main game) {
+        for (Club team : game.league.getClubs()) {
+            int extraRecovery = Math.max(0, team.getStaffLevel(StaffRole.DOCTOR) - 3);
+            for (Player player : team.getSquad()) {
+                for (int index = 0; index < extraRecovery && player.isInjured(); index++) {
+                    player.decreaseInjury();
+                }
             }
         }
     }

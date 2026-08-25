@@ -29,6 +29,7 @@ public class Player {
     private double seasonRatingTotal = 0.0;
     private int seasonRatingMatches = 0;
     private int nextContractNegotiationYear = 0;
+    private int tradeBlockedDays = 0;
 
     // --- CAMPOS PARA CARTÕES NA PARTIDA EM ANDAMENTO ---
     private int matchYellowCards = 0;
@@ -392,7 +393,11 @@ public class Player {
     }
 
     public void recover(int days) {
-        this.fatigue = Math.min(100, this.fatigue + (days * 8));
+        recover(days, 1d);
+    }
+
+    public void recover(int days, double multiplier) {
+        this.fatigue = Math.min(100, this.fatigue + (int) Math.round(days * 8d * multiplier));
     }
 
     public void addGoal() { this.seasonGoals++; }
@@ -477,7 +482,11 @@ public class Player {
         this.contractYears = safeYears;
         this.contractEndYear = currentYear + safeYears;
         this.nextContractNegotiationYear = currentYear + Math.max(1, safeYears - 2);
+        this.tradeBlockedDays = 30;
     }
+    public int getTradeBlockedDays() { return tradeBlockedDays; }
+    public void setTradeBlockedDays(int days) { tradeBlockedDays = Math.max(0, days); }
+    public void advanceTradeEligibilityDay() { if (tradeBlockedDays > 0) tradeBlockedDays--; }
 
     public String getId() { return id; }
     public String getName() { return name; }

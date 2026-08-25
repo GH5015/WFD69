@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.Scaling;
 import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
@@ -40,6 +41,7 @@ public class TacticsScreen implements Screen {
     private Player selectedPlayer;
 
     private Texture pitchTexture;
+    private Texture jerseyTexture;
 
     private Texture sliderBackgroundTexture;
     private Texture sliderKnobTexture;
@@ -76,6 +78,8 @@ public class TacticsScreen implements Screen {
         );
 
         ensurePitchTexture();
+
+        ensureJerseyTexture();
 
         ensureSliderTextures();
 
@@ -178,7 +182,7 @@ public class TacticsScreen implements Screen {
             .add(
                 createRightPanel()
             )
-            .width(390f)
+            .width(365f)
             .growY();
 
         page
@@ -523,8 +527,8 @@ public class TacticsScreen implements Screen {
 
         panel
             .add(button)
-            .width(270f)
-            .height(44f);
+            .width(300f)
+            .height(48f);
 
         return panel;
     }
@@ -548,9 +552,25 @@ public class TacticsScreen implements Screen {
                         .getName()
             );
 
+        Table pitchHeader =
+            new Table();
+
+        Label subtitle =
+            ScreenUI.createSubtitle(
+                game.skin,
+                "ESCALAÇÃO TITULAR"
+            );
+
+        subtitle.setFontScale(0.48f);
+        subtitle.setColor(ScreenUI.MUTED_TEXT);
+
+        pitchHeader.add().expandX();
+        pitchHeader.add(title).center();
+        pitchHeader.add(subtitle).right().expandX();
+
         panel
-            .add(title)
-            .center()
+            .add(pitchHeader)
+            .growX()
             .padBottom(8f)
             .row();
 
@@ -793,14 +813,11 @@ public class TacticsScreen implements Screen {
             )
         );
 
-        card.pad(
-            5f
-        );
+        card.pad(4f, 6f, 5f, 6f);
 
         if (
             player != null
         ) {
-
             int effective =
                 player.getEffectiveOverallForPosition(
                     targetPosition
@@ -817,15 +834,13 @@ public class TacticsScreen implements Screen {
                 new Label(
                     ScreenUI.shorten(
                         player.getName(),
-                        13
+                        11
                     ),
                     game.skin,
                     "font-bold"
                 );
 
-            name.setFontScale(
-                0.54f
-            );
+            name.setFontScale(0.46f);
 
             name.setColor(
                 outOfPosition
@@ -839,7 +854,7 @@ public class TacticsScreen implements Screen {
 
             card
                 .add(name)
-                .width(105f)
+                .width(94f)
                 .center()
                 .row();
 
@@ -857,7 +872,7 @@ public class TacticsScreen implements Screen {
 
             positionLine
                 .add(badge)
-                .height(24f)
+                .height(20f)
                 .padRight(5f);
 
             Label overall =
@@ -869,9 +884,7 @@ public class TacticsScreen implements Screen {
                     "font-bold"
                 );
 
-            overall.setFontScale(
-                0.62f
-            );
+            overall.setFontScale(0.56f);
 
             overall.setColor(
                 StyleFactory.SOFT_YELLOW
@@ -884,8 +897,8 @@ public class TacticsScreen implements Screen {
             card
                 .add(positionLine)
                 .center()
-                .padTop(3f)
-                .padBottom(4f)
+                .padTop(1f)
+                .padBottom(3f)
                 .row();
 
             card
@@ -894,7 +907,7 @@ public class TacticsScreen implements Screen {
                         player.getFatigue()
                     )
                 )
-                .width(86f)
+                .width(78f)
                 .height(5f)
                 .center();
 
@@ -940,10 +953,57 @@ public class TacticsScreen implements Screen {
                 .padTop(4f);
         }
 
-        outer
+        Stack playerVisual =
+            new Stack();
+
+        if (
+            player != null
+        ) {
+
+            Image jersey =
+                new Image(
+                    new TextureRegionDrawable(
+                        new TextureRegion(
+                            jerseyTexture
+                        )
+                    )
+                );
+
+            jersey.setScaling(
+                Scaling.fit
+            );
+
+            jersey.setColor(
+                selected
+                    ? StyleFactory.GOLD
+                    : Color.WHITE
+            );
+
+            playerVisual.add(
+                jersey
+            );
+        }
+
+        /* O cartão fica deliberadamente na frente da parte inferior da
+           camisa, como um marcador de transmissão sobre o uniforme. */
+        Table cardLayer =
+            new Table();
+
+        cardLayer.bottom();
+        cardLayer
             .add(card)
-            .width(122f)
-            .height(64f);
+            .width(100f)
+            .height(62f)
+            .padBottom(2f);
+
+        playerVisual.add(
+            cardLayer
+        );
+
+        outer
+            .add(playerVisual)
+            .width(120f)
+            .height(98f);
 
         if (
             selected
@@ -1665,6 +1725,8 @@ public class TacticsScreen implements Screen {
             }
         );
 
+        refreshFeedbackOnRelease(tempo);
+
         cards
             .add(
                 tacticCard(
@@ -1754,6 +1816,8 @@ public class TacticsScreen implements Screen {
             }
         );
 
+        refreshFeedbackOnRelease(mentality);
+
         cards
             .add(
                 tacticCard(
@@ -1815,6 +1879,8 @@ public class TacticsScreen implements Screen {
                 }
             }
         );
+
+        refreshFeedbackOnRelease(passing);
 
         cards
             .add(
@@ -1878,6 +1944,8 @@ public class TacticsScreen implements Screen {
             }
         );
 
+        refreshFeedbackOnRelease(width);
+
         cards
             .add(
                 tacticCard(
@@ -1940,6 +2008,8 @@ public class TacticsScreen implements Screen {
             }
         );
 
+        refreshFeedbackOnRelease(pressure);
+
         cards
             .add(
                 tacticCard(
@@ -1951,6 +2021,23 @@ public class TacticsScreen implements Screen {
                 )
             )
             .growX()
+            .padBottom(8f)
+            .row();
+
+        cards
+            .add(
+                createTacticalSummaryPanel()
+            )
+            .growX()
+            .padBottom(8f)
+            .row();
+
+        cards
+            .add(
+                createExpectedImpactPanel()
+            )
+            .growX()
+            .padBottom(4f)
             .row();
 
         ScrollPane scroll =
@@ -2046,6 +2133,279 @@ public class TacticsScreen implements Screen {
             StyleFactory.SOFT_YELLOW,
             Align.right
         );
+    }
+
+    /** Atualiza os indicadores de leitura ao terminar o ajuste do slider. */
+    private void refreshFeedbackOnRelease(
+        Slider slider
+    ) {
+
+        slider.addListener(
+            new InputListener() {
+
+                @Override
+                public void touchUp(
+                    InputEvent event,
+                    float x,
+                    float y,
+                    int pointer,
+                    int button
+                ) {
+
+                    refreshUI();
+                }
+            }
+        );
+    }
+
+    // =========================================================
+    // TACTICAL FEEDBACK
+    // =========================================================
+
+    private Table createTacticalSummaryPanel() {
+
+        Table panel =
+            ScreenUI.createSubtlePanel();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "RESUMO TÁTICO"
+                )
+            )
+            .left()
+            .padBottom(7f)
+            .row();
+
+        Label summary =
+            ScreenUI.createSubtitle(
+                game.skin,
+                buildTacticalSummary()
+            );
+
+        summary.setWrap(true);
+        summary.setFontScale(0.52f);
+        summary.setColor(ScreenUI.MUTED_TEXT);
+
+        panel
+            .add(summary)
+            .growX()
+            .width(315f)
+            .left();
+
+        return panel;
+    }
+
+    private Table createExpectedImpactPanel() {
+
+        Table panel =
+            ScreenUI.createSubtlePanel();
+
+        panel
+            .add(
+                ScreenUI.createSectionTitle(
+                    game.skin,
+                    "IMPACTO ESPERADO"
+                )
+            )
+            .left()
+            .colspan(2)
+            .padBottom(8f)
+            .row();
+
+        panel
+            .add(
+                impactMetric(
+                    "ATAQUE",
+                    getAttackImpact(),
+                    ScreenUI.SUCCESS
+                )
+            )
+            .growX()
+            .padRight(8f);
+
+        panel
+            .add(
+                impactMetric(
+                    "POSSE",
+                    getPossessionImpact(),
+                    StyleFactory.SOFT_YELLOW
+                )
+            )
+            .growX()
+            .row();
+
+        panel
+            .add(
+                impactMetric(
+                    "DEFESA",
+                    getDefenseImpact(),
+                    ScreenUI.SUCCESS
+                )
+            )
+            .growX()
+            .padTop(7f)
+            .padRight(8f);
+
+        panel
+            .add(
+                impactMetric(
+                    "INTENSIDADE",
+                    getIntensityImpact(),
+                    ScreenUI.WARNING
+                )
+            )
+            .growX()
+            .padTop(7f);
+
+        return panel;
+    }
+
+    private Table impactMetric(
+        String name,
+        int score,
+        Color accent
+    ) {
+
+        Table metric =
+            new Table();
+
+        Label label =
+            ScreenUI.createSubtitle(
+                game.skin,
+                name
+            );
+
+        label.setFontScale(0.46f);
+        label.setColor(Color.WHITE);
+
+        Table blocks =
+            new Table();
+
+        for (
+            int index = 1;
+            index <= 5;
+            index++
+        ) {
+
+            Table block =
+                new Table();
+
+            block.background(
+                StyleFactory.createSolid(
+                    index <= score
+                        ? accent
+                        : Color.valueOf("37413B")
+                )
+            );
+
+            blocks
+                .add(block)
+                .width(14f)
+                .height(10f)
+                .padRight(3f);
+        }
+
+        metric.add(label).left().padRight(7f);
+        metric.add(blocks).right().expandX();
+
+        return metric;
+    }
+
+    private String buildTacticalSummary() {
+
+        String mentality =
+            club.getMentalityValue() <= 30f
+                ? "defensiva"
+                : club.getMentalityValue() >= 70f
+                    ? "muito ofensiva"
+                    : club.getMentalityValue() >= 50f
+                        ? "ofensiva"
+                        : "equilibrada";
+
+        String pressure =
+            club.getPressure() >= 65f
+                ? "pressão alta"
+                : club.getPressure() <= 35f
+                    ? "pressão baixa"
+                    : "pressão média";
+
+        String passing =
+            club.getPassing() >= 65f
+                ? "passe longo"
+                : club.getPassing() <= 35f
+                    ? "circulação curta"
+                    : "circulação mista";
+
+        String width =
+            club.getWidth() >= 65f
+                ? "amplitude aberta"
+                : club.getWidth() <= 35f
+                    ? "amplitude estreita"
+                    : "amplitude moderada";
+
+        return "Equipe " + mentality + ", " + pressure + ".\n"
+            + capitalize(passing) + " e " + width + ".";
+    }
+
+    private int getAttackImpact() {
+
+        return impactScore(
+            2.3f
+                + (club.getMentalityValue() - 40f) / 28f
+                + (club.getTempo() - 45f) / 110f
+                + (club.getWidth() - 50f) / 170f
+        );
+    }
+
+    private int getPossessionImpact() {
+
+        return impactScore(
+            3.0f
+                + (50f - Math.abs(club.getPassing() - 30f)) / 65f
+                - Math.max(0f, club.getTempo() - 65f) / 100f
+        );
+    }
+
+    private int getDefenseImpact() {
+
+        return impactScore(
+            2.5f
+                + (55f - club.getMentalityValue()) / 45f
+                + club.getPressure() / 180f
+                - Math.max(0f, club.getWidth() - 60f) / 120f
+        );
+    }
+
+    private int getIntensityImpact() {
+
+        return impactScore(
+            1.0f
+                + club.getTempo() / 35f
+                + club.getPressure() / 45f
+        );
+    }
+
+    private int impactScore(
+        float value
+    ) {
+
+        return Math.max(
+            1,
+            Math.min(
+                5,
+                Math.round(value)
+            )
+        );
+    }
+
+    private String capitalize(
+        String value
+    ) {
+
+        return value.substring(0, 1).toUpperCase()
+            + value.substring(1);
     }
 
     // =========================================================
@@ -2195,6 +2555,35 @@ public class TacticsScreen implements Screen {
             );
 
         pixmap.dispose();
+    }
+
+    /**
+     * Usa o uniforme do clube no campo tático. Quando uma carreira for
+     * iniciada com outro clube, o ícone neutro mantém o card legível até que
+     * o uniforme específico daquele clube esteja disponível nos assets.
+     */
+    private void ensureJerseyTexture() {
+
+        if (
+            jerseyTexture != null
+        ) {
+
+            return;
+        }
+
+        String jerseyAsset =
+            club.getName()
+                .toLowerCase()
+                .contains("santos")
+                    ? "uniforme_santos.png"
+                    : "Icons8/icons8-camisa-de-jogador-50.png";
+
+        jerseyTexture =
+            new Texture(
+                Gdx.files.internal(
+                    jerseyAsset
+                )
+            );
     }
 
     // =========================================================
@@ -2505,6 +2894,13 @@ public class TacticsScreen implements Screen {
         ) {
 
             pitchTexture.dispose();
+        }
+
+        if (
+            jerseyTexture != null
+        ) {
+
+            jerseyTexture.dispose();
         }
 
         if (

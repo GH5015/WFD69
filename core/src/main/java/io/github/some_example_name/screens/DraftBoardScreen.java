@@ -22,6 +22,7 @@ import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.DraftOrderService;
 import io.github.some_example_name.model.DraftPick;
 import io.github.some_example_name.model.DraftScoutManager;
+import io.github.some_example_name.model.DraftSelection;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
@@ -121,7 +122,8 @@ public class DraftBoardScreen implements Screen {
         String origin = pick.getOriginalOwner() == pick.getCurrentOwner()
             ? "Escolha própria"
             : "via " + pick.getOriginalOwner().getName();
-        team.add(ScreenUI.createSubtitle(game.skin, origin)).left();
+        DraftSelection selected = findSelection(pick);
+        team.add(ScreenUI.createSubtitle(game.skin, selected == null ? origin : origin + " • " + selected.getPlayer().getName())).left();
         card.add(team).width(255f).left().padRight(6f);
 
         Table projection = new Table();
@@ -133,6 +135,13 @@ public class DraftBoardScreen implements Screen {
 
         card.add(ScreenUI.createBadge(game.skin, pick.getRound() + "ª ROD.", StyleFactory.getPositionColor("CM"))).width(75f).height(28f).padRight(7f);
         return card;
+    }
+
+    private DraftSelection findSelection(DraftPick pick) {
+        for (DraftSelection selection : game.league.getDraftSelections()) {
+            if (selection.getPick() == pick) return selection;
+        }
+        return null;
     }
 
     @Override public void render(float delta) { Gdx.gl.glClearColor(0f, 0f, 0f, 1f); Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT); stage.act(delta); stage.draw(); }

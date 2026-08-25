@@ -341,13 +341,13 @@ public class DraftScoutingScreen implements Screen {
             page
         );
 
-        NavigationDrawer.attach(
-            stage,
-            game,
-            club,
-            "SCOUTING",
-            true
-        );
+        if ("OFFSEASON".equals(game.league.getCurrentStage())) {
+            Table returnOverlay = new Table(); returnOverlay.setFillParent(true); returnOverlay.bottom().left().pad(18f);
+            TextButton back = ScreenUI.createInteractiveButton("← VOLTAR À OFF SEASON", game.skin);
+            back.getLabel().setFontScale(0.45f);
+            back.addListener(new ClickListener(){ @Override public void clicked(InputEvent e,float x,float y){ game.setScreen(new OffSeasonScreen(game, club)); }});
+            returnOverlay.add(back).width(235f).height(42f); root.add(returnOverlay);
+        } else NavigationDrawer.attach(stage, game, club, "SCOUTING", true);
 
     }
 

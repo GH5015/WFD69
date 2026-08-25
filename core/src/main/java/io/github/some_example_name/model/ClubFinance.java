@@ -138,8 +138,17 @@ public class ClubFinance {
         return 250_000L;
     }
 
+    public long getStaffExpense() {
+        long annual = 0L;
+        for (StaffRole role : StaffRole.values()) {
+            StaffMember member = club.getStaffMember(role);
+            if (member != null) annual += member.getAnnualSalary();
+        }
+        return annual / 12L;
+    }
+
     public long getTotalMonthlyExpenses() {
-        return getPlayerSalariesExpense() + getInfrastructureExpense() + getMedicalExpense() + getScoutingExpense();
+        return getPlayerSalariesExpense() + getInfrastructureExpense() + getMedicalExpense() + getScoutingExpense() + getStaffExpense();
     }
 
     public long getMonthlyNetResult() {

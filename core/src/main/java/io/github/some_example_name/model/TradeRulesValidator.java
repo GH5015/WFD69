@@ -125,6 +125,9 @@ public class TradeRulesValidator {
             if (currentSeasonYear >= 0 && player.isFreeAgent(currentSeasonYear)) {
                 return new ValidationResult(false, player.getName() + " está com o contrato expirado e não pode ser negociado.");
             }
+            if (player.getTradeBlockedDays() > 0) {
+                return new ValidationResult(false, player.getName() + " não pode ser trocado por mais " + player.getTradeBlockedDays() + " dia(s).");
+            }
         }
 
         for (DraftPick pick : picks) {

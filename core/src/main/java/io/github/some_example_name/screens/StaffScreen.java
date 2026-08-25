@@ -1,0 +1,47 @@
+package io.github.some_example_name.screens;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.Stack;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Scaling;
+import com.badlogic.gdx.utils.Align;
+import io.github.some_example_name.Main;
+import io.github.some_example_name.model.Club;
+import io.github.some_example_name.model.StaffMember;
+import io.github.some_example_name.model.StaffRole;
+import io.github.some_example_name.utils.ResponsiveViewport;
+import io.github.some_example_name.utils.ScreenUI;
+import io.github.some_example_name.utils.StyleFactory;
+
+/** Gestão de comissão por cargo, com profissionais disponíveis na Off Season. */
+public class StaffScreen implements Screen {
+    private final Main game; private final Club club; private final Stage stage; private final Texture starTexture; private StaffRole selectedRole=StaffRole.COACH;
+    public StaffScreen(Main game,Club club){this.game=game;this.club=club;stage=new Stage(new ResponsiveViewport());starTexture=new Texture(Gdx.files.internal("Icons8/icons8-estrela-48.png"));}
+    @Override public void show(){Gdx.input.setInputProcessor(stage);refresh();}
+    private void refresh(){stage.clear();Stack root=new Stack();root.setFillParent(true);stage.addActor(root);root.add(new Image(game.background));boolean offseason="OFFSEASON".equals(game.league.getCurrentStage());Table page=ScreenUI.createPage(true);page.add(ScreenUI.createHeader(game.skin,"STAFF",club.getName().toUpperCase()+" • "+(offseason?"OFF SEASON":"CONSULTA • ALTERAÇÕES SÓ NA OFF SEASON"))).growX().height(ScreenUI.HEADER_HEIGHT).padBottom(10).row();Table summary=ScreenUI.createPanel();summary.add(ScreenUI.createStatusBox(game.skin,"CUSTO ANUAL",money(annualCost()),StyleFactory.SOFT_YELLOW)).growX().uniformX().padRight(8);summary.add(ScreenUI.createStatusBox(game.skin,"ORÇAMENTO",money(club.getFinance().getBalance()),ScreenUI.SUCCESS)).growX().uniformX();page.add(summary).growX().height(62).padBottom(9).row();page.add(tabs()).growX().height(47).padBottom(9).row();page.add(currentPanel(offseason)).growX().height(235).padBottom(9).row();page.add(candidatesPanel(offseason)).grow().padBottom(10).row();TextButton back=ScreenUI.createPrimaryButton(game.skin,offseason?"← VOLTAR À OFF SEASON":"VOLTAR");back.addListener(new ClickListener(){@Override public void clicked(InputEvent e,float x,float y){game.setScreen(offseason?new OffSeasonScreen(game,club):new ClubManagementScreen(game,club));}});page.add(back).width(280).height(48).center();root.add(page);}
+    private Table tabs(){Table panel=ScreenUI.createPanel();for(final StaffRole role:StaffRole.values()){TextButton tab=ScreenUI.createInteractiveButton(role.getLabel().toUpperCase(),game.skin);tab.getLabel().setFontScale(.43f);tab.setColor(role==selectedRole?StyleFactory.GOLD:com.badlogic.gdx.graphics.Color.WHITE);tab.addListener(new ClickListener(){@Override public void clicked(InputEvent e,float x,float y){selectedRole=role;refresh();}});panel.add(tab).growX().height(35).pad(0,3,0,3);}return panel;}
+    private Table currentPanel(boolean offseason){StaffMember member=club.getStaffMember(selectedRole);boolean expired=member.getContractEndYear()<=game.league.getCurrentSeason();Table panel=ScreenUI.createPanel();panel.add(ScreenUI.createSectionTitle(game.skin,selectedRole.getLabel().toUpperCase())).left().expandX();panel.add(stars(member.getEffectLevel())).right().row();panel.add(ScreenUI.createBoldValue(game.skin,member.getName(),StyleFactory.CREME_AGED,Align.left)).colspan(2).left().padTop(8).row();panel.add(ScreenUI.createSubtitle(game.skin,"Salário")).left().padTop(10);panel.add(ScreenUI.createBoldValue(game.skin,money(member.getAnnualSalary()),StyleFactory.CREME_AGED,Align.right)).right().padTop(10).row();panel.add(ScreenUI.createSubtitle(game.skin,"Contrato")).left().padTop(4);panel.add(ScreenUI.createBoldValue(game.skin,expired?"EXPIRADO":"até "+member.getContractEndYear(),expired?ScreenUI.WARNING:ScreenUI.SUCCESS,Align.right)).right().padTop(4).row();panel.add(ScreenUI.createSubtitle(game.skin,"Especialidade")).left().padTop(4);panel.add(ScreenUI.createBoldValue(game.skin,specialty(selectedRole),StyleFactory.CREME_AGED,Align.right)).right().padTop(4).row();Table actions=new Table();TextButton renew=ScreenUI.createPrimaryButton(game.skin,"RENOVAR");renew.setDisabled(!offseason);renew.addListener(new ClickListener(){@Override public void clicked(InputEvent e,float x,float y){if(offseason){club.renewStaff(selectedRole,game.league.getCurrentSeason());refresh();}}});actions.add(renew).width(145).height(38).padRight(6);TextButton replace=ScreenUI.createInteractiveButton("SUBSTITUIR",game.skin);replace.setDisabled(!offseason);replace.addListener(new ClickListener(){@Override public void clicked(InputEvent e,float x,float y){if(offseason)showReplacementInfo();}});actions.add(replace).width(145).height(38);panel.add(actions).colspan(2).center().padTop(12);return panel;}
+    private Table candidatesPanel(boolean offseason){Table panel=ScreenUI.createPanel();panel.top();panel.add(ScreenUI.createSectionTitle(game.skin,"DISPONÍVEIS • "+selectedRole.getLabel().toUpperCase())).colspan(4).left().padBottom(7).row();for(final StaffMember candidate:candidates(selectedRole)){panel.add(ScreenUI.createBoldValue(game.skin,candidate.getName(),StyleFactory.CREME_AGED,Align.left)).growX().height(42);panel.add(stars(candidate.getEffectLevel())).width(130).center();panel.add(ScreenUI.createSubtitle(game.skin,money(candidate.getAnnualSalary())+" • "+years(candidate)+" anos")).width(190).center();TextButton hire=ScreenUI.createInteractiveButton(offseason?"VER CANDIDATO":"BLOQUEADO",game.skin);hire.getLabel().setFontScale(.43f);hire.setDisabled(!offseason);hire.addListener(new ClickListener(){@Override public void clicked(InputEvent e,float x,float y){if(offseason)offer(candidate);}});panel.add(hire).width(155).height(34).center().row();}return panel;}
+    private StaffMember[] candidates(StaffRole role){int year=game.league.getCurrentSeason();String[][] names={{"Jorge Vasconcelos","Alberto Ferreira","Rui Monteiro"},{"Johan de Vries","Antonio Rossi","Hans Becker"},{"Kenji Watanabe","Sergio Duarte","Pierre Martin"},{"Alberto Lima","Miguel Santos","Karl Hoffmann"},{"Dra. Elena Costa","Ricardo Mello","Sofia Laurent"}};int i=role.ordinal();return new StaffMember[]{member(role,names[i][0],94,1_200_000,year+3),member(role,names[i][1],84,850_000,year+2),member(role,names[i][2],72,480_000,year+2)};}
+    private StaffMember member(StaffRole role,String name,int quality,long salary,int end){return new StaffMember(role,name,quality,salary,end);}
+    private void offer(final StaffMember candidate){Dialog dialog=new Dialog("CANDIDATO DISPONÍVEL",game.skin);dialog.text(candidate.getName()+"\n"+selectedRole.getLabel()+" • Nível "+candidate.getEffectLevel()+"/5\n\n"+money(candidate.getAnnualSalary())+" por ano\nContrato de "+years(candidate)+" anos\nEspecialidade: "+specialty(selectedRole));TextButton accept=ScreenUI.createPrimaryButton(game.skin,"CONTRATAR");accept.addListener(new ClickListener(){@Override public void clicked(InputEvent e,float x,float y){club.hireStaff(candidate);dialog.hide();refresh();}});dialog.button(accept);dialog.button("VOLTAR");dialog.show(stage);}
+    private void showReplacementInfo(){Dialog dialog=new Dialog("SUBSTITUIR STAFF",game.skin);dialog.text("Escolha um dos profissionais disponíveis abaixo.\nO membro atual deixará o cargo imediatamente.");dialog.button("ENTENDI");dialog.show(stage);}
+    private long annualCost(){long total=0;for(StaffRole role:StaffRole.values())total+=club.getStaffMember(role).getAnnualSalary();return total;}
+    private int years(StaffMember member){return Math.max(1,member.getContractEndYear()-game.league.getCurrentSeason());}
+    private String specialty(StaffRole role){switch(role){case COACH:return "Desenvolvimento";case SCOUT:return "Jovens";case DEVELOPMENT_DIRECTOR:return "Potencial";case FITNESS_COACH:return "Recuperação";default:return "Lesões";}}
+    private Table stars(int rating){Table table=new Table();for(int i=0;i<5;i++){Image star=new Image(new TextureRegionDrawable(starTexture));star.setScaling(Scaling.fit);star.setColor(i<rating?StyleFactory.GOLD:Color.valueOf("4D514D"));table.add(star).size(19).padRight(2);}return table;}
+    private String money(long value){return value>=1_000_000?String.format(java.util.Locale.US,"WFL$ %.1fM",value/1_000_000d):String.format(java.util.Locale.US,"WFL$ %.0fK",value/1_000d);}
+    @Override public void render(float d){Gdx.gl.glClearColor(0,0,0,1);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);stage.act(d);stage.draw();}@Override public void resize(int w,int h){stage.getViewport().update(w,h,true);}@Override public void pause(){}@Override public void resume(){}@Override public void hide(){}@Override public void dispose(){stage.dispose();starTexture.dispose();}
+}

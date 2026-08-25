@@ -39,6 +39,9 @@ public class MiniTacticalField extends Actor {
     private final Vector2 ballPos = new Vector2(0.5f, 0.5f);
     private final Vector2 passStartPos = new Vector2();
     private final Vector2 passTargetPos = new Vector2();
+    private final Vector2 actionControlPos = new Vector2();
+    private final Vector2 curveSampleA = new Vector2();
+    private final Vector2 curveSampleB = new Vector2();
     private float passProgress = 0f;
     private BallState ballState = BallState.CARRIED;
 
@@ -67,7 +70,10 @@ public class MiniTacticalField extends Actor {
 
     private final Color COLOR_GRASS = new Color(0.12f, 0.45f, 0.22f, 1f);
     private final Color COLOR_GRASS_ALT = new Color(0.10f, 0.39f, 0.19f, 1f);
+    private final Color COLOR_GRASS_LIGHT = new Color(0.18f, 0.52f, 0.25f, 1f);
+    private final Color COLOR_PITCH_EDGE = new Color(0.015f, 0.05f, 0.025f, 0.92f);
     private final Color COLOR_PITCH_LINE = new Color(0.88f, 0.96f, 0.89f, 0.78f);
+    private final Color COLOR_NET = new Color(0.95f, 1f, 0.96f, 0.26f);
     private final Color COLOR_PLAYER_SHADOW = new Color(0f, 0.05f, 0.02f, 0.42f);
     private final Color COLOR_HOME = new Color(0.15f, 0.55f, 0.98f, 1f);
     private final Color COLOR_HOME_GK = new Color(0.0f, 0.8f, 0.8f, 1f);
@@ -280,7 +286,7 @@ public class MiniTacticalField extends Actor {
             float progressClamped = Math.min(1.0f, passProgress);
 
             float alpha = Interpolation.pow2Out.apply(progressClamped);
-            ballPos.set(passStartPos).interpolate(passTargetPos, alpha, Interpolation.linear);
+            evaluateTrajectory(alpha, ballPos);
 
             if (passProgress >= 1.0f) {
                 ballPos.set(passTargetPos);
@@ -300,7 +306,7 @@ public class MiniTacticalField extends Actor {
             float progressClamped = Math.min(1.0f, passProgress);
 
             float alpha = Interpolation.pow2Out.apply(progressClamped);
-            ballPos.set(passStartPos).interpolate(passTargetPos, alpha, Interpolation.linear);
+            evaluateTrajectory(alpha, ballPos);
 
             if (passProgress >= 1.0f) {
                 ballPos.set(passTargetPos);
@@ -401,6 +407,8 @@ public class MiniTacticalField extends Actor {
                 }
 
                 passStartPos.set(ballPos);
+                passTargetPos.set(currentTeam[targetReceiverIndex]);
+                configureTrajectory(0.040f, false);
                 passProgress = 0f;
                 passSpeedMultiplier = 1.1f;
                 ballState = BallState.IN_PASS;
@@ -455,6 +463,10 @@ public class MiniTacticalField extends Actor {
 
         passStartPos.set(team[fromIndex]);
         passTargetPos.set(team[toIndex]);
+        configureTrajectory(
+            MathUtils.random(0.018f, 0.050f),
+            false
+        );
         passProgress = 0f;
         this.passSpeedMultiplier = speedMultiplier;
         this.onPassCompletedCallback = onComplete;
@@ -468,6 +480,10 @@ public class MiniTacticalField extends Actor {
 
         passStartPos.set(team[shooterIndex]);
         passTargetPos.set(targetX, targetY);
+        configureTrajectory(
+            MathUtils.random(0.055f, 0.105f),
+            true
+        );
         passProgress = 0f;
         this.shotSpeedMultiplier = speedMultiplier;
         this.onShotCompletedCallback = () -> {
@@ -478,6 +494,77 @@ public class MiniTacticalField extends Actor {
         };
         ballState = BallState.IN_SHOT;
         showActionVector = true;
+    }
+
+    /**
+     * Define uma curva quadrática. O desvio lateral deixa os passes mais
+     * orgânicos; nos chutes, um arco maior dá a sensação de efeito/elevação.
+     */
+    private void configureTrajectory(
+        float curveAmount,
+        boolean shot
+    ) {
+
+        float dx = passTargetPos.x - passStartPos.x;
+        float dy = passTargetPos.y - passStartPos.y;
+        float length = Math.max(0.001f, (float) Math.sqrt(dx * dx + dy * dy));
+        float direction = MathUtils.randomBoolean() ? 1f : -1f;
+
+        float lateralX = -dy / length * curveAmount * direction;
+        float lateralY = dx / length * curveAmount * direction;
+
+        actionControlPos.set(
+            (passStartPos.x + passTargetPos.x) * 0.5f + lateralX,
+            (passStartPos.y + passTargetPos.y) * 0.5f + lateralY
+        );
+
+        if (shot) {
+            // Chutes direcionados tendem a "subir" na visualização antes de cair no alvo.
+            actionControlPos.y += MathUtils.random(-0.028f, 0.045f);
+        }
+    }
+
+    /** Avalia a curva de Bézier quadrática no ponto solicitado. */
+    private Vector2 evaluateTrajectory(
+        float progress,
+        Vector2 output
+    ) {
+
+        float inverse = 1f - progress;
+        return output.set(
+            inverse * inverse * passStartPos.x
+                + 2f * inverse * progress * actionControlPos.x
+                + progress * progress * passTargetPos.x,
+            inverse * inverse * passStartPos.y
+                + 2f * inverse * progress * actionControlPos.y
+                + progress * progress * passTargetPos.y
+        );
+    }
+
+    /** Desenha um trecho da trajetória real no ShapeRenderer já em modo Line. */
+    private void drawCurvedTrajectory(
+        float originX,
+        float originY,
+        float width,
+        float height,
+        float start,
+        float end
+    ) {
+
+        int segments = 16;
+        evaluateTrajectory(start, curveSampleA);
+
+        for (int index = 1; index <= segments; index++) {
+            float progress = start + (end - start) * index / segments;
+            evaluateTrajectory(progress, curveSampleB);
+            shapeRenderer.line(
+                originX + curveSampleA.x * width,
+                originY + curveSampleA.y * height,
+                originX + curveSampleB.x * width,
+                originY + curveSampleB.y * height
+            );
+            curveSampleA.set(curveSampleB);
+        }
     }
 
     private void switchPossession() {
@@ -628,19 +715,30 @@ public class MiniTacticalField extends Actor {
         float goalHeight = h * 0.28f;
         float goalY = y + (h - goalHeight) / 2f;
 
-        // 1. GRAMADO COM FAIXAS
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        // 1. GRAMADO COM FAIXAS E BORDA DE TRANSMISSÃO
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(COLOR_PITCH_EDGE);
+        shapeRenderer.rect(x - 4f, y - 4f, w + 8f, h + 8f);
+
         shapeRenderer.setColor(COLOR_GRASS);
         shapeRenderer.rect(x, y, w, h);
 
-        float stripeWidth = w / 10f;
-        for (int stripe = 0; stripe < 10; stripe += 2) {
-            shapeRenderer.setColor(COLOR_GRASS_ALT);
+        float stripeWidth = w / 12f;
+        for (int stripe = 0; stripe < 12; stripe++) {
+            shapeRenderer.setColor(stripe % 2 == 0 ? COLOR_GRASS_ALT : COLOR_GRASS_LIGHT);
             shapeRenderer.rect(x + stripe * stripeWidth, y, stripeWidth, h);
         }
 
+        // Tom mais escuro nas áreas para criar leitura de profundidade.
+        shapeRenderer.setColor(new Color(0f, 0.12f, 0.045f, 0.14f));
+        shapeRenderer.rect(x, y + h * 0.20f, w * 0.16f, h * 0.60f);
+        shapeRenderer.rect(x + w * 0.84f, y + h * 0.20f, w * 0.16f, h * 0.60f);
+
         // Fundo das redes, para dar profundidade aos gols.
-        shapeRenderer.setColor(new Color(0.95f, 1f, 0.96f, 0.15f));
+        shapeRenderer.setColor(new Color(0.95f, 1f, 0.96f, 0.16f));
         shapeRenderer.rect(x - goalDepth, goalY, goalDepth, goalHeight);
         shapeRenderer.rect(x + w, goalY, goalDepth, goalHeight);
         shapeRenderer.end();
@@ -658,6 +756,9 @@ public class MiniTacticalField extends Actor {
         shapeRenderer.rect(x + w - (w * 0.055f), y + h * 0.36f, w * 0.055f, h * 0.28f);
         shapeRenderer.rect(x - goalDepth, goalY, goalDepth, goalHeight);
         shapeRenderer.rect(x + w, goalY, goalDepth, goalHeight);
+
+        drawGoalNet(x - goalDepth, goalY, goalDepth, goalHeight, false);
+        drawGoalNet(x + w, goalY, goalDepth, goalHeight, true);
         shapeRenderer.end();
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -667,7 +768,17 @@ public class MiniTacticalField extends Actor {
         shapeRenderer.circle(x + w * 0.89f, y + h / 2f, 2.5f);
         shapeRenderer.end();
 
-        // 3. ANIMAÇÃO DE GOL NO RADAR
+        // 3. TRAJETÓRIA DA JOGADA: passes e chutes ficam legíveis no radar.
+        if ((ballState == BallState.IN_PASS || ballState == BallState.IN_SHOT) && !isGoalFrozen) {
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            Color actionColor = isHomeBallPossession ? COLOR_HOME : COLOR_AWAY;
+            shapeRenderer.setColor(new Color(actionColor.r, actionColor.g, actionColor.b, 0.72f));
+            drawCurvedTrajectory(x, y, w, h, 0f, 1f);
+            shapeRenderer.circle(x + passTargetPos.x * w, y + passTargetPos.y * h, playerRadius * 0.56f);
+            shapeRenderer.end();
+        }
+
+        // 4. ANIMAÇÃO DE GOL NO RADAR
         if (isGoalFrozen) {
             shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             Gdx.gl.glEnable(GL20.GL_BLEND);
@@ -682,7 +793,7 @@ public class MiniTacticalField extends Actor {
             shapeRenderer.end();
         }
 
-        // 4. VETOR DE CHUTE
+        // 5. VETOR DE CHUTE
         if (showActionVector && !isGoalFrozen) {
             shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
             shapeRenderer.setColor(COLOR_HIGHLIGHT);
@@ -690,14 +801,8 @@ public class MiniTacticalField extends Actor {
             float tailLengthFraction = 0.35f;
             float tailProgress = Math.max(0f, (passProgress - tailLengthFraction) / (1.0f - tailLengthFraction));
 
-            Vector2 currentLineStartPos = new Vector2(passStartPos).interpolate(passTargetPos, tailProgress, Interpolation.linear);
-
-            shapeRenderer.line(
-                x + currentLineStartPos.x * w,
-                y + currentLineStartPos.y * h,
-                x + ballPos.x * w,
-                y + ballPos.y * h
-            );
+            float ballProgress = Math.min(1f, passProgress);
+            drawCurvedTrajectory(x, y, w, h, tailProgress, ballProgress);
 
             shapeRenderer.circle(
                 x + ballPos.x * w,
@@ -708,7 +813,7 @@ public class MiniTacticalField extends Actor {
             shapeRenderer.end();
         }
 
-        // 5. SOMBRA E DESTAQUE DO PORTADOR DA BOLA
+        // 6. SOMBRA E DESTAQUE DO PORTADOR DA BOLA
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         for (int i = 0; i < 11; i++) {
@@ -736,36 +841,96 @@ public class MiniTacticalField extends Actor {
             playerRadius + 7f
         );
 
-        // 6. JOGADORES E BOLA
+        // 7. JOGADORES E BOLA
 
         for (int i = 0; i < 11; i++) {
             float px = x + (homePlayers[i].x * w);
             float py = y + (homePlayers[i].y * h);
-            shapeRenderer.setColor(i == 0 ? COLOR_HOME_GK : COLOR_HOME);
-            shapeRenderer.circle(px, py, playerRadius);
-            shapeRenderer.setColor(new Color(1f, 1f, 1f, 0.22f));
-            shapeRenderer.circle(px - playerRadius * 0.20f, py + playerRadius * 0.20f, playerRadius * 0.45f);
+            drawPlayerMarker(px, py, playerRadius, i == 0 ? COLOR_HOME_GK : COLOR_HOME);
         }
 
         for (int i = 0; i < 11; i++) {
             float px = x + (awayPlayers[i].x * w);
             float py = y + (awayPlayers[i].y * h);
-            shapeRenderer.setColor(i == 0 ? COLOR_AWAY_GK : COLOR_AWAY);
-            shapeRenderer.circle(px, py, playerRadius);
-            shapeRenderer.setColor(new Color(1f, 1f, 1f, 0.22f));
-            shapeRenderer.circle(px - playerRadius * 0.20f, py + playerRadius * 0.20f, playerRadius * 0.45f);
+            drawPlayerMarker(px, py, playerRadius, i == 0 ? COLOR_AWAY_GK : COLOR_AWAY);
         }
 
         float ballX = x + ballPos.x * w;
         float ballY = y + ballPos.y * h;
+        float ballLift = 0f;
+
+        if (ballState == BallState.IN_PASS || ballState == BallState.IN_SHOT) {
+            float arc = MathUtils.sin(Math.min(1f, passProgress) * MathUtils.PI);
+            ballLift = arc * playerRadius * (ballState == BallState.IN_SHOT ? 1.30f : 0.46f);
+        }
+
         shapeRenderer.setColor(COLOR_PLAYER_SHADOW);
         shapeRenderer.circle(ballX + 2f, ballY - 2f, playerRadius * 0.62f);
-        shapeRenderer.setColor(isGoalFrozen ? COLOR_HIGHLIGHT : Color.WHITE);
-        shapeRenderer.circle(ballX, ballY, isGoalFrozen ? playerRadius * 0.76f : playerRadius * 0.55f);
+        shapeRenderer.setColor(Color.valueOf("E8EFE8"));
+        shapeRenderer.circle(ballX, ballY + ballLift, isGoalFrozen ? playerRadius * 0.82f : playerRadius * 0.62f);
         shapeRenderer.setColor(Color.valueOf("26352A"));
-        shapeRenderer.circle(ballX, ballY, playerRadius * 0.20f);
+        shapeRenderer.circle(ballX, ballY + ballLift, playerRadius * 0.21f);
+        shapeRenderer.circle(ballX + playerRadius * 0.23f, ballY + ballLift + playerRadius * 0.08f, playerRadius * 0.09f);
+        shapeRenderer.circle(ballX - playerRadius * 0.19f, ballY + ballLift - playerRadius * 0.13f, playerRadius * 0.08f);
+        shapeRenderer.end();
+
+        // Anel fino acima de todos os marcadores: identifica instantaneamente quem conduz a bola.
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        shapeRenderer.setColor(COLOR_HIGHLIGHT);
+        shapeRenderer.circle(x + carrier.x * w, y + carrier.y * h, playerRadius + 5f + MathUtils.sin(organicTimer * 5f) * 1.5f);
         shapeRenderer.end();
 
         batch.begin();
+    }
+
+    /** Desenha a malha leve do gol dentro do ShapeType.Line já ativo. */
+    private void drawGoalNet(
+        float goalX,
+        float goalY,
+        float goalWidth,
+        float goalHeight,
+        boolean rightSide
+    ) {
+
+        shapeRenderer.setColor(COLOR_NET);
+
+        for (int line = 1; line < 4; line++) {
+            float netX = goalX + goalWidth * line / 4f;
+            shapeRenderer.line(netX, goalY, netX, goalY + goalHeight);
+        }
+
+        for (int line = 1; line < 5; line++) {
+            float netY = goalY + goalHeight * line / 5f;
+            shapeRenderer.line(goalX, netY, goalX + goalWidth, netY);
+        }
+
+        // Profundidade sutil na face externa da rede.
+        float outsideX = rightSide ? goalX + goalWidth : goalX;
+        float inset = rightSide ? -goalWidth * 0.24f : goalWidth * 0.24f;
+        shapeRenderer.line(outsideX, goalY, outsideX + inset, goalY + goalHeight * 0.10f);
+        shapeRenderer.line(outsideX, goalY + goalHeight, outsideX + inset, goalY + goalHeight * 0.90f);
+    }
+
+    /** Marcador com aro claro, cor do clube e reflexo para separar os atletas do gramado. */
+    private void drawPlayerMarker(
+        float x,
+        float y,
+        float radius,
+        Color color
+    ) {
+
+        shapeRenderer.setColor(new Color(0.96f, 1f, 0.97f, 0.88f));
+        shapeRenderer.circle(x, y, radius + 1.6f);
+        shapeRenderer.setColor(color);
+        shapeRenderer.circle(x, y, radius);
+        shapeRenderer.setColor(new Color(0f, 0.05f, 0.02f, 0.20f));
+        shapeRenderer.circle(x + radius * 0.16f, y - radius * 0.18f, radius * 0.65f);
+        shapeRenderer.setColor(new Color(1f, 1f, 1f, 0.42f));
+        shapeRenderer.circle(x - radius * 0.25f, y + radius * 0.27f, radius * 0.34f);
+    }
+
+    public void dispose() {
+
+        shapeRenderer.dispose();
     }
 }

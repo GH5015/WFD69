@@ -23,17 +23,19 @@ public class DraftPickEvaluator {
 
     private static long calculateBaseValue(int round, int projected) {
         if (round == 1) {
-            if (projected == 1) return 74L;
-            if (projected <= 3) return 68L - ((projected - 2) * 3L);
-            if (projected <= 5) return 58L - ((projected - 4) * 3L);
-            if (projected <= 10) return 51L - ((projected - 6) * 3L);
-            if (projected <= 15) return 35L - ((projected - 11) * 2L);
-            return 24L - ((projected - 16) * 2L);
+            // Uma escolha de 1ª rodada precisa poder competir no mercado por
+            // jogadores consolidados; as primeiras posições são premium.
+            if (projected == 1) return 120L;
+            if (projected <= 3) return 112L - ((projected - 2) * 5L);
+            if (projected <= 5) return 96L - ((projected - 4) * 5L);
+            if (projected <= 10) return 83L - ((projected - 6) * 5L);
+            if (projected <= 15) return 58L - ((projected - 11) * 3L);
+            return 40L - ((projected - 16) * 3L);
         }
 
-        if (projected <= 3) return 26L - ((projected - 1) * 2L);
-        if (projected <= 10) return 20L - ((projected - 4) * 1L);
-        return Math.max(6L, 13L - ((projected - 11) / 2L));
+        if (projected <= 3) return 46L - ((projected - 1) * 3L);
+        if (projected <= 10) return 36L - ((projected - 4) * 2L);
+        return Math.max(14L, 24L - ((projected - 11) * 1L));
     }
 
     /**

@@ -209,13 +209,7 @@ public class TradeScreen implements Screen {
                 page
             );
 
-            NavigationDrawer.attach(
-                stage,
-                game,
-                userClub,
-                "TROCAS",
-                true
-            );
+            if (!"OFFSEASON".equals(game.league.getCurrentStage())) NavigationDrawer.attach(stage, game, userClub, "TROCAS", true);
 
 
             return;
@@ -284,13 +278,14 @@ public class TradeScreen implements Screen {
             page
         );
 
-        NavigationDrawer.attach(
-            stage,
-            game,
-            userClub,
-            "TROCAS",
-            true
-        );
+        if (!"OFFSEASON".equals(game.league.getCurrentStage())) NavigationDrawer.attach(stage, game, userClub, "TROCAS", true);
+        if ("OFFSEASON".equals(game.league.getCurrentStage())) {
+            Table returnOverlay = new Table(); returnOverlay.setFillParent(true); returnOverlay.bottom().left().pad(18f);
+            TextButton back = ScreenUI.createInteractiveButton("← MERCADO DE TROCAS", game.skin);
+            back.getLabel().setFontScale(.45f);
+            back.addListener(new ClickListener(){ @Override public void clicked(InputEvent e,float x,float y){ game.setScreen(new TradeHubScreen(game, userClub)); }});
+            returnOverlay.add(back).width(220f).height(42f); root.add(returnOverlay);
+        }
 
     }
 
@@ -3010,6 +3005,13 @@ public class TradeScreen implements Screen {
             refreshUI();
             return;
         }
+
+        game.league.recordTrade(
+            TradeRecord.fromOffer(
+                currentOffer,
+                game.league
+            )
+        );
 
         /*
          * Copiamos as listas porque transferTo()
