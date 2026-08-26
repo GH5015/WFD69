@@ -114,6 +114,8 @@ public class Main extends Game {
             league.getCurrentSeason()
         );
         freeAgencyService = new FreeAgencyService(league);
+        // A temporada inaugural também respeita o limite obrigatório de elenco.
+        freeAgencyService.enforceRosterLimitsForNewSeason();
         DraftOrderService.initializeDraftPicks(
             league,
             league.getCurrentSeason() + 1
