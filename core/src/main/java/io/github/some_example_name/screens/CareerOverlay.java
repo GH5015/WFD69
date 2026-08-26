@@ -844,6 +844,9 @@ public final class CareerOverlay
                 .checkAndAdvanceStage();
 
             if ("OFFSEASON".equals(game.league.getCurrentStage())) {
+                if (game.freeAgencyService != null) {
+                    game.freeAgencyService.releaseExpiredContractsAtOffseasonStart();
+                }
                 game.setScreen(new SeasonSummaryScreen(game, club));
             }
 
