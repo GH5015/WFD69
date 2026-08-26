@@ -2776,28 +2776,165 @@ public class MatchScreen implements Screen {
         game.league
             .advanceMatch();
 
-        MatchResultDialog resultDialog =
-            new MatchResultDialog(
-                game,
-                match
+        showFullTimePopup();
+    }
+
+    /**
+     * Confirma o encerramento da partida antes de devolver o jogador ao
+     * elenco. O relatório detalhado continua disponível sem obrigar uma nova
+     * partida ou outro avanço de tempo.
+     */
+    private void showFullTimePopup() {
+        Dialog dialog = new Dialog(
+            "",
+            game.skin
+        ) {
+            @Override
+            protected void result(
+                Object object
             ) {
-
-                @Override
-                protected void result(
-                    Object object
-                ) {
-
-                    game.setScreen(
-                        new ClubManagementScreen(
-                            game,
-                            playerClub
-                        )
-                    );
+                if (Boolean.TRUE.equals(object)) {
+                    showMatchReportDialog();
+                } else {
+                    returnToSquadScreen();
                 }
-            };
+            }
+        };
 
-        resultDialog.show(
-            stage
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.setResizable(false);
+
+        Table content = dialog.getContentTable();
+        content.clear();
+        content.background(
+            StyleFactory.createMetallicBoard(
+                760,
+                390,
+                Color.valueOf("121814")
+            )
+        );
+        content.pad(24f, 34f, 18f, 34f);
+
+        Label title = new Label(
+            "FIM DE JOGO",
+            game.skin,
+            "font-title"
+        );
+        title.setFontScale(1.02f);
+        title.setColor(StyleFactory.PLAYOFF_GOLD);
+        title.setAlignment(Align.center);
+
+        Label score = new Label(
+            ScreenUI.shorten(match.getHomeTeam().getName(), 20) +
+                "   " + match.getHomeGoals() +
+                "  -  " + match.getAwayGoals() +
+                "   " + ScreenUI.shorten(match.getAwayTeam().getName(), 20),
+            game.skin,
+            "font-bold"
+        );
+        score.setFontScale(0.76f);
+        score.setColor(Color.WHITE);
+        score.setAlignment(Align.center);
+
+        Label result = new Label(
+            getFullTimeMessage(),
+            game.skin,
+            "font-bold"
+        );
+        result.setFontScale(0.57f);
+        result.setColor(StyleFactory.SOFT_YELLOW);
+        result.setAlignment(Align.center);
+
+        Label instruction = new Label(
+            "Consulte o relatório completo ou volte para gerenciar o elenco.",
+            game.skin
+        );
+        instruction.setFontScale(0.49f);
+        instruction.setColor(ScreenUI.MUTED_TEXT);
+        instruction.setAlignment(Align.center);
+
+        content.add(title)
+            .width(670f)
+            .center()
+            .padBottom(15f)
+            .row();
+
+        content.add(score)
+            .width(670f)
+            .center()
+            .padBottom(12f)
+            .row();
+
+        content.add(result)
+            .width(670f)
+            .center()
+            .padBottom(18f)
+            .row();
+
+        content.add(instruction)
+            .width(670f)
+            .center();
+
+        TextButton squadButton = ScreenUI.createInteractiveButton(
+            "VOLTAR AO ELENCO",
+            game.skin
+        );
+        squadButton.getLabel().setFontScale(0.57f);
+
+        TextButton reportButton = ScreenUI.createPrimaryButton(
+            game.skin,
+            "VER RELATÓRIO"
+        );
+        reportButton.getLabel().setFontScale(0.57f);
+
+        dialog.button(squadButton, false);
+        dialog.button(reportButton, true);
+        dialog.show(stage);
+    }
+
+    private String getFullTimeMessage() {
+        if (playerClub == null) {
+            return "A partida foi encerrada.";
+        }
+
+        boolean home = playerClub == match.getHomeTeam();
+        int scored = home ? match.getHomeGoals() : match.getAwayGoals();
+        int conceded = home ? match.getAwayGoals() : match.getHomeGoals();
+
+        if (scored > conceded) {
+            return playerClub.getName() + " venceu a partida.";
+        }
+
+        if (scored < conceded) {
+            return playerClub.getName() + " foi superado nesta partida.";
+        }
+
+        return "A partida terminou empatada.";
+    }
+
+    private void showMatchReportDialog() {
+        MatchResultDialog resultDialog = new MatchResultDialog(
+            game,
+            match
+        ) {
+            @Override
+            protected void result(
+                Object object
+            ) {
+                returnToSquadScreen();
+            }
+        };
+
+        resultDialog.show(stage);
+    }
+
+    private void returnToSquadScreen() {
+        game.setScreen(
+            new ClubManagementScreen(
+                game,
+                playerClub
+            )
         );
     }
 
