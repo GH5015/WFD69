@@ -125,20 +125,23 @@ public class SquadDevelopmentScreen implements Screen {
         List<Player> injured = getInjuredPlayers();
         int imminent = 0;
         int shortTerm = 0;
+        int mediumTerm = 0;
         int longTerm = 0;
 
         for (Player player : injured) {
-            if (player.getInjuryDaysRemaining() <= 2) imminent++;
-            else if (player.getInjuryDaysRemaining() <= 7) shortTerm++;
+            int days = player.getInjuryDaysRemaining();
+            if (days <= 3) imminent++;
+            else if (days <= 14) shortTerm++;
+            else if (days <= 30) mediumTerm++;
             else longTerm++;
         }
 
         Table summary = new Table();
         summary.add(status("NO DEPARTAMENTO MÉDICO", String.valueOf(injured.size()), injured.isEmpty() ? ScreenUI.SUCCESS : ScreenUI.DANGER)).growX().uniformX().padRight(8f);
-        summary.add(status("ATÉ 2 DIAS", String.valueOf(imminent), imminent > 0 ? ScreenUI.SUCCESS : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
-        summary.add(status("ATÉ 7 DIAS", String.valueOf(shortTerm), shortTerm > 0 ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
-        summary.add(status("8+ DIAS", String.valueOf(longTerm), longTerm > 0 ? ScreenUI.DANGER : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
-        summary.add(status("DISPONIBILIDADE", injured.isEmpty() ? "ELENCO COMPLETO" : "ATENÇÃO MÉDICA", injured.isEmpty() ? ScreenUI.SUCCESS : StyleFactory.SOFT_YELLOW)).growX().uniformX();
+        summary.add(status("ATÉ 3 DIAS", String.valueOf(imminent), imminent > 0 ? ScreenUI.SUCCESS : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("4–14 DIAS", String.valueOf(shortTerm), shortTerm > 0 ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("15–30 DIAS", String.valueOf(mediumTerm), mediumTerm > 0 ? ScreenUI.WARNING : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("31+ DIAS", String.valueOf(longTerm), longTerm > 0 ? ScreenUI.DANGER : ScreenUI.MUTED_TEXT)).growX().uniformX();
         return summary;
     }
 
@@ -206,7 +209,7 @@ public class SquadDevelopmentScreen implements Screen {
         for (Player player : club.getSquad()) {
             if (player.isInjured()) injured.add(player);
         }
-        injured.sort(Comparator.comparingInt(Player::getInjuryDuration).reversed().thenComparing(Player::getName));
+        injured.sort(Comparator.comparingInt(Player::getInjuryDaysRemaining).reversed().thenComparing(Player::getName));
         return injured;
     }
 
@@ -215,11 +218,17 @@ public class SquadDevelopmentScreen implements Screen {
     }
 
     private String injuryStatus(int days) {
-        return days <= 2 ? "RETORNO IMINENTE" : days <= 7 ? "EM RECUPERAÇÃO" : "EM TRATAMENTO";
+        if (days <= 3) return "RETORNO IMINENTE";
+        if (days <= 14) return "EM RECUPERAÇÃO";
+        if (days <= 30) return "EM TRATAMENTO";
+        return "REABILITAÇÃO";
     }
 
     private Color injuryStatusColor(int days) {
-        return days <= 2 ? ScreenUI.SUCCESS : days <= 7 ? StyleFactory.SOFT_YELLOW : ScreenUI.DANGER;
+        if (days <= 3) return ScreenUI.SUCCESS;
+        if (days <= 14) return StyleFactory.SOFT_YELLOW;
+        if (days <= 30) return ScreenUI.WARNING;
+        return ScreenUI.DANGER;
     }
 
     private Table createSummary() {
