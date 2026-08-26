@@ -976,8 +976,8 @@ public class ClubManagementScreen implements Screen {
 
             name +=
                 " • LES " +
-                    player.getInjuryDuration() +
-                    "J";
+                    player.getInjuryDaysRemaining() +
+                    "D";
 
         } else if (
             player.isSuspended()
@@ -1296,7 +1296,7 @@ public class ClubManagementScreen implements Screen {
     }
 
     private String getPlayerStatus(Player player) {
-        if (player.isInjured()) return "LESIONADO • " + player.getInjuryDuration() + "J";
+        if (player.isInjured()) return "LESIONADO • " + player.getInjuryDaysRemaining() + " dia" + (player.getInjuryDaysRemaining() == 1 ? "" : "s");
         if (player.isSuspended()) return "SUSPENSO • " + player.getSuspendedMatches() + "J";
         return "DISPONÍVEL";
     }
