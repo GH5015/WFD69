@@ -937,6 +937,8 @@ public final class CareerOverlay
                 game.freeAgencyService.enforceRosterLimitsForNewSeason();
             }
             game.league.startNewSeason();
+            // A nova temporada abre o ciclo de scouting do Draft seguinte.
+            game.loadDraftClassForYear(game.league.getCurrentSeason() + 1);
             game.seasonSimulator.createSchedule(game.league);
             if (!game.league.getSchedule().isEmpty()) {
                 game.league.setLastProcessedDate(game.league.getSchedule().get(0).getDate());
