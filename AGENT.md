@@ -61,6 +61,7 @@ Ao adicionar estado de longa duração, inicialize-o uma vez em `Main.create()` 
 - `SeasonSimulator` cria/processa calendário; `PlayoffSimulator` e `League` coordenam a fase eliminatória.
 - `MatchEngine` prepara escalações e simula a partida. Mudanças nele precisam respeitar jogadores lesionados/suspensos, fadiga, moral, táticas, estatísticas e finanças.
 - Não marque uma partida como concluída, avance o índice/calendário ou atualize estatísticas duas vezes.
+- Quando a última partida de uma rodada regular terminar, a `League` registra o resumo como pendente. `CareerOverlay` o apresenta apenas no próximo clique em **Avançar dia**, por meio de `RoundSummaryDialog`; não mostre o painel novamente ao trocar de tela.
 - Preserve a separação entre ações do usuário e automação da IA: clubes não controlados pelo usuário podem escolher escalação automaticamente; o clube do usuário deve preservar suas escolhas válidas.
 
 ## Build, execução e validação
