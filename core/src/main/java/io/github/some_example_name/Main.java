@@ -11,6 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 
 import io.github.some_example_name.database.DraftClass1970;
+import io.github.some_example_name.database.DraftClass1971;
 import io.github.some_example_name.database.GameDatabase;
 import io.github.some_example_name.engine.MatchEngine;
 import io.github.some_example_name.engine.DevelopmentEngine;
@@ -65,6 +66,18 @@ public class Main extends Game {
      * toda vez que DraftScoutingScreen é aberta.
      */
     public List<Player> draftClass;
+    public int draftClassYear;
+
+    /** Seleciona uma única classe persistente para cada ano de Draft. */
+    public void loadDraftClassForYear(int year) {
+        if (draftClass != null && draftClassYear == year) return;
+
+        draftClass = year == 1971
+            ? DraftClass1971.getPlayers()
+            : DraftClass1970.getPlayers();
+        draftClassYear = year;
+        draftScoutManager = new DraftScoutManager(3);
+    }
 
     /*
      * Alertas do clube ocorridos durante a partida. Eles sobrevivem à troca
@@ -167,13 +180,9 @@ public class Main extends Game {
         // DRAFT / SCOUTING
         // ==============================
 
-        // 3 estrelas inicialmente.
-        // Depois poderá depender do staff.
-        draftScoutManager = new DraftScoutManager(3);
-
-        // IMPORTANTÍSSIMO:
-        // a Draft Class é gerada apenas uma vez.
-        draftClass = DraftClass1970.getPlayers();
+        // A classe é gerada uma única vez e permanece estável durante
+        // todo o ciclo de scouting e Draft daquela temporada.
+        loadDraftClassForYear(league.getCurrentSeason() + 1);
 
         // ==============================
         // TELA INICIAL
