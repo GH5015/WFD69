@@ -1155,6 +1155,7 @@ public final class CareerOverlay
                     days,
                     0.78d + (team.getStaffLevel(StaffRole.FITNESS_COACH) * 0.075d)
                 );
+                player.recoverFromInjury(days);
             }
         }
     }
@@ -1163,9 +1164,7 @@ public final class CareerOverlay
         for (Club team : game.league.getClubs()) {
             int extraRecovery = Math.max(0, team.getStaffLevel(StaffRole.DOCTOR) - 3);
             for (Player player : team.getSquad()) {
-                for (int index = 0; index < extraRecovery && player.isInjured(); index++) {
-                    player.decreaseInjury();
-                }
+                player.recoverFromInjury(extraRecovery);
             }
         }
     }
