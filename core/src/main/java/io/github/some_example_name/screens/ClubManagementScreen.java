@@ -19,6 +19,7 @@ import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Formation;
+import io.github.some_example_name.model.MatchEvent;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.TechnicalAttributes;
 import io.github.some_example_name.utils.IconTextButton;
@@ -100,6 +101,129 @@ public class ClubManagementScreen implements Screen {
         );
 
         refreshUI();
+
+        /*
+         * Lesões e expulsões do clube podem ter ocorrido durante a partida.
+         * O alerta é mostrado somente depois de retornar ao elenco.
+         */
+        showNextPostMatchSquadAlert();
+    }
+
+    // =========================================================
+    // ALERTAS PÓS-PARTIDA
+    // =========================================================
+
+    private void showNextPostMatchSquadAlert() {
+        final MatchEvent alert = game.consumeSquadAlert();
+
+        if (alert == null) {
+            return;
+        }
+
+        final boolean injury =
+            "LESIONADO".equals(alert.type);
+
+        Dialog dialog = new Dialog(
+            "",
+            game.skin
+        ) {
+            @Override
+            protected void result(Object object) {
+                /* Se houver mais de uma ocorrência, elas aparecem em ordem. */
+                showNextPostMatchSquadAlert();
+            }
+        };
+
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.setResizable(false);
+
+        Color accent = injury
+            ? ScreenUI.WARNING
+            : ScreenUI.DANGER;
+
+        Table content = dialog.getContentTable();
+        content.clear();
+        content.background(
+            StyleFactory.createMetallicBoard(
+                730,
+                350,
+                Color.valueOf("151A17")
+            )
+        );
+        content.pad(21f, 30f, 16f, 30f);
+
+        Label title = new Label(
+            injury
+                ? "LESÃO NO ELENCO"
+                : "EXPULSÃO CONFIRMADA",
+            game.skin,
+            "font-title"
+        );
+        title.setFontScale(0.84f);
+        title.setColor(accent);
+        title.setAlignment(Align.center);
+
+        Label minute = new Label(
+            "OCORRÊNCIA DA PARTIDA • " + alert.minute + "'",
+            game.skin,
+            "font-bold"
+        );
+        minute.setFontScale(0.45f);
+        minute.setColor(StyleFactory.SOFT_YELLOW);
+        minute.setAlignment(Align.center);
+
+        Label description = new Label(
+            alert.description != null
+                ? alert.description
+                : "Um jogador do seu clube sofreu uma ocorrência grave.",
+            game.skin
+        );
+        description.setFontScale(0.55f);
+        description.setColor(Color.WHITE);
+        description.setAlignment(Align.center);
+        description.setWrap(true);
+
+        Label nextStep = new Label(
+            injury
+                ? "O jogador ficará indisponível; ajuste escalação e elenco se necessário."
+                : "O jogador cumprirá suspensão; revise sua escalação antes da próxima partida.",
+            game.skin
+        );
+        nextStep.setFontScale(0.48f);
+        nextStep.setColor(ScreenUI.MUTED_TEXT);
+        nextStep.setAlignment(Align.center);
+        nextStep.setWrap(true);
+
+        content.add(title)
+            .width(650f)
+            .center()
+            .padBottom(9f)
+            .row();
+
+        content.add(minute)
+            .width(650f)
+            .center()
+            .padBottom(13f)
+            .row();
+
+        content.add(description)
+            .width(620f)
+            .center()
+            .padBottom(13f)
+            .row();
+
+        content.add(nextStep)
+            .width(620f)
+            .center();
+
+        TextButton button = ScreenUI.createPrimaryButton(
+            game.skin,
+            "REVISAR ELENCO"
+        );
+        button.getLabel().setFontScale(0.57f);
+        dialog.button(button, true);
+        dialog.show(stage);
     }
 
     // =========================================================
