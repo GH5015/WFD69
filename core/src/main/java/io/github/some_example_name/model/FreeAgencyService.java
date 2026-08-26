@@ -308,20 +308,40 @@ public class FreeAgencyService {
         return salaryScore + durationScore + reputationScore + interestScore + starterScore + teamStrengthScore + randomFactor;
     }
 
-    private void collectExpiredPlayers() {
-        if (league == null) return;
-        if (SeasonCalendar.isExclusiveOwnFreeAgentRenewalPeriod(league)) return;
+    /**
+     * Libera os contratos vencidos no instante em que a liga entra na Off Season.
+     * O método é idempotente para poder ser chamado pela transição e pela tela
+     * de Free Agency sem duplicar atletas no mercado.
+     */
+    public int releaseExpiredContractsAtOffseasonStart() {
+        if (league == null || !"OFFSEASON".equals(league.getCurrentStage())) return 0;
+
+        int released = 0;
         int year = league.getCurrentSeason();
         for (Club club : league.getClubs()) {
             List<Player> expired = new ArrayList<>();
             for (Player player : club.getSquad()) {
                 if (player.isFreeAgent(year)) expired.add(player);
             }
+
             for (Player player : expired) {
+                // A saída precisa limpar também a escalação e o mapa tático;
+                // transferTo remove o vínculo e o elenco do clube de origem.
+                club.getStartingXI().remove(player);
+                club.getTacticsMap().entrySet().removeIf(entry -> entry.getValue() == player);
                 player.transferTo(null);
-                if (!freeAgents.contains(player)) freeAgents.add(player);
+
+                if (!freeAgents.contains(player)) {
+                    freeAgents.add(player);
+                    released++;
+                }
             }
         }
+        return released;
+    }
+
+    private void collectExpiredPlayers() {
+        releaseExpiredContractsAtOffseasonStart();
     }
 
     /** Mantém uma lista inicial de cinquenta nomes sem inflar a qualidade do mercado. */
