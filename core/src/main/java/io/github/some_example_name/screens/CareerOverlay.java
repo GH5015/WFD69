@@ -933,6 +933,9 @@ public final class CareerOverlay
         processDailyActivities(game, club, previousDate, newDate);
 
         if (isFirstDayOfNewSeason(game, newDate)) {
+            if (game.freeAgencyService != null) {
+                game.freeAgencyService.enforceRosterLimitsForNewSeason();
+            }
             game.league.startNewSeason();
             game.seasonSimulator.createSchedule(game.league);
             if (!game.league.getSchedule().isEmpty()) {
