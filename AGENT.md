@@ -66,6 +66,7 @@ Ao adicionar estado de longa duração, inicialize-o uma vez em `Main.create()` 
 - Lesões são medidas em dias restantes: CareerOverlay reduz um dia por avanço de data e médicos podem conceder recuperação adicional. O fim de uma partida não reduz a lesão. MatchEngine sorteia diagnósticos ponderados, de contusões de 1–4 dias a fraturas de 60–120 dias; fadiga torna os casos graves um pouco mais prováveis.
 - No início da Off Season, FreeAgencyService remove dos clubes os atletas cujo contrato terminou na temporada corrente, limpa escalação/tática e os adiciona uma única vez à lista de agentes livres.
 - League processa aposentadorias após o envelhecimento na transição para a Off Season: atletas com 33+ anos usam chance crescente por idade e, se aposentados, ficam em RetirementRecord. SeasonSummaryScreen encaminha para RetirementSummaryScreen antes do dashboard da Off Season.
+- Antes de League.startNewSeason(), FreeAgencyService aplica a barreira obrigatória de elenco de 23–26 atletas para todos os clubes. A Off Season mantém trocas disponíveis e a Free Agency cobre automaticamente qualquer déficit; excedentes são liberados ao mercado.
 - Preserve a separação entre ações do usuário e automação da IA: clubes não controlados pelo usuário podem escolher escalação automaticamente; o clube do usuário deve preservar suas escolhas válidas.
 
 ## Build, execução e validação
