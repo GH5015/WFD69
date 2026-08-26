@@ -19,6 +19,7 @@ import io.github.some_example_name.model.DraftScoutManager;
 import io.github.some_example_name.model.DraftOrderService;
 import io.github.some_example_name.model.FreeAgencyService;
 import io.github.some_example_name.model.League;
+import io.github.some_example_name.model.MatchEvent;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.screens.CareerOverlay;
 import io.github.some_example_name.screens.MenuScreen;
@@ -28,6 +29,7 @@ import io.github.some_example_name.simulation.SeasonSimulator;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.StyleFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Main extends Game {
@@ -63,6 +65,27 @@ public class Main extends Game {
      * toda vez que DraftScoutingScreen é aberta.
      */
     public List<Player> draftClass;
+
+    /*
+     * Alertas do clube ocorridos durante a partida. Eles sobrevivem à troca
+     * da MatchScreen para a tela de elenco e são consumidos uma vez lá.
+     */
+    private final List<MatchEvent> pendingSquadAlerts =
+        new ArrayList<>();
+
+    public void queueSquadAlert(
+        MatchEvent event
+    ) {
+        if (event != null) {
+            pendingSquadAlerts.add(event);
+        }
+    }
+
+    public MatchEvent consumeSquadAlert() {
+        return pendingSquadAlerts.isEmpty()
+            ? null
+            : pendingSquadAlerts.remove(0);
+    }
 
     @Override
     public void create() {
