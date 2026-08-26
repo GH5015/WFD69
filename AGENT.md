@@ -64,6 +64,7 @@ Ao adicionar estado de longa duração, inicialize-o uma vez em `Main.create()` 
 - Não marque uma partida como concluída, avance o índice/calendário ou atualize estatísticas duas vezes.
 - Quando a última partida de uma rodada regular terminar, a `League` registra o resumo como pendente. `CareerOverlay` o apresenta apenas no próximo clique em **Avançar dia**, por meio de `RoundSummaryDialog`; não mostre o painel novamente ao trocar de tela.
 - Lesões são medidas em dias restantes: CareerOverlay reduz um dia por avanço de data e médicos podem conceder recuperação adicional. O fim de uma partida não reduz a lesão. MatchEngine sorteia diagnósticos ponderados, de contusões de 1–4 dias a fraturas de 60–120 dias; fadiga torna os casos graves um pouco mais prováveis.
+- No início da Off Season, FreeAgencyService remove dos clubes os atletas cujo contrato terminou na temporada corrente, limpa escalação/tática e os adiciona uma única vez à lista de agentes livres.
 - Preserve a separação entre ações do usuário e automação da IA: clubes não controlados pelo usuário podem escolher escalação automaticamente; o clube do usuário deve preservar suas escolhas válidas.
 
 ## Build, execução e validação
