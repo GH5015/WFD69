@@ -1861,6 +1861,24 @@ public class MatchScreen implements Screen {
                 (playerClub == match.getHomeTeam());
     }
 
+    /** Mantém alertas do elenco também quando o restante é simulado. */
+    private void queueCriticalEventForSquad(
+        MatchEvent event
+    ) {
+        if (
+            isCriticalMatchEvent(
+                event
+            ) &&
+            isPlayerClubEvent(
+                event
+            )
+        ) {
+            game.queueSquadAlert(
+                event
+            );
+        }
+    }
+
     private boolean isRedCardEvent(
         MatchEvent event
     ) {
@@ -2697,6 +2715,10 @@ public class MatchScreen implements Screen {
                     updateEvents(
                         event
                     );
+
+                    queueCriticalEventForSquad(
+                        event
+                    );
                 }
             }
 
@@ -2733,6 +2755,10 @@ public class MatchScreen implements Screen {
             ) {
 
                 updateEvents(
+                    event
+                );
+
+                queueCriticalEventForSquad(
                     event
                 );
             }
