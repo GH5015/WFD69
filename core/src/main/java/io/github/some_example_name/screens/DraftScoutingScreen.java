@@ -181,7 +181,7 @@ public class DraftScoutingScreen implements Screen {
             .add(
                 ScreenUI.createHeader(
                     game.skin,
-                    "DRAFT SCOUTING • CLASSE DE 1970",
+                    "DRAFT SCOUTING • CLASSE DE " + game.draftClassYear,
                     (SeasonCalendar.isDraftOpen(game.league)
                         ? "DRAFT ABERTO • "
                         : "SCOUTING ABERTO • DRAFT EM DEZEMBRO • ") +
