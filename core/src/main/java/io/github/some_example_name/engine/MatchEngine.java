@@ -185,19 +185,53 @@ public class MatchEngine {
         double totalRisk = fatigueRisk * mods.fatigueMultiplier;
 
         if (random.nextDouble() < totalRisk || random.nextDouble() < 0.35) {
-            int daysOut = 3 + random.nextInt(26);
-            victim.setInjuryDays(daysOut);
+            InjuryProfile injury = drawInjuryProfile(fatigueRisk);
+            victim.injureForDays(injury.daysOut, injury.type);
             club.removeUnavailablePlayersFromStartingXI();
 
             return new MatchEvent(
                 minute,
-                "LESÃO! " + victim.getName() + " (" + club.getName() + ") sente dores musculares e precisa deixar o gramado! (Fora por " + daysOut + " dias)",
+                "LESÃO! " + victim.getName() + " (" + club.getName() + ") sofre " + injury.type + " e precisa deixar o gramado! (Fora por " + injury.daysOut + " dias)",
                 "LESIONADO",
                 isHomeTeam
             );
         }
 
         return null;
+    }
+
+    /**
+     * Sorteia diagnóstico e prazo. A fadiga aumenta apenas a chance de
+     * diagnósticos graves, mantendo contusões curtas como o resultado mais comum.
+     */
+    private InjuryProfile drawInjuryProfile(double fatigueRisk) {
+        double severityRoll = Math.min(
+            0.999d,
+            random.nextDouble() + Math.min(0.16d, Math.max(0d, fatigueRisk) * 0.20d)
+        );
+
+        if (severityRoll < 0.22d) return injury("CONTUSÃO", 1, 4);
+        if (severityRoll < 0.42d) return injury("TORÇÃO NO TORNOZELO", 4, 10);
+        if (severityRoll < 0.62d) return injury("DISTENSÃO MUSCULAR", 7, 16);
+        if (severityRoll < 0.78d) return injury("ESTIRAMENTO MUSCULAR", 12, 24);
+        if (severityRoll < 0.90d) return injury("ENTORSE NO JOELHO", 18, 35);
+        if (severityRoll < 0.97d) return injury("LESÃO LIGAMENTAR", 35, 65);
+        return injury("FRATURA", 60, 120);
+    }
+
+    private InjuryProfile injury(String type, int minimumDays, int maximumDays) {
+        int daysOut = minimumDays + random.nextInt(maximumDays - minimumDays + 1);
+        return new InjuryProfile(type, daysOut);
+    }
+
+    private static final class InjuryProfile {
+        private final String type;
+        private final int daysOut;
+
+        private InjuryProfile(String type, int daysOut) {
+            this.type = type;
+            this.daysOut = daysOut;
+        }
     }
 
     private MatchEvent processShotSequence(Match match, int minute, boolean homeAttacking, Club attacker, Club defender,
