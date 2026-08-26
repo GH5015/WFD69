@@ -426,11 +426,11 @@ public class SeasonSummaryScreen implements Screen {
             }
         });
 
-        TextButton enter = ScreenUI.createPrimaryButton(game.skin, "ENTRAR NA OFF SEASON  ›");
+        TextButton enter = ScreenUI.createPrimaryButton(game.skin, "VER APOSENTADORIAS  ›");
         enter.getLabel().setFontScale(0.64f);
         enter.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new OffSeasonScreen(game, club));
+                game.setScreen(new RetirementSummaryScreen(game, club));
             }
         });
 
