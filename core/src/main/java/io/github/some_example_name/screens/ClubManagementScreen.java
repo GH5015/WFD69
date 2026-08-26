@@ -129,6 +129,14 @@ public class ClubManagementScreen implements Screen {
         ) {
             @Override
             protected void result(Object object) {
+                if (Boolean.TRUE.equals(object)) {
+                    new LineupDialog(
+                        game,
+                        club
+                    ).show(stage);
+                    return;
+                }
+
                 /* Se houver mais de uma ocorrência, elas aparecem em ordem. */
                 showNextPostMatchSquadAlert();
             }
@@ -217,12 +225,20 @@ public class ClubManagementScreen implements Screen {
             .width(620f)
             .center();
 
-        TextButton button = ScreenUI.createPrimaryButton(
-            game.skin,
-            "REVISAR ELENCO"
+        TextButton continueButton = ScreenUI.createInteractiveButton(
+            "CONTINUAR NO ELENCO",
+            game.skin
         );
-        button.getLabel().setFontScale(0.57f);
-        dialog.button(button, true);
+        continueButton.getLabel().setFontScale(0.54f);
+
+        TextButton lineupButton = ScreenUI.createPrimaryButton(
+            game.skin,
+            "AJUSTAR ESCALAÇÃO"
+        );
+        lineupButton.getLabel().setFontScale(0.55f);
+
+        dialog.button(continueButton, false);
+        dialog.button(lineupButton, true);
         dialog.show(stage);
     }
 
