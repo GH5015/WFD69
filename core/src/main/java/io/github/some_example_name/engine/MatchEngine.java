@@ -185,13 +185,13 @@ public class MatchEngine {
         double totalRisk = fatigueRisk * mods.fatigueMultiplier;
 
         if (random.nextDouble() < totalRisk || random.nextDouble() < 0.35) {
-            int gamesOut = 1 + random.nextInt(5);
-            victim.setInjuryDuration(gamesOut);
+            int daysOut = 3 + random.nextInt(26);
+            victim.setInjuryDays(daysOut);
             club.removeUnavailablePlayersFromStartingXI();
 
             return new MatchEvent(
                 minute,
-                "LESÃO! " + victim.getName() + " (" + club.getName() + ") sente dores musculares e precisa deixar o gramado! (Fora por " + gamesOut + " jogos)",
+                "LESÃO! " + victim.getName() + " (" + club.getName() + ") sente dores musculares e precisa deixar o gramado! (Fora por " + daysOut + " dias)",
                 "LESIONADO",
                 isHomeTeam
             );
@@ -431,14 +431,6 @@ public class MatchEngine {
                 p.decreaseSuspension();
             }
 
-            if (
-                p.isInjured() &&
-                    p.getInjuryDuration() > 0 &&
-                    !p.wasInjuredInCurrentMatch()
-            ) {
-                p.decreaseInjury();
-            }
-
             p.resetMatchStats();
         }
 
@@ -449,14 +441,6 @@ public class MatchEngine {
                     p.isSuspended()
             ) {
                 p.decreaseSuspension();
-            }
-
-            if (
-                p.isInjured() &&
-                    p.getInjuryDuration() > 0 &&
-                    !p.wasInjuredInCurrentMatch()
-            ) {
-                p.decreaseInjury();
             }
 
             p.resetMatchStats();
