@@ -123,21 +123,21 @@ public class SquadDevelopmentScreen implements Screen {
 
     private Table createInjurySummary() {
         List<Player> injured = getInjuredPlayers();
-        int nextMatch = 0;
+        int imminent = 0;
         int shortTerm = 0;
         int longTerm = 0;
 
         for (Player player : injured) {
-            if (player.getInjuryDuration() <= 1) nextMatch++;
-            else if (player.getInjuryDuration() <= 3) shortTerm++;
+            if (player.getInjuryDaysRemaining() <= 2) imminent++;
+            else if (player.getInjuryDaysRemaining() <= 7) shortTerm++;
             else longTerm++;
         }
 
         Table summary = new Table();
         summary.add(status("NO DEPARTAMENTO MÉDICO", String.valueOf(injured.size()), injured.isEmpty() ? ScreenUI.SUCCESS : ScreenUI.DANGER)).growX().uniformX().padRight(8f);
-        summary.add(status("VOLTA NO PRÓXIMO JOGO", String.valueOf(nextMatch), nextMatch > 0 ? ScreenUI.SUCCESS : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
-        summary.add(status("ATÉ 3 JOGOS", String.valueOf(shortTerm), shortTerm > 0 ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
-        summary.add(status("4+ JOGOS", String.valueOf(longTerm), longTerm > 0 ? ScreenUI.DANGER : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("ATÉ 2 DIAS", String.valueOf(imminent), imminent > 0 ? ScreenUI.SUCCESS : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("ATÉ 7 DIAS", String.valueOf(shortTerm), shortTerm > 0 ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("8+ DIAS", String.valueOf(longTerm), longTerm > 0 ? ScreenUI.DANGER : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
         summary.add(status("DISPONIBILIDADE", injured.isEmpty() ? "ELENCO COMPLETO" : "ATENÇÃO MÉDICA", injured.isEmpty() ? ScreenUI.SUCCESS : StyleFactory.SOFT_YELLOW)).growX().uniformX();
         return summary;
     }
@@ -191,8 +191,8 @@ public class SquadDevelopmentScreen implements Screen {
         row.add(ScreenUI.createBadge(game.skin, player.getPosition(), StyleFactory.getPositionColor(player.getPosition()))).width(78f).height(27f);
         row.add(value(String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW)).width(75f);
         row.add(value(injuryType.toUpperCase(), ScreenUI.DANGER)).width(205f);
-        row.add(value(returnEstimate(player.getInjuryDuration()), StyleFactory.SOFT_YELLOW)).width(160f);
-        row.add(value(injuryStatus(player.getInjuryDuration()), injuryStatusColor(player.getInjuryDuration()))).width(160f);
+        row.add(value(returnEstimate(player.getInjuryDaysRemaining()), StyleFactory.SOFT_YELLOW)).width(160f);
+        row.add(value(injuryStatus(player.getInjuryDaysRemaining()), injuryStatusColor(player.getInjuryDaysRemaining()))).width(160f);
         row.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 new PlayerDevelopmentDialog(game.skin, player, club).show(stage);
@@ -210,16 +210,16 @@ public class SquadDevelopmentScreen implements Screen {
         return injured;
     }
 
-    private String returnEstimate(int matches) {
-        return matches <= 1 ? "PRÓXIMO JOGO" : matches + " JOGOS";
+    private String returnEstimate(int days) {
+        return days == 1 ? "1 DIA" : days + " DIAS";
     }
 
-    private String injuryStatus(int matches) {
-        return matches <= 1 ? "RETORNO IMINENTE" : matches <= 3 ? "EM RECUPERAÇÃO" : "EM TRATAMENTO";
+    private String injuryStatus(int days) {
+        return days <= 2 ? "RETORNO IMINENTE" : days <= 7 ? "EM RECUPERAÇÃO" : "EM TRATAMENTO";
     }
 
-    private Color injuryStatusColor(int matches) {
-        return matches <= 1 ? ScreenUI.SUCCESS : matches <= 3 ? StyleFactory.SOFT_YELLOW : ScreenUI.DANGER;
+    private Color injuryStatusColor(int days) {
+        return days <= 2 ? ScreenUI.SUCCESS : days <= 7 ? StyleFactory.SOFT_YELLOW : ScreenUI.DANGER;
     }
 
     private Table createSummary() {
