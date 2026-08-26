@@ -1754,30 +1754,37 @@ public class MatchScreen implements Screen {
                                     event
                                 );
 
-                                if (
+                                boolean injuryNeedsTactics =
                                     shouldOpenInjuryTactics(
                                         event
-                                    )
-                                ) {
+                                    );
 
+                                boolean redCardNeedsTactics =
+                                    shouldOpenRedCardTactics(
+                                        event
+                                    );
+
+                                if (injuryNeedsTactics) {
                                     awaitingInjurySubstitution =
                                         true;
+                                }
 
-                                    openTacticsDialog();
-
-                                    return;
+                                if (redCardNeedsTactics) {
+                                    awaitingRedCardTactics =
+                                        true;
                                 }
 
                                 if (
-                                    shouldOpenRedCardTactics(
+                                    isCriticalMatchEvent(
                                         event
                                     )
                                 ) {
 
-                                    awaitingRedCardTactics =
-                                        true;
-
-                                    openTacticsDialog();
+                                    showCriticalEventPopup(
+                                        event,
+                                        injuryNeedsTactics ||
+                                            redCardNeedsTactics
+                                    );
 
                                     return;
                                 }
@@ -1815,6 +1822,249 @@ public class MatchScreen implements Screen {
                 },
                 delay
             );
+    }
+
+    // =========================================================
+    // ALERTAS CRÍTICOS: LESÃO E EXPULSÃO
+    // =========================================================
+
+    private boolean isCriticalMatchEvent(
+        MatchEvent event
+    ) {
+        return event != null &&
+            (
+                "LESIONADO".equals(
+                    event.type
+                ) ||
+                isRedCardEvent(
+                    event
+                )
+            );
+    }
+
+    private boolean isRedCardEvent(
+        MatchEvent event
+    ) {
+        if (
+            event == null ||
+                !"CARTAO".equals(
+                    event.type
+                )
+        ) {
+            return false;
+        }
+
+        String description =
+            event.description != null
+                ? event.description.toUpperCase()
+                : "";
+
+        return description.contains(
+            "VERMELHO"
+        ) || description.contains(
+            "EXPULSO"
+        );
+    }
+
+    /**
+     * Pausa a simulação e informa qualquer evento grave. Para o clube do
+     * usuário, o alerta oferece uma entrada direta para a tela de táticas.
+     */
+    private void showCriticalEventPopup(
+        final MatchEvent event,
+        final boolean needsTactics
+    ) {
+        paused = true;
+        goalFrozen = false;
+
+        if (pauseButton != null) {
+            pauseButton.setText(
+                "INTERRUPÇÃO"
+            );
+        }
+
+        if (matchStateLabel != null) {
+            matchStateLabel.setText(
+                "OCORRÊNCIA"
+            );
+            matchStateLabel.setColor(
+                "LESIONADO".equals(event.type)
+                    ? ScreenUI.WARNING
+                    : ScreenUI.DANGER
+            );
+        }
+
+        Dialog dialog = new Dialog(
+            "",
+            game.skin
+        ) {
+            @Override
+            protected void result(
+                Object object
+            ) {
+                if (
+                    Boolean.TRUE.equals(
+                        object
+                    ) && needsTactics
+                ) {
+                    openTacticsDialog();
+                    return;
+                }
+
+                resumeAfterCriticalAlert();
+            }
+        };
+
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.setResizable(false);
+
+        boolean injury = "LESIONADO".equals(event.type);
+        Color accent = injury
+            ? ScreenUI.WARNING
+            : ScreenUI.DANGER;
+
+        Table content = dialog.getContentTable();
+        content.clear();
+        content.background(
+            StyleFactory.createMetallicBoard(
+                720,
+                360,
+                Color.valueOf("151A17")
+            )
+        );
+        content.pad(20f, 30f, 16f, 30f);
+
+        Label title = new Label(
+            injury
+                ? "LESÃO!"
+                : "CARTÃO VERMELHO!",
+            game.skin,
+            "font-title"
+        );
+        title.setFontScale(0.96f);
+        title.setColor(accent);
+        title.setAlignment(Align.center);
+
+        Label minute = new Label(
+            "MINUTO " + event.minute + "'",
+            game.skin,
+            "font-bold"
+        );
+        minute.setFontScale(0.47f);
+        minute.setColor(StyleFactory.SOFT_YELLOW);
+        minute.setAlignment(Align.center);
+
+        Club affectedClub = event.isHomeTeam
+            ? match.getHomeTeam()
+            : match.getAwayTeam();
+
+        Label club = new Label(
+            affectedClub != null
+                ? affectedClub.getName().toUpperCase()
+                : "PARTIDA",
+            game.skin,
+            "font-bold"
+        );
+        club.setFontScale(0.52f);
+        club.setColor(StyleFactory.CREME_AGED);
+        club.setAlignment(Align.center);
+
+        Label description = new Label(
+            event.description != null
+                ? event.description
+                : "Ocorrência grave durante a partida.",
+            game.skin
+        );
+        description.setFontScale(0.55f);
+        description.setColor(Color.WHITE);
+        description.setWrap(true);
+        description.setAlignment(Align.center);
+
+        content.add(title)
+            .width(640f)
+            .center()
+            .padBottom(5f)
+            .row();
+
+        content.add(minute)
+            .width(640f)
+            .center()
+            .padBottom(9f)
+            .row();
+
+        content.add(club)
+            .width(640f)
+            .center()
+            .padBottom(12f)
+            .row();
+
+        content.add(description)
+            .width(610f)
+            .center()
+            .padBottom(needsTactics ? 13f : 6f)
+            .row();
+
+        if (needsTactics) {
+            Label hint = new Label(
+                "Seu time pode precisar de uma alteração na escalação.",
+                game.skin
+            );
+            hint.setFontScale(0.48f);
+            hint.setColor(ScreenUI.MUTED_TEXT);
+            hint.setAlignment(Align.center);
+
+            content.add(hint)
+                .width(610f)
+                .center()
+                .padBottom(4f);
+        }
+
+        TextButton continueButton =
+            ScreenUI.createInteractiveButton(
+                "CONTINUAR",
+                game.skin
+            );
+        continueButton.getLabel().setFontScale(0.56f);
+        dialog.button(continueButton, false);
+
+        if (needsTactics) {
+            TextButton tacticsButton =
+                ScreenUI.createPrimaryButton(
+                    game.skin,
+                    "AJUSTAR TÁTICAS"
+                );
+            tacticsButton.getLabel().setFontScale(0.55f);
+            dialog.button(tacticsButton, true);
+        }
+
+        dialog.show(stage);
+    }
+
+    private void resumeAfterCriticalAlert() {
+        awaitingInjurySubstitution = false;
+        awaitingRedCardTactics = false;
+        paused = false;
+
+        if (pauseButton != null) {
+            pauseButton.setText(
+                "PAUSAR"
+            );
+        }
+
+        if (matchStateLabel != null) {
+            matchStateLabel.setText(
+                "EM JOGO"
+            );
+            matchStateLabel.setColor(
+                ScreenUI.SUCCESS
+            );
+        }
+
+        scheduleNextMinute(
+            baseInterval /
+                timeScale
+        );
     }
 
     // =========================================================
@@ -1948,15 +2198,8 @@ public class MatchScreen implements Screen {
             return false;
         }
 
-        String description =
-            event.description != null
-                ? event.description.toUpperCase()
-                : "";
-
-        return description.contains(
-            "VERMELHO"
-        ) || description.contains(
-            "EXPULSO"
+        return isRedCardEvent(
+            event
         );
     }
 
