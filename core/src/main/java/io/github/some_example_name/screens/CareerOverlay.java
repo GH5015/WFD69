@@ -190,15 +190,18 @@ public final class CareerOverlay
                     Screen screenBefore =
                         game.getScreen();
 
-                    advanceOneDay(
-                        game,
-                        club
-                    );
+                    boolean summaryShown =
+                        advanceOneDayAndShowRoundSummary(
+                            game,
+                            club,
+                            getStage()
+                        );
 
                     Screen screenAfter =
                         game.getScreen();
 
                     if (
+                        !summaryShown &&
                         screenBefore ==
                             screenAfter
                     ) {
@@ -773,10 +776,40 @@ public final class CareerOverlay
     // AVANÇO DE DATA
     // =========================================================
 
+    /**
+     * Compatibilidade para fluxos sem Stage (por exemplo, a Off Season).
+     * Na carreira regular o overload abaixo recebe o Stage e abre o resumo.
+     */
     public static void advanceOneDay(
         Main game,
         Club club
     ) {
+        advanceOneDayAndShowRoundSummary(
+            game,
+            club,
+            null
+        );
+    }
+
+    /**
+     * Avança a carreira e, quando a rodada anterior terminou, abre seu
+     * resumo no clique seguinte de "Avançar dia". O retorno impede que a
+     * tela atual seja reconstruída por cima do diálogo recém-criado.
+     */
+    public static boolean advanceOneDayAndShowRoundSummary(
+        Main game,
+        Club club,
+        Stage stage
+    ) {
+        if (
+            RoundSummaryDialog.showPending(
+                stage,
+                game,
+                club
+            )
+        ) {
+            return true;
+        }
 
         Match userMatch =
             game.league
@@ -804,7 +837,7 @@ public final class CareerOverlay
                     club
                 );
 
-                return;
+                return false;
             }
 
             game.league
@@ -814,7 +847,7 @@ public final class CareerOverlay
                 game.setScreen(new SeasonSummaryScreen(game, club));
             }
 
-            return;
+            return false;
         }
 
         // =====================================================
@@ -836,7 +869,7 @@ public final class CareerOverlay
                 )
             );
 
-            return;
+            return false;
         }
 
         // =====================================================
@@ -870,6 +903,17 @@ public final class CareerOverlay
         // =====================================================
 
         processDueMatches(
+            game,
+            club
+        );
+
+        /*
+         * Se a última partida da rodada foi simulada agora, a League acabou
+         * de enfileirar o resumo. Como este é o clique solicitado pelo
+         * jogador, ele deve aparecer imediatamente, sem exigir outro avanço.
+         */
+        return RoundSummaryDialog.showPending(
+            stage,
             game,
             club
         );
