@@ -25,6 +25,7 @@ O ponto de entrada da aplicação é `io.github.some_example_name.lwjgl3.Lwjgl3L
 `Main` é a composição da partida/carreira. Ele inicializa e mantém, entre outros:
 
 - `database`, `league` e `playerClub`;
+- alertas pós-partida do elenco, mantidos em `Main` até serem exibidos na `ClubManagementScreen`;
 - `matchEngine`, `seasonSimulator`, `playoffSimulator`, `developmentEngine` e `freeAgencyService`;
 - `draftScoutManager` e `draftClass`.
 
