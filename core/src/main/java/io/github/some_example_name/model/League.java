@@ -17,6 +17,7 @@ public class League {
     private final List<TradeRecord> tradeHistory = new ArrayList<>();
     private final List<Club> draftLotteryOrder = new ArrayList<>();
     private final List<DraftSelection> draftSelections = new ArrayList<>();
+    private final List<RetirementRecord> seasonRetirements = new ArrayList<>();
     private boolean draftFinalized;
     private String finalHostCity;
     private boolean offseasonTransitionProcessed;
@@ -35,6 +36,7 @@ public class League {
         this.playoffSeeds.clear();
         this.pendingRoundSummaryDate = null;
         this.displayedRoundSummaryDateKeys.clear();
+        this.seasonRetirements.clear();
     }
     public League(String name, int initialSeason) {
         this.name = name;
@@ -144,6 +146,11 @@ public class League {
     }
 
     public int getCurrentSeason() { return currentSeason; }
+
+    /** Aposentadorias processadas na transição mais recente para a Off Season. */
+    public List<RetirementRecord> getSeasonRetirements() {
+        return new ArrayList<>(seasonRetirements);
+    }
 
     public Match getNextMatch() {
         return (currentMatchIndex < schedule.size()) ? schedule.get(currentMatchIndex) : null;
@@ -455,6 +462,7 @@ public class League {
         this.playoffSeeds.clear();
         this.draftLotteryOrder.clear();
         this.draftSelections.clear();
+        this.seasonRetirements.clear();
         this.draftFinalized = false;
         this.offseasonTransitionProcessed = false;
         DraftOrderService.initializeDraftPicks(this, currentSeason + 1);
@@ -464,19 +472,55 @@ public class League {
     private void processOffseasonTransition() {
         if (offseasonTransitionProcessed) return;
         offseasonTransitionProcessed = true;
+        seasonRetirements.clear();
+
         for (Club club : clubs) {
             club.getFinance().applyMonthlyBalance();
             List<Player> retiring = new ArrayList<>();
+
             for (Player player : club.getSquad()) {
                 player.recover(30);
                 player.setAge(player.getAge() + 1);
-                if (player.getAge() >= 40 && club.getSquad().size() - retiring.size() > TradeRulesValidator.MIN_ROSTER_SIZE) {
+
+                if (
+                    shouldRetire(player) &&
+                    club.getSquad().size() - retiring.size() > TradeRulesValidator.MIN_ROSTER_SIZE
+                ) {
                     retiring.add(player);
                 }
             }
-            for (Player player : retiring) player.transferTo(null);
+
+            for (Player player : retiring) {
+                retirePlayer(club, player);
+            }
         }
         DraftOrderService.initializeDraftPicks(this, currentSeason + 1);
+    }
+
+    /**
+     * A partir dos 33 anos, a probabilidade aumenta de forma acelerada:
+     * 33 anos ≈ 1%, 35 ≈ 11%, 37 ≈ 31%, 39 ≈ 61%, 40 ≈ 80%.
+     * Aos 41 anos ou mais a aposentadoria é certa.
+     */
+    private boolean shouldRetire(Player player) {
+        if (player == null || player.getAge() <= 32) return false;
+        if (player.getAge() >= 41) return true;
+
+        int yearsPastThirtyTwo = player.getAge() - 32;
+        double chance = Math.min(0.95d, 0.0125d * yearsPastThirtyTwo * yearsPastThirtyTwo);
+        String id = player.getId() != null ? player.getId() : player.getName();
+        long seed = ((long) currentSeason * 1_000_003L) ^ (id != null ? id.hashCode() : 0);
+        return new Random(seed).nextDouble() < chance;
+    }
+
+    private void retirePlayer(Club club, Player player) {
+        if (club == null || player == null) return;
+
+        String lastClubName = club.getName();
+        club.getStartingXI().remove(player);
+        club.getTacticsMap().entrySet().removeIf(entry -> entry.getValue() == player);
+        player.transferTo(null);
+        seasonRetirements.add(new RetirementRecord(player, lastClubName, currentSeason));
     }
 
     public Date getLastProcessedDate() { return lastProcessedDate; }
