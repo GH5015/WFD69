@@ -1100,8 +1100,8 @@ public class PreMatchScreen implements Screen {
             String reason =
                 player.isInjured()
                     ? "LES • " +
-                    player.getInjuryDuration() +
-                    "J"
+                    player.getInjuryDaysRemaining() +
+                    "D"
                     : "SUS • " +
                     player.getSuspendedMatches() +
                     "J";
