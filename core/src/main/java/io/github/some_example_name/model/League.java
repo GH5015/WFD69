@@ -21,11 +21,20 @@ public class League {
     private String finalHostCity;
     private boolean offseasonTransitionProcessed;
 
+    /*
+     * Uma rodada só é exibida quando o usuário voltar a avançar o tempo.
+     * A chave diária impede que o mesmo resumo reapareça ao trocar de tela.
+     */
+    private Date pendingRoundSummaryDate;
+    private final Set<Long> displayedRoundSummaryDateKeys = new HashSet<>();
+
     public void nextSeason() {
         this.currentSeason++;
         this.currentStage = "REGULAR";
         this.playoffSeries.clear();
         this.playoffSeeds.clear();
+        this.pendingRoundSummaryDate = null;
+        this.displayedRoundSummaryDateKeys.clear();
     }
     public League(String name, int initialSeason) {
         this.name = name;
@@ -123,6 +132,8 @@ public class League {
     public void setSchedule(List<Match> schedule) {
         this.schedule = schedule;
         this.currentMatchIndex = 0;
+        this.pendingRoundSummaryDate = null;
+        this.displayedRoundSummaryDateKeys.clear();
         if (!schedule.isEmpty()) {
             this.lastProcessedDate = schedule.get(0).getDate();
             Calendar firstDay = Calendar.getInstance();
@@ -148,6 +159,84 @@ public class League {
         }
         int matchesPerRound = Math.max(1, clubs.size() / 2);
         return (playedCount / matchesPerRound) + 1;
+    }
+
+    /** Retorna as partidas da fase regular marcadas para o mesmo dia. */
+    public List<Match> getRegularMatchesOnDate(Date date) {
+        List<Match> matches = new ArrayList<>();
+        if (date == null) return matches;
+
+        for (Match match : schedule) {
+            if ("REGULAR".equals(match.getStage()) && sameCalendarDay(match.getDate(), date)) {
+                matches.add(match);
+            }
+        }
+        return matches;
+    }
+
+    /** Número estável da rodada, mesmo depois que a agenda já avançou. */
+    public int getRoundNumberForDate(Date date) {
+        if (date == null) return 0;
+
+        List<Date> dates = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        for (Match match : schedule) {
+            if (!"REGULAR".equals(match.getStage()) || match.getDate() == null) continue;
+            long key = calendarDayKey(match.getDate());
+            if (seen.add(key)) dates.add(match.getDate());
+        }
+        Collections.sort(dates);
+
+        for (int index = 0; index < dates.size(); index++) {
+            if (sameCalendarDay(dates.get(index), date)) return index + 1;
+        }
+        return 0;
+    }
+
+    public boolean hasPendingRoundSummary() {
+        return pendingRoundSummaryDate != null;
+    }
+
+    /**
+     * Consome a pendência apenas quando o diálogo efetivamente vai aparecer.
+     * Dessa forma, mudar de tela não descarta um resumo ainda não mostrado.
+     */
+    public Date consumePendingRoundSummaryDate() {
+        if (pendingRoundSummaryDate == null) return null;
+
+        Date date = new Date(pendingRoundSummaryDate.getTime());
+        displayedRoundSummaryDateKeys.add(calendarDayKey(date));
+        pendingRoundSummaryDate = null;
+        return date;
+    }
+
+    private void queueRoundSummaryIfComplete(Date roundDate) {
+        if (roundDate == null || pendingRoundSummaryDate != null) return;
+
+        long key = calendarDayKey(roundDate);
+        if (displayedRoundSummaryDateKeys.contains(key)) return;
+
+        List<Match> roundMatches = getRegularMatchesOnDate(roundDate);
+        if (roundMatches.isEmpty()) return;
+
+        for (Match match : roundMatches) {
+            if (!match.isPlayed()) return;
+        }
+
+        pendingRoundSummaryDate = new Date(roundDate.getTime());
+    }
+
+    private boolean sameCalendarDay(Date first, Date second) {
+        return first != null && second != null &&
+            calendarDayKey(first) == calendarDayKey(second);
+    }
+
+    private long calendarDayKey(Date date) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        return calendar.get(Calendar.YEAR) * 10000L +
+            (calendar.get(Calendar.MONTH) + 1) * 100L +
+            calendar.get(Calendar.DAY_OF_MONTH);
     }
 
     // Retorna as partidas pertencentes à rodada/data do próximo confronto
@@ -182,6 +271,10 @@ public class League {
             lastProcessedDate = completedMatch.getDate();
             if (currentDate == null || currentDate.before(lastProcessedDate)) currentDate = lastProcessedDate;
             currentMatchIndex++;
+
+            if (completedMatch.isPlayed() && "REGULAR".equals(completedMatch.getStage())) {
+                queueRoundSummaryIfComplete(completedMatch.getDate());
+            }
 
             if ("PLAYOFFS".equals(currentStage) && completedMatch.isPlayed()) {
                 advancePlayoffBracket(completedMatch);
@@ -356,6 +449,8 @@ public class League {
         // Reinicia a agenda mantendo o calendário zerado
         this.currentMatchIndex = 0;
         this.schedule.clear();
+        this.pendingRoundSummaryDate = null;
+        this.displayedRoundSummaryDateKeys.clear();
         this.playoffSeries.clear();
         this.playoffSeeds.clear();
         this.draftLotteryOrder.clear();
