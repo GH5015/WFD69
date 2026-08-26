@@ -39,6 +39,7 @@ public class Player {
 
     // Sistema de Suspensão e Lesão
     private int suspendedMatches = 0;
+    // Nome preservado para compatibilidade com carreiras salvas; a unidade agora é dia.
     private int injuredMatches = 0;
     private String injuryType = null;
     private boolean injuredInCurrentMatch = false;
@@ -442,27 +443,47 @@ public class Player {
     public boolean isSuspended() { return suspendedMatches > 0; }
     public int getSuspendedMatches() { return suspendedMatches; }
 
-    // --- SISTEMA DE LESÃO ---
-    public void injure(int matches, String type) {
-        this.injuredMatches = Math.max(0, matches);
+    // --- SISTEMA DE LESÃO (prazo sempre calculado em dias) ---
+    public void injureForDays(int days, String type) {
+        this.injuredMatches = Math.max(0, days);
         this.injuryType = type;
         this.injuredInCurrentMatch = this.injuredMatches > 0;
     }
 
-    public void setInjuryDuration(int matches) {
-        injure(matches, "Muscular");
+    public void setInjuryDays(int days) {
+        injureForDays(days, "Muscular");
     }
 
-    public int getInjuryDuration() {
+    public int getInjuryDaysRemaining() {
         return injuredMatches;
     }
 
-    public void decreaseInjury() { this.injuredMatches = Math.max(0, this.injuredMatches - 1); }
+    public void recoverFromInjury(int days) {
+        if (days <= 0 || injuredMatches <= 0) return;
+        this.injuredMatches = Math.max(0, this.injuredMatches - days);
+        if (this.injuredMatches == 0) this.injuryType = null;
+    }
+
+    public void advanceInjuryRecoveryDay() {
+        recoverFromInjury(1);
+    }
+
     public boolean isInjured() { return injuredMatches > 0; }
     public boolean wasInjuredInCurrentMatch() { return injuredInCurrentMatch; }
-    public int getInjuredMatches() { return injuredMatches; }
+    public int getInjuredDays() { return injuredMatches; }
     public String getInjuryType() { return injuryType; }
     public boolean canPlay() { return !isSuspended() && !isInjured(); }
+
+    /** @deprecated Use injureForDays(int, String). */
+    @Deprecated public void injure(int days, String type) { injureForDays(days, type); }
+    /** @deprecated Use setInjuryDays(int). */
+    @Deprecated public void setInjuryDuration(int days) { setInjuryDays(days); }
+    /** @deprecated Use getInjuryDaysRemaining(). */
+    @Deprecated public int getInjuryDuration() { return getInjuryDaysRemaining(); }
+    /** @deprecated Use advanceInjuryRecoveryDay(). */
+    @Deprecated public void decreaseInjury() { advanceInjuryRecoveryDay(); }
+    /** @deprecated Use getInjuredDays(). */
+    @Deprecated public int getInjuredMatches() { return getInjuredDays(); }
 
     // Getters & Setters
     public Club getCurrentClub() { return currentClub; }
@@ -557,6 +578,7 @@ public class Player {
         this.seasonRedCards = 0;
         this.suspendedMatches = 0;
         this.injuredMatches = 0;
+        this.injuryType = null;
         this.fatigue = 100;
     }
     public int getMatchRedCards() {
