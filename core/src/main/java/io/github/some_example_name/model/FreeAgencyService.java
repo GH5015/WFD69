@@ -85,7 +85,8 @@ public class FreeAgencyService {
         public Offer getOffer() { return offer; }
     }
 
-    private static final int MAX_SQUAD_SIZE = 26;
+    private static final int MIN_SQUAD_SIZE = TradeRulesValidator.MIN_ROSTER_SIZE;
+    private static final int MAX_SQUAD_SIZE = TradeRulesValidator.MAX_ROSTER_SIZE;
     private static final int MARKET_TARGET_SIZE = 50;
     private static final String[] MARKET_NATIONALITIES = {
         "Brasil", "Argentina", "Uruguai", "Chile", "Colômbia", "México",
@@ -342,6 +343,118 @@ public class FreeAgencyService {
 
     private void collectExpiredPlayers() {
         releaseExpiredContractsAtOffseasonStart();
+    }
+
+    /**
+     * Barreira obrigatória para a virada de temporada. Todos os clubes,
+     * inclusive o controlado pelo usuário, entram na temporada com 23–26
+     * atletas. A Free Agency cobre qualquer lacuna que reste após as trocas
+     * e negociações da Off Season.
+     */
+    public int enforceRosterLimitsForNewSeason() {
+        if (league == null) return 0;
+
+        collectExpiredPlayers();
+        int moves = 0;
+
+        // Elencos acima do teto liberam as opções menos necessárias ao mercado.
+        for (Club club : league.getClubs()) {
+            while (club.getSquad().size() > MAX_SQUAD_SIZE) {
+                Player surplus = selectSurplusPlayer(club);
+                if (surplus == null) break;
+                releasePlayerToFreeAgency(club, surplus);
+                moves++;
+            }
+        }
+
+        // A cada clube com déficit, garante mercado suficiente e contrata uma
+        // opção que prioriza a posição mais carente.
+        for (Club club : league.getClubs()) {
+            while (club.getSquad().size() < MIN_SQUAD_SIZE) {
+                ensureMarketDepth();
+                Player signing = selectBestRosterFill(club);
+                if (signing == null) break;
+
+                signing.transferTo(club);
+                signing.renewContract(
+                    getRequestedAnnualSalary(signing),
+                    Math.max(1, getPreferredYears(signing)),
+                    league.getCurrentSeason()
+                );
+                signing.setTradeBlockedDays(60);
+                freeAgents.remove(signing);
+                moves++;
+            }
+        }
+
+        return moves;
+    }
+
+    private void releasePlayerToFreeAgency(Club club, Player player) {
+        if (club == null || player == null) return;
+        club.getStartingXI().remove(player);
+        club.getTacticsMap().entrySet().removeIf(entry -> entry.getValue() == player);
+        player.transferTo(null);
+        if (!freeAgents.contains(player)) freeAgents.add(player);
+    }
+
+    private Player selectBestRosterFill(Club club) {
+        Player best = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Player candidate : freeAgents) {
+            if (candidate == null || candidate.getCurrentClub() != null) continue;
+            int score = rosterNeedScore(club, candidate);
+            if (
+                best == null ||
+                score > bestScore ||
+                (score == bestScore && candidate.getOverall() > best.getOverall())
+            ) {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private Player selectSurplusPlayer(Club club) {
+        Player surplus = null;
+        int highestReleaseScore = Integer.MIN_VALUE;
+
+        for (Player player : club.getSquad()) {
+            int roleCount = countRole(club, role(player.getPosition()));
+            int target = targetRoleCount(role(player.getPosition()));
+            int releaseScore = Math.max(0, roleCount - target) * 1_000
+                - player.getOverall() * 10
+                + player.getAge();
+
+            if (surplus == null || releaseScore > highestReleaseScore) {
+                surplus = player;
+                highestReleaseScore = releaseScore;
+            }
+        }
+        return surplus;
+    }
+
+    private int rosterNeedScore(Club club, Player candidate) {
+        String candidateRole = role(candidate.getPosition());
+        int deficit = Math.max(0, targetRoleCount(candidateRole) - countRole(club, candidateRole));
+        return deficit * 1_000 + candidate.getOverall() * 10 + candidate.getPotential() - candidate.getAge();
+    }
+
+    private int countRole(Club club, String targetRole) {
+        int count = 0;
+        for (Player player : club.getSquad()) {
+            if (targetRole.equals(role(player.getPosition()))) count++;
+        }
+        return count;
+    }
+
+    private int targetRoleCount(String role) {
+        if ("GK".equals(role)) return 2;
+        if ("DEF".equals(role)) return 8;
+        if ("MID".equals(role)) return 7;
+        return 6;
     }
 
     /** Mantém uma lista inicial de cinquenta nomes sem inflar a qualidade do mercado. */
