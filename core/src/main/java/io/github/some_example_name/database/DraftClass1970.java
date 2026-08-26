@@ -23,7 +23,6 @@ public class DraftClass1970 {
         players.add(createPlayer("Deyna", "Polônia", Position.CAM, Position.CM, 22, 78, 88, 44, 69, 78, 88, 20000));
         players.add(createPlayer("Haan", "Holanda", Position.CDM, Position.CB, 21, 65, 78, 67, 78, 65, 84, 15000));
         players.add(createPlayer("Jansen", "Holanda", Position.LB, Position.LM, 21, 61, 77, 73, 83, 67, 83, 14000));
-        players.add(createPlayer("Hölzenbein", "Alemanha", Position.CF, Position.CAM, 23, 76, 67, 39, 83, 73, 84, 16000));
         players.add(createPlayer("Chinaglia", "Itália", Position.ST, Position.CF, 23, 84, 55, 32, 89, 66, 85, 17000));
         players.add(createPlayer("Trésor", "França", Position.CB, Position.CDM, 20, 43, 62, 81, 84, 58, 87, 16000));
         players.add(createPlayer("Brooking", "Inglaterra", Position.CM, Position.CAM, 22, 66, 80, 42, 67, 76, 84, 15000));
