@@ -89,7 +89,7 @@ public class PlayerDetailsDialog extends Dialog {
         condition.add(ScreenUI.createSectionTitle(skin, "CONDIÇÃO ATUAL")).colspan(2).left().padBottom(7f).row();
         addData(condition, "MORAL", player.getMorale() + "/100", player.getMorale() >= 75 ? ScreenUI.SUCCESS : player.getMorale() >= 45 ? ScreenUI.WARNING : ScreenUI.DANGER);
         addData(condition, "FADIGA", player.getFatigue() + "%", player.getFatigue() >= 80 ? ScreenUI.SUCCESS : player.getFatigue() >= 50 ? ScreenUI.WARNING : ScreenUI.DANGER);
-        String status = player.isInjured() ? "LESIONADO • " + player.getInjuryDuration() + "J" : player.isSuspended() ? "SUSPENSO • " + player.getSuspendedMatches() + "J" : "DISPONÍVEL";
+        String status = player.isInjured() ? "LESIONADO • " + player.getInjuryDaysRemaining() + " dia" + (player.getInjuryDaysRemaining() == 1 ? "" : "s") : player.isSuspended() ? "SUSPENSO • " + player.getSuspendedMatches() + "J" : "DISPONÍVEL";
         addData(condition, "STATUS", status, player.canPlay() ? ScreenUI.SUCCESS : ScreenUI.DANGER);
         column.add(condition).growX().height(112f);
         return column;
