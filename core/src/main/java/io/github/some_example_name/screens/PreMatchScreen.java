@@ -118,6 +118,11 @@ public class PreMatchScreen implements Screen {
             stage
         );
 
+        /* A prévia precisa refletir a escalação que realmente entrará em
+         * campo. Antes, a recomposição da IA ocorria apenas na MatchScreen e
+         * esta tela ainda mostrava os buracos deixados por indisponíveis. */
+        game.matchEngine.prepareLineupsForPreview(match);
+
         buildUI();
     }
 
@@ -1100,8 +1105,8 @@ public class PreMatchScreen implements Screen {
             String reason =
                 player.isInjured()
                     ? "LES • " +
-                    player.getInjuryDuration() +
-                    "J"
+                    player.getInjuryDaysRemaining() +
+                    "D"
                     : "SUS • " +
                     player.getSuspendedMatches() +
                     "J";

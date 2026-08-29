@@ -18,6 +18,9 @@ import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.SeasonHistory;
+import io.github.some_example_name.model.StadiumRenovationPlan;
+import io.github.some_example_name.model.StaffMember;
+import io.github.some_example_name.model.StaffRole;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
@@ -1110,34 +1113,24 @@ public class ClubProfileScreen implements Screen {
         Table cards =
             new Table();
 
-        cards.add(
-            createInfrastructureCard(
-                "CENTRO DE TREINAMENTO",
-                3,
-                "Estrutura responsável pelo desenvolvimento técnico e físico."
-            )
-        ).grow().uniformX().padRight(10f);
+        StaffRole[] roles = {
+            StaffRole.COACH,
+            StaffRole.SCOUT,
+            StaffRole.DEVELOPMENT_DIRECTOR,
+            StaffRole.FITNESS_COACH,
+            StaffRole.DOCTOR
+        };
 
-        cards.add(
-            createInfrastructureCard(
-                "CATEGORIAS DE BASE",
-                2,
-                "Formação e descoberta de novos jogadores."
-            )
-        ).grow().uniformX().padRight(10f);
-
-        cards.add(
-            createInfrastructureCard(
-                "DEPARTAMENTO MÉDICO",
-                4,
-                "Recuperação física e tratamento de lesões."
-            )
-        ).grow().uniformX();
+        for (int i = 0; i < roles.length; i++) {
+            cards.add(
+                createStaffInfrastructureCard(roles[i])
+            ).grow().uniformX().padRight(i < roles.length - 1 ? 8f : 0f);
+        }
 
         root
             .add(cards)
             .growX()
-            .height(235f)
+            .height(220f)
             .padBottom(12f)
             .row();
 
@@ -1146,44 +1139,18 @@ public class ClubProfileScreen implements Screen {
 
         stadium.top();
 
-        stadium
-            .add(
-                ScreenUI.createSectionTitle(
-                    game.skin,
-                    "ESTÁDIO"
-                )
-            )
-            .left()
-            .colspan(2)
-            .padBottom(12f)
-            .row();
+        stadium.add(
+            ScreenUI.createSectionTitle(game.skin, "ESTÁDIO E REFORMAS")
+        ).left().colspan(2).padBottom(10f).row();
 
-        addInfoLine(
-            stadium,
-            "Nome",
-            club.getStadium()
-        );
-
-        addInfoLine(
-            stadium,
-            "Capacidade",
-            formatNumber(
-                club.getStadiumCapacity()
-            ) +
-                " pessoas"
-        );
-
-        addInfoLine(
-            stadium,
-            "Condição do gramado",
-            "Excelente"
-        );
-
-        addInfoLine(
-            stadium,
-            "Clube",
-            club.getName()
-        );
+        Table stadiumInfo = new Table();
+        stadiumInfo.top();
+        addInfoLine(stadiumInfo, "Nome", club.getStadium());
+        addInfoLine(stadiumInfo, "Capacidade atual", formatNumber(club.getStadiumCapacity()) + " pessoas");
+        addInfoLine(stadiumInfo, "Bilheteria mensal", money(club.getFinance().getTicketRevenue()));
+        addInfoLine(stadiumInfo, "Limite permitido", formatNumber(StadiumRenovationPlan.MAX_CAPACITY) + " pessoas");
+        stadium.add(stadiumInfo).growX().top().padRight(14f);
+        stadium.add(createRenovationStatus()).width(570f).growY();
 
         root
             .add(stadium)
@@ -1191,6 +1158,182 @@ public class ClubProfileScreen implements Screen {
             .row();
 
         return root;
+    }
+
+    private Table createRenovationStatus() {
+        Table box = ScreenUI.createSubtlePanel();
+        box.top();
+
+        if (club.isStadiumRenovationInProgress()) {
+            box.add(ScreenUI.createSectionTitle(game.skin, "OBRA EM ANDAMENTO"))
+                .left().colspan(2).padBottom(7f).row();
+            addInfoLine(box, "Projeto", club.getStadiumRenovationName());
+            addInfoLine(box, "Nova capacidade", formatNumber(club.getStadiumRenovationTargetCapacity()));
+            addInfoLine(box, "Prazo restante", club.getStadiumRenovationDaysRemaining() + " dias");
+            box.add(ScreenUI.createBlockProgress(
+                game.skin,
+                club.getStadiumRenovationProgress(),
+                18,
+                StyleFactory.GOLD
+            )).colspan(2).growX().height(18f).padTop(5f);
+            return box;
+        }
+
+        box.add(ScreenUI.createSectionTitle(game.skin, "PLANEJAMENTO DO ESTÁDIO"))
+            .left().padBottom(7f).row();
+        Label hint = ScreenUI.createSubtitle(
+            game.skin,
+            club.getStadiumCapacity() >= StadiumRenovationPlan.MAX_CAPACITY
+                ? "O estádio já atingiu a capacidade máxima permitida pela WFL."
+                : "Amplie a capacidade para aumentar bilheteria e o valor da franquia."
+        );
+        hint.setWrap(true);
+        box.add(hint).growX().height(44f).left().row();
+
+        TextButton renovate = ScreenUI.createPrimaryButton(
+            game.skin,
+            club.getStadiumCapacity() >= StadiumRenovationPlan.MAX_CAPACITY
+                ? "CAPACIDADE MÁXIMA"
+                : "PLANEJAR REFORMA"
+        );
+        boolean allowed = club.isUserControlled()
+            && club.getStadiumCapacity() < StadiumRenovationPlan.MAX_CAPACITY;
+        renovate.setDisabled(!allowed);
+        renovate.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                if (allowed) showRenovationOptions();
+            }
+        });
+        box.add(renovate).width(250f).height(45f).center().padTop(8f);
+        return box;
+    }
+
+    private void showRenovationOptions() {
+        final Dialog dialog = new Dialog("REFORMAS DO ESTÁDIO", game.skin);
+        Table content = dialog.getContentTable();
+        content.pad(10f);
+        Label cash = ScreenUI.createBoldValue(
+            game.skin,
+            "CAIXA DISPONÍVEL: " + money(club.getFinance().getBalance()),
+            ScreenUI.SUCCESS,
+            Align.center
+        );
+        content.add(cash).colspan(4).center().padBottom(12f).row();
+
+        content.add(optionHeader("PROJETO")).width(245f);
+        content.add(optionHeader("EXPANSÃO")).width(120f);
+        content.add(optionHeader("PRAZO / CUSTO")).width(190f);
+        content.add(optionHeader("AÇÃO")).width(155f).row();
+
+        for (final StadiumRenovationPlan plan : StadiumRenovationPlan.values()) {
+            boolean capacityAllowed = club.getStadiumCapacity() + plan.getAdditionalCapacity()
+                <= StadiumRenovationPlan.MAX_CAPACITY;
+            boolean affordable = club.getFinance().getBalance() >= plan.getCost();
+
+            Table description = new Table();
+            description.left();
+            Label title = ScreenUI.createBoldValue(
+                game.skin, plan.getDisplayName(), StyleFactory.SOFT_YELLOW, Align.left);
+            title.setFontScale(.52f);
+            description.add(title).left().row();
+            Label detail = ScreenUI.createSubtitle(game.skin, plan.getDescription());
+            detail.setWrap(true);
+            description.add(detail).width(235f).left().padTop(3f);
+            content.add(description).width(245f).height(72f).left();
+
+            content.add(ScreenUI.createBoldValue(
+                game.skin,
+                "+" + formatNumber(plan.getAdditionalCapacity()),
+                capacityAllowed ? ScreenUI.SUCCESS : ScreenUI.DANGER,
+                Align.center
+            )).width(120f);
+
+            content.add(ScreenUI.createBoldValue(
+                game.skin,
+                plan.getDurationDays() + " dias\n" + money(plan.getCost()),
+                affordable ? StyleFactory.CREME_AGED : ScreenUI.DANGER,
+                Align.center
+            )).width(190f);
+
+            TextButton choose = ScreenUI.createInteractiveButton(
+                !capacityAllowed ? "EXCEDE LIMITE" : !affordable ? "SEM CAIXA" : "ESCOLHER",
+                game.skin
+            );
+            choose.setDisabled(!capacityAllowed || !affordable);
+            choose.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event, float x, float y) {
+                    dialog.hide();
+                    showRenovationConfirmation(plan);
+                }
+            });
+            content.add(choose).width(150f).height(40f).row();
+        }
+
+        dialog.button("VOLTAR");
+        dialog.show(stage);
+    }
+
+    private Label optionHeader(String text) {
+        Label label = ScreenUI.createBoldValue(game.skin, text, ScreenUI.MUTED_TEXT, Align.center);
+        label.setFontScale(.45f);
+        return label;
+    }
+
+    private void showRenovationConfirmation(final StadiumRenovationPlan plan) {
+        final Dialog dialog = new Dialog("CONFIRMAR INVESTIMENTO", game.skin);
+        long additionalMonthlyRevenue = Math.round(plan.getAdditionalCapacity() * 46.6667d);
+        dialog.text(
+            plan.getDisplayName() + "\n\n" +
+            "Capacidade: " + formatNumber(club.getStadiumCapacity()) + " → " +
+                formatNumber(club.getStadiumCapacity() + plan.getAdditionalCapacity()) + "\n" +
+            "Prazo: " + plan.getDurationDays() + " dias\n" +
+            "Investimento: " + money(plan.getCost()) + "\n" +
+            "Receita mensal estimada: +" + money(additionalMonthlyRevenue) + "\n\n" +
+            "O valor será descontado imediatamente e a capacidade será liberada ao final da obra."
+        );
+        TextButton confirm = ScreenUI.createPrimaryButton(game.skin, "INICIAR REFORMA");
+        confirm.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                if (club.startStadiumRenovation(plan)) {
+                    dialog.hide();
+                    refreshUI();
+                }
+            }
+        });
+        dialog.button("CANCELAR");
+        dialog.button(confirm);
+        dialog.show(stage);
+    }
+
+    private Table createStaffInfrastructureCard(StaffRole role) {
+        Table card = ScreenUI.createPanel();
+        card.top();
+        StaffMember member = club.getStaffMember(role);
+
+        Label roleLabel = ScreenUI.createSectionTitle(game.skin, role.getLabel().toUpperCase());
+        roleLabel.setAlignment(Align.center);
+        roleLabel.setWrap(true);
+        card.add(roleLabel).width(250f).height(42f).center().row();
+
+        card.add(ScreenUI.createBoldValue(
+            game.skin,
+            member != null ? member.getName() : "CARGO VAGO",
+            StyleFactory.CREME_AGED,
+            Align.center
+        )).width(250f).center().padTop(7f).row();
+
+        card.add(createStarsWidget(member != null ? member.getEffectLevel() : 0))
+            .center().padTop(8f).row();
+
+        if (member != null) {
+            Label contract = ScreenUI.createSubtitle(
+                game.skin,
+                "Contrato até " + member.getContractEndYear() + "\n" + money(member.getAnnualSalary()) + " / ano"
+            );
+            contract.setAlignment(Align.center);
+            card.add(contract).center().padTop(8f);
+        }
+        return card;
     }
 
     // =========================================================
@@ -1245,73 +1388,6 @@ public class ClubProfileScreen implements Screen {
             .add(valueLabel)
             .center()
             .padTop(4f);
-
-        return card;
-    }
-
-    private Table createInfrastructureCard(
-        String title,
-        int rating,
-        String description
-    ) {
-
-        Table card =
-            ScreenUI.createPanel();
-
-        card.top();
-
-        Label titleLabel =
-            ScreenUI.createSectionTitle(
-                game.skin,
-                title
-            );
-
-        titleLabel.setAlignment(
-            Align.center
-        );
-
-        card
-            .add(titleLabel)
-            .center()
-            .padBottom(14f)
-            .row();
-
-        card
-            .add(
-                createStarsWidget(
-                    rating
-                )
-            )
-            .center()
-            .padBottom(14f)
-            .row();
-
-        Label desc =
-            new Label(
-                description,
-                game.skin
-            );
-
-        desc.setWrap(
-            true
-        );
-
-        desc.setAlignment(
-            Align.center
-        );
-
-        desc.setFontScale(
-            0.58f
-        );
-
-        desc.setColor(
-            ScreenUI.MUTED_TEXT
-        );
-
-        card
-            .add(desc)
-            .width(280f)
-            .center();
 
         return card;
     }
@@ -1669,6 +1745,13 @@ public class ClubProfileScreen implements Screen {
         return String.valueOf(
             value
         );
+    }
+
+    private String money(long value) {
+        if (value >= 1_000_000L) {
+            return String.format(Locale.US, "WFL$ %.1fM", value / 1_000_000d);
+        }
+        return String.format(Locale.US, "WFL$ %.0fK", value / 1_000d);
     }
 
     private Texture loadTextureOrNull(

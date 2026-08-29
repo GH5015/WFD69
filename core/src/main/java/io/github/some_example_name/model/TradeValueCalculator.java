@@ -9,64 +9,69 @@ public class TradeValueCalculator {
         return calculateTradeValue(player, -1);
     }
 
-    /** Overall domina o valor; o contrato é aplicado quando o ano é conhecido. */
+    /**
+     * Nota visual de 0–99. A negociação usa {@link #calculateMarketPoints}
+     * para não permitir que duas notas medianas sejam somadas como uma estrela.
+     */
     public static int calculateTradeValue(Player player, int currentSeasonYear) {
-        int ovrScore = calculateOvrScore(player.getOverall());
-        int ageScore = calculateAgeScore(player.getAge());
-        int potentialScore = calculatePotentialScore(player.getOverall(), player.getPotential());
-        int positionScore = calculatePositionScore(player.getPosition());
-        int contractScore = currentSeasonYear >= 0
-            ? calculateContractScore(player.getRemainingContractYears(currentSeasonYear))
-            : 70;
-
-        // OVR é o fator central do mercado: os demais critérios refinam o
-        // valor, mas não devem fazer um jogador bem inferior valer mais.
-        // OVR (76%) | Idade (9%) | Potencial (6%) | Posição (3%) | Contrato (6%)
-        double finalScore = (ovrScore * 0.76)
-            + (ageScore * 0.09)
-            + (potentialScore * 0.06)
-            + (positionScore * 0.03)
-            + (contractScore * 0.06);
-
-        return (int) Math.min(99, Math.max(10, Math.round(finalScore)));
+        long points = calculateMarketPoints(player, currentSeasonYear);
+        double normalized = 4d + 95d * (1d - Math.exp(-points / 310d));
+        return (int) Math.min(99, Math.max(3, Math.round(normalized)));
     }
 
-    private static int calculateOvrScore(int overall) {
-        // Jogadores de elite (85+) sobram exponencialmente em valor
-        if (overall >= 90) return 95 + (overall - 90);
-        if (overall >= 80) return 75 + (int) ((overall - 80) * 2.0);
-        if (overall >= 70) return 45 + (int) ((overall - 70) * 3.0);
-        return Math.max(10, overall - 20);
+    public static long calculateMarketPoints(Player player) {
+        return calculateMarketPoints(player, -1);
     }
 
-    private static int calculateAgeScore(int age) {
-        // Curva de idade de franquia: Auge de valor entre 20 e 24 anos
-        if (age <= 21) return 100; // Máximo valor futuro
-        if (age <= 24) return 92;
-        if (age <= 27) return 80;
-        if (age <= 29) return 65;
-        if (age <= 32) return 40;
-        return 15; // Veteranos em fase final de contrato/carreira
+    /**
+     * Escala interna aberta. OVR é exponencial e, portanto, o salto de 88
+     * para 94 vale muito mais que o salto de 74 para 80. Idade, potencial,
+     * posição e contrato apenas modulam essa base.
+     */
+    public static long calculateMarketPoints(Player player, int currentSeasonYear) {
+        if (player == null) return 0L;
+
+        int overall = Math.max(40, Math.min(99, player.getOverall()));
+        double overallBase = 8d * Math.pow(1.18d, overall - 65d);
+
+        int gap = Math.max(0, player.getTruePotential() - overall);
+        double potentialMultiplier = 1d;
+        if (player.getAge() <= 23) {
+            potentialMultiplier += Math.min(0.62d, gap * 0.028d);
+        } else if (player.getAge() <= 27) {
+            potentialMultiplier += Math.min(0.24d, gap * 0.012d);
+        }
+
+        double ageMultiplier;
+        if (player.getAge() <= 20) ageMultiplier = 1.08d;
+        else if (player.getAge() <= 24) ageMultiplier = 1.12d;
+        else if (player.getAge() <= 28) ageMultiplier = 1.04d;
+        else if (player.getAge() <= 30) ageMultiplier = 0.94d;
+        else if (player.getAge() <= 32) ageMultiplier = 0.82d;
+        else if (player.getAge() <= 34) ageMultiplier = 0.66d;
+        else ageMultiplier = 0.50d;
+
+        double positionMultiplier = positionMultiplier(player.getPosition());
+        double contractMultiplier = 1d;
+        if (currentSeasonYear >= 0) {
+            int remaining = player.getRemainingContractYears(currentSeasonYear);
+            if (remaining <= 0) contractMultiplier = 0.45d;
+            else if (remaining == 1) contractMultiplier = 0.68d;
+            else if (remaining == 2) contractMultiplier = 0.90d;
+            else if (remaining == 3) contractMultiplier = 1.05d;
+            else contractMultiplier = 1.14d;
+        }
+
+        return Math.max(2L, Math.round(
+            overallBase * potentialMultiplier * ageMultiplier
+                * positionMultiplier * contractMultiplier
+        ));
     }
 
-    private static int calculatePotentialScore(int overall, int potential) {
-        int gap = Math.max(0, potential - overall);
-        // Teto de evolução aumenta drasticamente o valor de troca
-        return Math.min(100, (potential) + (gap * 3));
-    }
-
-    private static int calculatePositionScore(String position) {
-        // Posições escassas/de alto impacto valem mais no mercado
-        if (position.matches("ST|CAM|CB")) return 90;  // Artilheiros, Maestros e Zagueiros
-        if (position.matches("RW|LW|CDM|GK")) return 80;
-        return 70; // Laterais / Meias de lado
-    }
-
-    private static int calculateContractScore(int remainingYears) {
-        if (remainingYears >= 4) return 100;
-        if (remainingYears == 3) return 88;
-        if (remainingYears == 2) return 74;
-        if (remainingYears == 1) return 50;
-        return 25;
+    private static double positionMultiplier(String position) {
+        if (position == null) return 1d;
+        if (position.matches("ST|CAM|CB")) return 1.05d;
+        if (position.matches("RW|LW|CDM|GK")) return 1.02d;
+        return 1d;
     }
 }

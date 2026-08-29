@@ -190,15 +190,18 @@ public final class CareerOverlay
                     Screen screenBefore =
                         game.getScreen();
 
-                    advanceOneDay(
-                        game,
-                        club
-                    );
+                    boolean summaryShown =
+                        advanceOneDayAndShowRoundSummary(
+                            game,
+                            club,
+                            getStage()
+                        );
 
                     Screen screenAfter =
                         game.getScreen();
 
                     if (
+                        !summaryShown &&
                         screenBefore ==
                             screenAfter
                     ) {
@@ -773,10 +776,44 @@ public final class CareerOverlay
     // AVANÇO DE DATA
     // =========================================================
 
+    /**
+     * Compatibilidade para fluxos sem Stage (por exemplo, a Off Season).
+     * Na carreira regular o overload abaixo recebe o Stage e abre o resumo.
+     */
     public static void advanceOneDay(
         Main game,
         Club club
     ) {
+        advanceOneDayAndShowRoundSummary(
+            game,
+            club,
+            null
+        );
+    }
+
+    /**
+     * Avança a carreira e, quando a rodada anterior terminou, abre seu
+     * resumo no clique seguinte de "Avançar dia". O retorno impede que a
+     * tela atual seja reconstruída por cima do diálogo recém-criado.
+     */
+    public static boolean advanceOneDayAndShowRoundSummary(
+        Main game,
+        Club club,
+        Stage stage
+    ) {
+        if (
+            RoundSummaryDialog.showPending(
+                stage,
+                game,
+                club
+            )
+        ) {
+            return true;
+        }
+
+        if (BoardReviewDialog.showDue(stage, game, club)) {
+            return true;
+        }
 
         Match userMatch =
             game.league
@@ -804,17 +841,24 @@ public final class CareerOverlay
                     club
                 );
 
-                return;
+                return false;
             }
 
-            game.league
-                .checkAndAdvanceStage();
+            if ("PLAYOFFS".equals(game.league.getCurrentStage())) {
+                game.setScreen(new BoardFinalEvaluationScreen(game, club));
+                return false;
+            }
+
+            game.league.checkAndAdvanceStage();
 
             if ("OFFSEASON".equals(game.league.getCurrentStage())) {
+                if (game.freeAgencyService != null) {
+                    game.freeAgencyService.releaseExpiredContractsAtOffseasonStart();
+                }
                 game.setScreen(new SeasonSummaryScreen(game, club));
             }
 
-            return;
+            return false;
         }
 
         // =====================================================
@@ -836,7 +880,7 @@ public final class CareerOverlay
                 )
             );
 
-            return;
+            return false;
         }
 
         // =====================================================
@@ -873,6 +917,17 @@ public final class CareerOverlay
             game,
             club
         );
+
+        /*
+         * Se a última partida da rodada foi simulada agora, a League acabou
+         * de enfileirar o resumo. Como este é o clique solicitado pelo
+         * jogador, ele deve aparecer imediatamente, sem exigir outro avanço.
+         */
+        return RoundSummaryDialog.showPending(
+            stage,
+            game,
+            club
+        );
     }
 
     /** A offseason também avança dia a dia para movimentações e scouting. */
@@ -886,7 +941,12 @@ public final class CareerOverlay
         processDailyActivities(game, club, previousDate, newDate);
 
         if (isFirstDayOfNewSeason(game, newDate)) {
+            if (game.freeAgencyService != null) {
+                game.freeAgencyService.enforceRosterLimitsForNewSeason();
+            }
             game.league.startNewSeason();
+            // A nova temporada abre o ciclo de scouting do Draft seguinte.
+            game.loadDraftClassForYear(game.league.getCurrentSeason() + 1);
             game.seasonSimulator.createSchedule(game.league);
             if (!game.league.getSchedule().isEmpty()) {
                 game.league.setLastProcessedDate(game.league.getSchedule().get(0).getDate());
@@ -910,6 +970,7 @@ public final class CareerOverlay
         recoverAllPlayers(game, 1);
         for (Club team : game.league.getClubs()) {
             for (Player player : team.getSquad()) player.advanceTradeEligibilityDay();
+            team.advanceStadiumRenovationDay();
         }
         if (changedWeek(previousDate, newDate) && game.developmentEngine != null) {
             game.developmentEngine.updateWeekly(game.league);
@@ -1111,6 +1172,7 @@ public final class CareerOverlay
                     days,
                     0.78d + (team.getStaffLevel(StaffRole.FITNESS_COACH) * 0.075d)
                 );
+                player.recoverFromInjury(days);
             }
         }
     }
@@ -1119,9 +1181,7 @@ public final class CareerOverlay
         for (Club team : game.league.getClubs()) {
             int extraRecovery = Math.max(0, team.getStaffLevel(StaffRole.DOCTOR) - 3);
             for (Player player : team.getSquad()) {
-                for (int index = 0; index < extraRecovery && player.isInjured(); index++) {
-                    player.decreaseInjury();
-                }
+                player.recoverFromInjury(extraRecovery);
             }
         }
     }

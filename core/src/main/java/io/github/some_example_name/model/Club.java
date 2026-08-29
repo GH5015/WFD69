@@ -18,11 +18,24 @@ public class Club {
     private double budget;
     private String stadiumName;
     private int stadiumCapacity = 30000;
+    private String stadiumRenovationName;
+    private int stadiumRenovationTargetCapacity;
+    private int stadiumRenovationTotalDays;
+    private int stadiumRenovationDaysRemaining;
+    private long stadiumRenovationCost;
     private String philosophy = "Desenvolver Jovens";
     private String logoPath;
     private boolean userControlled = false;
     private int winStreak = 0;
     private int lossStreak = 0;
+    private int boardObjectiveSeason = -1;
+    private int boardConfidence = 50;
+    private int previousBoardConfidence = 50;
+    private Set<String> shownBoardReviews = new HashSet<>();
+    private int finalBoardEvaluationSeason = -1;
+    private int finalBoardPreviousConfidence = 50;
+    private int finalBoardScore = 50;
+    private boolean finalBoardDismissed;
 
     private List<Player> squad;
     private List<Player> startingXI;
@@ -80,6 +93,53 @@ public class Club {
         }
         return finance;
     }
+
+    /** Abre um novo ciclo anual da diretoria e fixa o OVR-base dos atletas. */
+    public void beginBoardSeason(int season) {
+        if (boardObjectiveSeason == season) return;
+        boolean firstTrackedSeason = boardObjectiveSeason < 0;
+        boardObjectiveSeason = season;
+        previousBoardConfidence = boardConfidence;
+        shownBoardReviews = new HashSet<>();
+        for (Player player : squad) {
+            /* A base histórica não possuía procedência de Draft. Jovens já
+             * existentes recebem uma classe inicial estável para que as metas
+             * de minutos também funcionem na temporada inaugural. */
+            if (firstTrackedSeason && player.getDraftedYear() < 0 && player.getAge() <= 21) {
+                int offset = Math.abs(player.getId().hashCode()) % 2;
+                player.setDraftedYear(season - offset);
+            }
+            player.beginSeasonTracking(season);
+        }
+    }
+
+    public int getBoardObjectiveSeason() { return boardObjectiveSeason; }
+    public int getBoardConfidence() { return Math.max(0, Math.min(100, boardConfidence)); }
+    public int getPreviousBoardConfidence() { return Math.max(0, Math.min(100, previousBoardConfidence)); }
+    public void updateBoardConfidence(int confidence) {
+        previousBoardConfidence = getBoardConfidence();
+        boardConfidence = Math.max(0, Math.min(100, confidence));
+    }
+    public boolean hasShownBoardReview(int season, String checkpoint) {
+        return shownBoardReviews != null && shownBoardReviews.contains(season + ":" + checkpoint);
+    }
+    public void markBoardReviewShown(int season, String checkpoint) {
+        if (shownBoardReviews == null) shownBoardReviews = new HashSet<>();
+        shownBoardReviews.add(season + ":" + checkpoint);
+    }
+    public void recordFinalBoardEvaluation(int season, int score, boolean dismissed) {
+        if (finalBoardEvaluationSeason == season) return;
+        finalBoardEvaluationSeason = season;
+        finalBoardPreviousConfidence = getBoardConfidence();
+        finalBoardScore = Math.max(0, Math.min(100, score));
+        finalBoardDismissed = dismissed;
+        updateBoardConfidence(finalBoardScore);
+        markBoardReviewShown(season, "FINAL");
+    }
+    public int getFinalBoardEvaluationSeason() { return finalBoardEvaluationSeason; }
+    public int getFinalBoardPreviousConfidence() { return finalBoardPreviousConfidence; }
+    public int getFinalBoardScore() { return finalBoardScore; }
+    public boolean isFinalBoardDismissed() { return finalBoardDismissed; }
 
     private List<SeasonHistory> seasonHistories = new ArrayList<>();
 
@@ -189,19 +249,116 @@ public class Club {
     }
 
     private void applyStaffIdentity() {
-        if ("Tokyo Rising Sun".equals(name)) {
-            staffMembers.put(StaffRole.COACH, new StaffMember(StaffRole.COACH, "Hiroshi Tanaka", 66, 760_000L, 1971));
-            staffMembers.put(StaffRole.SCOUT, new StaffMember(StaffRole.SCOUT, "Kenji Mori", 94, 1_050_000L, 1971));
-            staffMembers.put(StaffRole.DEVELOPMENT_DIRECTOR, new StaffMember(StaffRole.DEVELOPMENT_DIRECTOR, "Akira Sato", 92, 1_020_000L, 1971));
-            staffMembers.put(StaffRole.FITNESS_COACH, new StaffMember(StaffRole.FITNESS_COACH, "Daichi Ito", 66, 700_000L, 1971));
-            staffMembers.put(StaffRole.DOCTOR, new StaffMember(StaffRole.DOCTOR, "Yuki Kato", 67, 710_000L, 1971));
-        } else if ("Milano Calcio".equals(name)) {
-            staffMembers.put(StaffRole.COACH, new StaffMember(StaffRole.COACH, "Giovanni Bianchi", 95, 1_080_000L, 1971));
-            staffMembers.put(StaffRole.SCOUT, new StaffMember(StaffRole.SCOUT, "Luca Romano", 68, 710_000L, 1971));
-            staffMembers.put(StaffRole.DEVELOPMENT_DIRECTOR, new StaffMember(StaffRole.DEVELOPMENT_DIRECTOR, "Marco Conti", 70, 740_000L, 1971));
-            staffMembers.put(StaffRole.FITNESS_COACH, new StaffMember(StaffRole.FITNESS_COACH, "Paolo Ricci", 84, 880_000L, 1971));
-            staffMembers.put(StaffRole.DOCTOR, new StaffMember(StaffRole.DOCTOR, "Franco Gallo", 84, 880_000L, 1971));
+        if (name == null) return;
+
+        /*
+         * Cada franquia nasce com uma comissão própria e persistente. Além de
+         * aparecer na apresentação do clube, estes níveis são consumidos pelos
+         * sistemas de scouting, recuperação, lesões e desenvolvimento.
+         */
+        switch (name) {
+            case "Santos Atlântico":
+                setInitialStaff("Mário Costa", 91, "Carlos Mendes", 86, "João Nogueira", 90,
+                    "Alberto Lima", 84, "Dr. Renato Azevedo", 88);
+                break;
+            case "Rio Imperial":
+                setInitialStaff("Luiz Tavares", 89, "Sérgio Matos", 85, "Paulo Rezende", 86,
+                    "Roberto Diniz", 82, "Dr. Henrique Moura", 84);
+                break;
+            case "Milano Calcio":
+                setInitialStaff("Giovanni Bianchi", 95, "Luca Romano", 78, "Marco Conti", 80,
+                    "Paolo Ricci", 84, "Dr. Franco Gallo", 84);
+                break;
+            case "Bavaria München":
+                setInitialStaff("Hans Keller", 94, "Dieter Vogel", 88, "Klaus Werner", 87,
+                    "Otto Baumann", 92, "Dr. Friedrich Weiss", 90);
+                break;
+            case "Manchester Albion":
+                setInitialStaff("Arthur Bennett", 92, "William Carter", 84, "George Whitmore", 86,
+                    "Edward Collins", 90, "Dr. James Foster", 88);
+                break;
+            case "London Royals":
+                setInitialStaff("Henry Clarke", 87, "Charles Reed", 88, "Alfred Morgan", 84,
+                    "Thomas Hughes", 86, "Dr. Peter Wallace", 85);
+                break;
+            case "Amsterdã Total":
+                setInitialStaff("Johan de Boer", 95, "Pieter Vos", 90, "Willem Smit", 94,
+                    "Henk Dijkstra", 86, "Dr. Bram Meijer", 84);
+                break;
+            case "Madrid Castilla":
+                setInitialStaff("Miguel Navarro", 92, "José Martín", 89, "Carlos Serrano", 87,
+                    "Antonio Vega", 86, "Dr. Javier Ortiz", 88);
+                break;
+            case "Barcelona Mediterrâneo":
+                setInitialStaff("Jordi Ferrer", 90, "Miquel Serra", 91, "Oriol Puig", 93,
+                    "Ramón Soler", 84, "Dr. Enric Vidal", 86);
+                break;
+            case "Budapest Danube":
+                setInitialStaff("László Farkas", 86, "István Nagy", 84, "Béla Kovács", 85,
+                    "András Tóth", 82, "Dr. Miklós Varga", 83);
+                break;
+            case "Lisboa Atlântica":
+                setInitialStaff("Manuel Ferreira", 89, "António Ribeiro", 93, "Rui Almeida", 94,
+                    "Joaquim Lopes", 83, "Dr. Miguel Costa", 85);
+                break;
+            case "Buenos Aires Plata":
+                setInitialStaff("Ernesto Salvatierra", 90, "Ricardo Luna", 87, "Osvaldo Ríos", 88,
+                    "Héctor Gálvez", 89, "Dr. Julio Acosta", 84);
+                break;
+            case "Montevideo Oriental":
+                setInitialStaff("Roque Bentancur", 87, "Martín Pereyra", 83, "Gustavo Silva", 85,
+                    "Eduardo Cabrera", 90, "Dr. Andrés Sosa", 86);
+                break;
+            case "Paris Lumière":
+                setInitialStaff("Pierre Laurent", 88, "Jean Moreau", 92, "Luc Bernard", 87,
+                    "Alain Dubois", 83, "Dr. Étienne Garnier", 89);
+                break;
+            case "Belfast Northern Stars":
+                setInitialStaff("Patrick O'Neill", 82, "Sean McKenna", 78, "Liam Campbell", 76,
+                    "Brian Kelly", 86, "Dr. Colin Murphy", 80);
+                break;
+            case "Tokyo Rising Sun":
+                setInitialStaff("Hiroshi Tanaka", 76, "Kenji Mori", 94, "Akira Sato", 92,
+                    "Daichi Ito", 76, "Dr. Yuki Kato", 77);
+                break;
+            case "Seoul Tigers":
+                setInitialStaff("Park Min-jun", 83, "Kim Tae-ho", 88, "Lee Dong-wook", 90,
+                    "Choi Hyun-soo", 92, "Dr. Han Ji-won", 85);
+                break;
+            case "Tehran Lions":
+                setInitialStaff("Reza Farhadi", 78, "Amir Hosseini", 82, "Darius Karimi", 80,
+                    "Farid Azadi", 84, "Dr. Navid Rahimi", 83);
+                break;
+            case "Baghdad Mesopotamia":
+                setInitialStaff("Khalid Al-Samarrai", 76, "Omar Nasser", 80, "Youssef Hamid", 82,
+                    "Tariq Abbas", 83, "Dr. Samir Haddad", 79);
+                break;
+            case "Tel Aviv Stars":
+                setInitialStaff("David Ben-Ami", 84, "Moshe Levi", 86, "Ariel Cohen", 83,
+                    "Eitan Shalev", 85, "Dr. Noam Rosen", 88);
+                break;
+            default:
+                break;
         }
+    }
+
+    private void setInitialStaff(
+        String coach, int coachQuality,
+        String scout, int scoutQuality,
+        String development, int developmentQuality,
+        String fitness, int fitnessQuality,
+        String doctor, int doctorQuality
+    ) {
+        putInitialStaff(StaffRole.COACH, coach, coachQuality, 1972);
+        putInitialStaff(StaffRole.SCOUT, scout, scoutQuality, 1971);
+        putInitialStaff(StaffRole.DEVELOPMENT_DIRECTOR, development, developmentQuality, 1972);
+        putInitialStaff(StaffRole.FITNESS_COACH, fitness, fitnessQuality, 1971);
+        putInitialStaff(StaffRole.DOCTOR, doctor, doctorQuality, 1972);
+    }
+
+    private void putInitialStaff(StaffRole role, String memberName, int quality, int contractEndYear) {
+        long annualSalary = Math.round((420_000L + quality * 7_000L) / 10_000d) * 10_000L;
+        staffMembers.put(role, new StaffMember(role, memberName, quality, annualSalary, contractEndYear));
     }
 
     /**
@@ -468,6 +625,16 @@ public class Club {
             usedPlayers
         );
 
+        /* Última garantia: se o elenco possui onze atletas disponíveis, uma
+         * composição incomum (por exemplo, excesso de goleiros) não pode
+         * deixar o clube com menos de onze. A adaptação é penalizada pelo OVR
+         * efetivo, mas é sempre preferível a uma vaga vazia. */
+        fillAnyRemainingLineupSlots(
+            slots,
+            slotLimit,
+            usedPlayers
+        );
+
         syncStartingXIFromTacticsMap();
     }
 
@@ -523,6 +690,39 @@ public class Club {
                         bestScore = score;
                         bestPlayer = player;
                     }
+                }
+            }
+
+            if (bestPlayer != null) {
+                tacticsMap.put(slotIndex, bestPlayer);
+                usedPlayers.add(bestPlayer);
+            }
+        }
+    }
+
+    private void fillAnyRemainingLineupSlots(
+        List<String> slots,
+        int slotLimit,
+        Set<Player> usedPlayers
+    ) {
+        for (int slotIndex = 0; slotIndex < slotLimit; slotIndex++) {
+            if (tacticsMap.get(slotIndex) != null) {
+                continue;
+            }
+
+            String targetPosition = slots.get(slotIndex);
+            Player bestPlayer = null;
+            int bestScore = Integer.MIN_VALUE;
+
+            for (Player player : squad) {
+                if (player == null || usedPlayers.contains(player) || !player.canPlay()) {
+                    continue;
+                }
+
+                int score = calculateAutoSelectionScore(player, targetPosition);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPlayer = player;
                 }
             }
 
@@ -946,6 +1146,44 @@ public class Club {
 
     public int getStadiumCapacity() { return stadiumCapacity; }
     public void setStadiumCapacity(int stadiumCapacity) { this.stadiumCapacity = stadiumCapacity; }
+
+    public boolean startStadiumRenovation(StadiumRenovationPlan plan) {
+        if (plan == null || isStadiumRenovationInProgress()) return false;
+        int target = stadiumCapacity + plan.getAdditionalCapacity();
+        if (target > StadiumRenovationPlan.MAX_CAPACITY) return false;
+        if (!getFinance().spend(plan.getCost())) return false;
+
+        stadiumRenovationName = plan.getDisplayName();
+        stadiumRenovationTargetCapacity = target;
+        stadiumRenovationTotalDays = plan.getDurationDays();
+        stadiumRenovationDaysRemaining = plan.getDurationDays();
+        stadiumRenovationCost = plan.getCost();
+        return true;
+    }
+
+    /** Avança a obra e entrega a nova capacidade somente na conclusão. */
+    public boolean advanceStadiumRenovationDay() {
+        if (!isStadiumRenovationInProgress()) return false;
+        stadiumRenovationDaysRemaining--;
+        if (stadiumRenovationDaysRemaining <= 0) {
+            stadiumCapacity = stadiumRenovationTargetCapacity;
+            stadiumRenovationDaysRemaining = 0;
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isStadiumRenovationInProgress() { return stadiumRenovationDaysRemaining > 0; }
+    public String getStadiumRenovationName() { return stadiumRenovationName; }
+    public int getStadiumRenovationTargetCapacity() { return stadiumRenovationTargetCapacity; }
+    public int getStadiumRenovationTotalDays() { return stadiumRenovationTotalDays; }
+    public int getStadiumRenovationDaysRemaining() { return stadiumRenovationDaysRemaining; }
+    public long getStadiumRenovationCost() { return stadiumRenovationCost; }
+    public double getStadiumRenovationProgress() {
+        if (stadiumRenovationTotalDays <= 0) return 0d;
+        return 100d * (stadiumRenovationTotalDays - stadiumRenovationDaysRemaining)
+            / stadiumRenovationTotalDays;
+    }
 
     public String getPhilosophy() { return philosophy; }
     public void setPhilosophy(String philosophy) { this.philosophy = philosophy; }

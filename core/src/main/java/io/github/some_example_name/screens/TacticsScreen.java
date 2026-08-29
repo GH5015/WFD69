@@ -270,6 +270,8 @@ public class TacticsScreen implements Screen {
                 "FORMAÇÃO"
             );
 
+        formationLabel.setFontScale(0.48f);
+
         header
             .add(formationLabel)
             .padRight(8f);
@@ -330,8 +332,8 @@ public class TacticsScreen implements Screen {
 
         header
             .add(formationBox)
-            .width(210f)
-            .height(50f)
+            .width(270f)
+            .height(52f)
             .padRight(12f);
 
         header

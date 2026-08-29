@@ -3,6 +3,12 @@ package io.github.some_example_name.utils;
 import java.util.Random;
 
 public class NameGenerator {
+
+    private static final String[] NATIONALITIES = {
+        "Argentina", "Brasil", "Alemanha", "Espanha", "França", "Holanda",
+        "Inglaterra", "Itália", "Japão", "México", "Polônia", "Portugal",
+        "Suécia", "Uruguai", "Estados Unidos", "Iugoslávia", "Dinamarca", "Peru"
+    };
     private static final String[] FIRST_NAMES = {
         "Carlos", "José", "Mário", "Roberto", "Wilson", "Ricardo", "Paulo", "Fernando", "Antônio", "Luiz",
         "João", "Edson", "Gilberto", "Ademir", "Jair", "Gerson", "Tostão", "Rivellino", "Clodoaldo", "Piazza"
@@ -17,5 +23,9 @@ public class NameGenerator {
 
     public static String generateName() {
         return FIRST_NAMES[RANDOM.nextInt(FIRST_NAMES.length)] + " " + LAST_NAMES[RANDOM.nextInt(LAST_NAMES.length)];
+    }
+
+    public static String generateNationality() {
+        return NATIONALITIES[RANDOM.nextInt(NATIONALITIES.length)];
     }
 }

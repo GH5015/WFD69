@@ -283,12 +283,6 @@ public class CalendarScreen implements Screen {
             true
         );
 
-        CareerOverlay.attach(
-            stage,
-            game,
-            playerClub
-        );
-
     }
 
     // =========================================================

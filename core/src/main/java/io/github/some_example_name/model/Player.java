@@ -25,11 +25,15 @@ public class Player {
 
     private int seasonGoals = 0, seasonAssists = 0, seasonYellowCards = 0, seasonRedCards = 0;
     private int seasonAppearances = 0;
+    private int seasonMinutes = 0;
     private int seasonCleanSheets = 0;
     private double seasonRatingTotal = 0.0;
     private int seasonRatingMatches = 0;
     private int nextContractNegotiationYear = 0;
     private int tradeBlockedDays = 0;
+    private int seasonStartingOverall = 0;
+    private int seasonTrackingYear = -1;
+    private int draftedYear = -1;
 
     // --- CAMPOS PARA CARTÕES NA PARTIDA EM ANDAMENTO ---
     private int matchYellowCards = 0;
@@ -39,6 +43,7 @@ public class Player {
 
     // Sistema de Suspensão e Lesão
     private int suspendedMatches = 0;
+    // Nome preservado para compatibilidade com carreiras salvas; a unidade agora é dia.
     private int injuredMatches = 0;
     private String injuryType = null;
     private boolean injuredInCurrentMatch = false;
@@ -261,6 +266,7 @@ public class Player {
         this.salary = salary;
         calculateOverall();
         development.initialize(this.technicalAttributes, this.overall);
+        this.seasonStartingOverall = this.overall;
     }
 
     private DevelopmentCurve selectDevelopmentCurve(String playerName) {
@@ -403,6 +409,9 @@ public class Player {
     public void addGoal() { this.seasonGoals++; }
     public void addAssist() { this.seasonAssists++; }
     public void addSeasonAppearance() { this.seasonAppearances++; }
+    public void addSeasonMinutes(int minutes) {
+        this.seasonMinutes += Math.max(0, Math.min(120, minutes));
+    }
     public void addCleanSheet() { this.seasonCleanSheets++; }
     public void addSeasonRating(double rating) {
         this.seasonRatingTotal += Math.max(1.0, Math.min(10.0, rating));
@@ -442,27 +451,47 @@ public class Player {
     public boolean isSuspended() { return suspendedMatches > 0; }
     public int getSuspendedMatches() { return suspendedMatches; }
 
-    // --- SISTEMA DE LESÃO ---
-    public void injure(int matches, String type) {
-        this.injuredMatches = Math.max(0, matches);
+    // --- SISTEMA DE LESÃO (prazo sempre calculado em dias) ---
+    public void injureForDays(int days, String type) {
+        this.injuredMatches = Math.max(0, days);
         this.injuryType = type;
         this.injuredInCurrentMatch = this.injuredMatches > 0;
     }
 
-    public void setInjuryDuration(int matches) {
-        injure(matches, "Muscular");
+    public void setInjuryDays(int days) {
+        injureForDays(days, "Muscular");
     }
 
-    public int getInjuryDuration() {
+    public int getInjuryDaysRemaining() {
         return injuredMatches;
     }
 
-    public void decreaseInjury() { this.injuredMatches = Math.max(0, this.injuredMatches - 1); }
+    public void recoverFromInjury(int days) {
+        if (days <= 0 || injuredMatches <= 0) return;
+        this.injuredMatches = Math.max(0, this.injuredMatches - days);
+        if (this.injuredMatches == 0) this.injuryType = null;
+    }
+
+    public void advanceInjuryRecoveryDay() {
+        recoverFromInjury(1);
+    }
+
     public boolean isInjured() { return injuredMatches > 0; }
     public boolean wasInjuredInCurrentMatch() { return injuredInCurrentMatch; }
-    public int getInjuredMatches() { return injuredMatches; }
+    public int getInjuredDays() { return injuredMatches; }
     public String getInjuryType() { return injuryType; }
     public boolean canPlay() { return !isSuspended() && !isInjured(); }
+
+    /** @deprecated Use injureForDays(int, String). */
+    @Deprecated public void injure(int days, String type) { injureForDays(days, type); }
+    /** @deprecated Use setInjuryDays(int). */
+    @Deprecated public void setInjuryDuration(int days) { setInjuryDays(days); }
+    /** @deprecated Use getInjuryDaysRemaining(). */
+    @Deprecated public int getInjuryDuration() { return getInjuryDaysRemaining(); }
+    /** @deprecated Use advanceInjuryRecoveryDay(). */
+    @Deprecated public void decreaseInjury() { advanceInjuryRecoveryDay(); }
+    /** @deprecated Use getInjuredDays(). */
+    @Deprecated public int getInjuredMatches() { return getInjuredDays(); }
 
     // Getters & Setters
     public Club getCurrentClub() { return currentClub; }
@@ -534,6 +563,23 @@ public class Player {
     public int getSeasonGoals() { return seasonGoals; }
     public int getSeasonAssists() { return seasonAssists; }
     public int getSeasonAppearances() { return seasonAppearances; }
+    public int getSeasonMinutes() { return seasonMinutes; }
+    public int getSeasonStartingOverall() {
+        return seasonStartingOverall > 0 ? seasonStartingOverall : overall;
+    }
+    public int getSeasonOverallGrowth() {
+        return overall - getSeasonStartingOverall();
+    }
+    public int getDraftedYear() { return draftedYear; }
+    public void setDraftedYear(int draftedYear) { this.draftedYear = draftedYear; }
+    public boolean wasDraftedWithin(int currentSeason, int seasons) {
+        return draftedYear > 0 && draftedYear >= currentSeason - Math.max(0, seasons - 1);
+    }
+    public void beginSeasonTracking(int season) {
+        if (seasonTrackingYear == season) return;
+        seasonTrackingYear = season;
+        seasonStartingOverall = overall;
+    }
     public int getSeasonCleanSheets() { return seasonCleanSheets; }
     public int getSeasonRatingMatches() { return seasonRatingMatches; }
     public double getSeasonAverageRating() {
@@ -550,6 +596,7 @@ public class Player {
         this.seasonGoals = 0;
         this.seasonAssists = 0;
         this.seasonAppearances = 0;
+        this.seasonMinutes = 0;
         this.seasonCleanSheets = 0;
         this.seasonRatingTotal = 0.0;
         this.seasonRatingMatches = 0;
@@ -557,6 +604,7 @@ public class Player {
         this.seasonRedCards = 0;
         this.suspendedMatches = 0;
         this.injuredMatches = 0;
+        this.injuryType = null;
         this.fatigue = 100;
     }
     public int getMatchRedCards() {

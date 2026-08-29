@@ -95,7 +95,6 @@ public class FreeAgencyScreen implements Screen {
             returnOverlay.add(back).width(235f).height(42f); root.add(returnOverlay);
         } else {
             NavigationDrawer.attach(stage, game, club, "AGENTES", true);
-            CareerOverlay.attach(stage, game, club);
         }
     }
 

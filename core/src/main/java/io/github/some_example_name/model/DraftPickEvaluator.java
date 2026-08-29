@@ -9,13 +9,18 @@ public class DraftPickEvaluator {
         int projected = Math.max(1, Math.min(20, pick.getProjectedPosition()));
         long baseValue = calculateBaseValue(pick.getRound(), projected);
 
-        /* Uma projeção distante do fim da temporada não vale o mesmo que uma pick definida. */
+        /* Enquanto a posição não é definida, a incerteza reduz fortemente o
+         * valor. A Lottery concluída aproxima a confiança de 100%. */
         double confidence = pick.getProjectedPositionConfidence();
-        baseValue = Math.round(baseValue * (0.55 + (confidence * 0.45)));
+        baseValue = Math.round(baseValue * (0.52 + (confidence * 0.48)));
 
-        int yearsInFuture = pick.getYear() - currentSeasonYear;
-        if (yearsInFuture > 0) {
-            baseValue *= Math.pow(0.85, yearsInFuture);
+        /* A escolha do próximo Draft vale integralmente. Só anos além dele
+         * sofrem desconto de valor presente e maior incerteza. */
+        if (currentSeasonYear >= 0) {
+            int yearsBeyondNextDraft = Math.max(0, pick.getYear() - currentSeasonYear - 1);
+            if (yearsBeyondNextDraft > 0) {
+                baseValue *= Math.pow(0.78, yearsBeyondNextDraft);
+            }
         }
 
         return Math.round(baseValue);
@@ -23,19 +28,18 @@ public class DraftPickEvaluator {
 
     private static long calculateBaseValue(int round, int projected) {
         if (round == 1) {
-            // Uma escolha de 1ª rodada precisa poder competir no mercado por
-            // jogadores consolidados; as primeiras posições são premium.
-            if (projected == 1) return 120L;
-            if (projected <= 3) return 112L - ((projected - 2) * 5L);
-            if (projected <= 5) return 96L - ((projected - 4) * 5L);
-            if (projected <= 10) return 83L - ((projected - 6) * 5L);
-            if (projected <= 15) return 58L - ((projected - 11) * 3L);
-            return 40L - ((projected - 16) * 3L);
+            if (projected == 1) return 520L;
+            if (projected == 2) return 450L;
+            if (projected == 3) return 405L;
+            if (projected <= 5) return 365L - ((projected - 4) * 38L);
+            if (projected <= 10) return 292L - ((projected - 6) * 21L);
+            if (projected <= 15) return 180L - ((projected - 11) * 12L);
+            return 116L - ((projected - 16) * 11L);
         }
 
-        if (projected <= 3) return 46L - ((projected - 1) * 3L);
-        if (projected <= 10) return 36L - ((projected - 4) * 2L);
-        return Math.max(14L, 24L - ((projected - 11) * 1L));
+        if (projected <= 3) return 108L - ((projected - 1) * 10L);
+        if (projected <= 10) return 80L - ((projected - 4) * 7L);
+        return Math.max(18L, 38L - ((projected - 11) * 2L));
     }
 
     /**
@@ -47,14 +51,14 @@ public class DraftPickEvaluator {
 
         switch (phase) {
             case REBUILDING:
-                return Math.round(rawValue * 1.50);
+                return Math.round(rawValue * 1.38);
             case SELLER:
-                return Math.round(rawValue * 1.20);
+                return Math.round(rawValue * 1.18);
             case BUYER:
-                return Math.round(rawValue * 0.90);
+                return Math.round(rawValue * 0.92);
             case CONTENDER:
             default:
-                return Math.round(rawValue * 0.75);
+                return Math.round(rawValue * 0.78);
         }
     }
 }

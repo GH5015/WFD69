@@ -17,8 +17,11 @@ import com.badlogic.gdx.utils.Scaling;
 import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
+import io.github.some_example_name.model.BoardObjective;
+import io.github.some_example_name.model.BoardObjectiveService;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Formation;
+import io.github.some_example_name.model.MatchEvent;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.TechnicalAttributes;
 import io.github.some_example_name.utils.IconTextButton;
@@ -40,6 +43,8 @@ public class ClubManagementScreen implements Screen {
 
     private final Texture pranchetaTexture;
     private final Texture fieldTexture;
+
+    private final Texture boardStarTexture;
 
     private Texture clubLogoTexture;
 
@@ -82,6 +87,13 @@ public class ClubManagementScreen implements Screen {
                 )
             );
 
+        boardStarTexture =
+            new Texture(
+                Gdx.files.internal(
+                    "Icons8/icons8-estrela-48.png"
+                )
+            );
+
         clubLogoTexture =
             loadLogo(
                 club
@@ -100,6 +112,148 @@ public class ClubManagementScreen implements Screen {
         );
 
         refreshUI();
+
+        /*
+         * Lesões e expulsões do clube podem ter ocorrido durante a partida.
+         * O alerta é mostrado somente depois de retornar ao elenco.
+         */
+        showNextPostMatchSquadAlert();
+    }
+
+    // =========================================================
+    // ALERTAS PÓS-PARTIDA
+    // =========================================================
+
+    private void showNextPostMatchSquadAlert() {
+        final MatchEvent alert = game.consumeSquadAlert();
+
+        if (alert == null) {
+            BoardReviewDialog.showDue(stage, game, club);
+            return;
+        }
+
+        final boolean injury =
+            "LESIONADO".equals(alert.type);
+
+        Dialog dialog = new Dialog(
+            "",
+            game.skin
+        ) {
+            @Override
+            protected void result(Object object) {
+                if (Boolean.TRUE.equals(object)) {
+                    game.setScreen(
+                        new TacticsScreen(
+                            game,
+                            club
+                        )
+                    );
+                    return;
+                }
+
+                /* Se houver mais de uma ocorrência, elas aparecem em ordem. */
+                showNextPostMatchSquadAlert();
+            }
+        };
+
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.setResizable(false);
+
+        Color accent = injury
+            ? ScreenUI.WARNING
+            : ScreenUI.DANGER;
+
+        Table content = dialog.getContentTable();
+        content.clear();
+        content.background(
+            StyleFactory.createMetallicBoard(
+                730,
+                350,
+                Color.valueOf("151A17")
+            )
+        );
+        content.pad(21f, 30f, 16f, 30f);
+
+        Label title = new Label(
+            injury
+                ? "LESÃO NO ELENCO"
+                : "EXPULSÃO CONFIRMADA",
+            game.skin,
+            "font-title"
+        );
+        title.setFontScale(0.84f);
+        title.setColor(accent);
+        title.setAlignment(Align.center);
+
+        Label minute = new Label(
+            "OCORRÊNCIA DA PARTIDA • " + alert.minute + "'",
+            game.skin,
+            "font-bold"
+        );
+        minute.setFontScale(0.45f);
+        minute.setColor(StyleFactory.SOFT_YELLOW);
+        minute.setAlignment(Align.center);
+
+        Label description = new Label(
+            alert.description != null
+                ? alert.description
+                : "Um jogador do seu clube sofreu uma ocorrência grave.",
+            game.skin
+        );
+        description.setFontScale(0.55f);
+        description.setColor(Color.WHITE);
+        description.setAlignment(Align.center);
+        description.setWrap(true);
+
+        Label nextStep = new Label(
+            injury
+                ? "O jogador ficará indisponível; ajuste escalação e elenco se necessário."
+                : "O jogador cumprirá suspensão; revise sua escalação antes da próxima partida.",
+            game.skin
+        );
+        nextStep.setFontScale(0.48f);
+        nextStep.setColor(ScreenUI.MUTED_TEXT);
+        nextStep.setAlignment(Align.center);
+        nextStep.setWrap(true);
+
+        content.add(title)
+            .width(650f)
+            .center()
+            .padBottom(9f)
+            .row();
+
+        content.add(minute)
+            .width(650f)
+            .center()
+            .padBottom(13f)
+            .row();
+
+        content.add(description)
+            .width(620f)
+            .center()
+            .padBottom(13f)
+            .row();
+
+        content.add(nextStep)
+            .width(620f)
+            .center();
+
+        TextButton continueButton = ScreenUI.createInteractiveButton(
+            "CONTINUAR NO ELENCO",
+            game.skin
+        );
+        continueButton.getLabel().setFontScale(0.54f);
+
+        TextButton lineupButton = ScreenUI.createPrimaryButton(
+            game.skin,
+            "AJUSTAR ESCALAÇÃO"
+        );
+        lineupButton.getLabel().setFontScale(0.55f);
+
+        dialog.button(continueButton, false);
+        dialog.button(lineupButton, true);
+        dialog.show(stage);
     }
 
     // =========================================================
@@ -164,6 +318,19 @@ public class ClubManagementScreen implements Screen {
             )
             .growX()
             .height(60f)
+            .padBottom(10f)
+            .row();
+
+        // =====================================================
+        // DIRETORIA E OBJETIVOS DA TEMPORADA
+        // =====================================================
+
+        page
+            .add(
+                createBoardPanel()
+            )
+            .growX()
+            .height(158f)
             .padBottom(10f)
             .row();
 
@@ -549,6 +716,265 @@ public class ClubManagementScreen implements Screen {
     }
 
     // =========================================================
+    // DIRETORIA
+    // =========================================================
+
+    private Table createBoardPanel() {
+        BoardObjectiveService.Evaluation evaluation =
+            BoardObjectiveService.evaluate(game.league, club);
+
+        Table panel = new Table();
+        panel.background(
+            StyleFactory.createRoundedPanel(
+                Color.valueOf("0B1711"),
+                StyleFactory.DARK_GOLD
+            )
+        );
+        panel.pad(10f);
+
+        panel
+            .add(createBoardConfidence(
+                evaluation,
+                game.managerCareer.calculateHistoryConfidenceBonus(
+                    club,
+                    game.league.getCurrentSeason()
+                )
+            ))
+            .width(300f)
+            .growY()
+            .padRight(10f);
+
+        Table objectives = new Table();
+        List<BoardObjectiveService.ObjectiveProgress> progress =
+            evaluation.getObjectives();
+
+        for (int i = 0; i < progress.size(); i++) {
+            objectives
+                .add(createObjectiveCard(progress.get(i)))
+                .grow()
+                .uniformX()
+                .padRight(i < progress.size() - 1 ? 7f : 0f);
+        }
+
+        panel.add(objectives).grow();
+        return panel;
+    }
+
+    private Table createBoardConfidence(
+        BoardObjectiveService.Evaluation evaluation,
+        int historyBonus
+    ) {
+        int effectiveConfidence = Math.min(100, evaluation.getConfidence() + historyBonus);
+        Color statusColor = boardStatusColor(effectiveConfidence);
+
+        Table box = new Table();
+        box.top().left();
+        box.background(
+            StyleFactory.createRoundedPanel(
+                Color.valueOf("111F17"),
+                statusColor
+            )
+        );
+        box.pad(10f, 13f, 9f, 13f);
+
+        Label title = new Label(
+            "CONFIANÇA DA DIRETORIA",
+            game.skin,
+            "font-bold"
+        );
+        title.setFontScale(0.54f);
+        title.setColor(StyleFactory.SOFT_YELLOW);
+
+        Label status = new Label(
+            evaluation.getStatus(),
+            game.skin,
+            "font-title"
+        );
+        status.setFontScale(0.72f);
+        status.setColor(statusColor);
+
+        Label description = new Label(
+            boardStatusDescription(evaluation.getConfidence()),
+            game.skin
+        );
+        description.setFontScale(0.47f);
+        description.setColor(ScreenUI.MUTED_TEXT);
+        description.setWrap(true);
+
+        Table heading = new Table();
+        heading.add(title).growX().left();
+        for (int index = 0; index < 5; index++) {
+            Image star = new Image(new TextureRegionDrawable(boardStarTexture));
+            star.setScaling(Scaling.fit);
+            star.setColor(index < game.managerCareer.getReputationStars()
+                ? StyleFactory.GOLD : Color.valueOf("414A43"));
+            heading.add(star).size(12f).padLeft(1f);
+        }
+
+        status.setText(boardStatusLabel(effectiveConfidence));
+        description.setText(
+            "Histórico: +" + historyBonus + " • Prestígio "
+                + game.managerCareer.getReputationStars() + "/5\n"
+                + boardStatusDescription(effectiveConfidence)
+        );
+
+        box.add(heading).growX().left().row();
+        box.add(status).left().padTop(2f).row();
+        box.add(createSegmentedProgress(effectiveConfidence, statusColor, 14))
+            .growX().height(8f).padTop(5f).padBottom(5f).row();
+        box.add(description).growX().left();
+        return box;
+    }
+
+    private Table createObjectiveCard(
+        BoardObjectiveService.ObjectiveProgress progress
+    ) {
+        BoardObjective objective = progress.getObjective();
+        Color priorityColor = objective.getPriority() == BoardObjective.Priority.CRITICAL
+            ? StyleFactory.GOLD
+            : objective.getPriority() == BoardObjective.Priority.IMPORTANT
+                ? StyleFactory.SOFT_YELLOW
+                : ScreenUI.MUTED_TEXT;
+
+        Table card = new Table();
+        card.top().left();
+        card.background(
+            StyleFactory.createRoundedPanel(
+                Color.valueOf("15221A"),
+                Color.valueOf("3B4B40")
+            )
+        );
+        card.pad(8f, 9f, 7f, 9f);
+
+        Table priority = new Table();
+        for (int i = 0; i < objective.getPriority().getStars(); i++) {
+            Image star = new Image(
+                new TextureRegionDrawable(boardStarTexture)
+            );
+            star.setColor(priorityColor);
+            star.setScaling(Scaling.fit);
+            priority.add(star).size(13f).padRight(1f);
+        }
+
+        Label priorityName = new Label(
+            objective.getPriority().getLabel(),
+            game.skin,
+            "font-bold"
+        );
+        priorityName.setFontScale(0.42f);
+        priorityName.setColor(priorityColor);
+        priority.add(priorityName).padLeft(4f).left();
+
+        Label category = new Label(
+            objective.getCategory().getLabel(),
+            game.skin,
+            "font-bold"
+        );
+        category.setFontScale(0.39f);
+        category.setColor(ScreenUI.MUTED_TEXT);
+
+        Table top = new Table();
+        top.add(priority).left();
+        top.add().growX();
+        top.add(category).right();
+
+        Label objectiveTitle = new Label(
+            objective.getTitle(),
+            game.skin,
+            "font-bold"
+        );
+        objectiveTitle.setFontScale(0.46f);
+        objectiveTitle.setColor(StyleFactory.TEXT_PRIMARY);
+        objectiveTitle.setWrap(true);
+        objectiveTitle.setAlignment(Align.left);
+
+        Label detail = new Label(
+            progress.getDetail() + "  •  " + progress.getState(),
+            game.skin
+        );
+        detail.setFontScale(0.42f);
+        detail.setColor(objectiveProgressColor((int) Math.round(progress.getPercentage())));
+        detail.setEllipsis(true);
+
+        int percentage = (int) Math.round(progress.getPercentage());
+        Label percentageLabel = new Label(
+            percentage + "%",
+            game.skin,
+            "font-bold"
+        );
+        percentageLabel.setFontScale(0.42f);
+        percentageLabel.setColor(objectiveProgressColor(percentage));
+
+        Table progressLine = new Table();
+        progressLine.add(
+            createSegmentedProgress(
+                percentage,
+                objectiveProgressColor(percentage),
+                10
+            )
+        ).growX().height(7f).padRight(5f);
+        progressLine.add(percentageLabel).right();
+
+        card.add(top).growX().row();
+        card.add(objectiveTitle).growX().left().height(39f).padTop(4f).row();
+        card.add(detail).growX().left().padTop(1f).row();
+        card.add(progressLine).growX().padTop(5f);
+        return card;
+    }
+
+    private Table createSegmentedProgress(
+        int percentage,
+        Color activeColor,
+        int segments
+    ) {
+        Table bar = new Table();
+        int active = Math.round(segments * Math.max(0, Math.min(100, percentage)) / 100f);
+
+        for (int i = 0; i < segments; i++) {
+            Table segment = new Table();
+            segment.background(
+                StyleFactory.createRoundedPanel(
+                    i < active ? activeColor : Color.valueOf("344039"),
+                    i < active ? activeColor : Color.valueOf("344039")
+                )
+            );
+            bar.add(segment).growX().uniformX().padRight(i < segments - 1 ? 2f : 0f);
+        }
+        return bar;
+    }
+
+    private Color boardStatusColor(int confidence) {
+        if (confidence >= 80) return Color.valueOf("62DB8A");
+        if (confidence >= 65) return Color.valueOf("9ED36A");
+        if (confidence >= 45) return StyleFactory.SOFT_YELLOW;
+        if (confidence >= 25) return ScreenUI.WARNING;
+        return ScreenUI.DANGER;
+    }
+
+    private Color objectiveProgressColor(int percentage) {
+        if (percentage >= 80) return ScreenUI.SUCCESS;
+        if (percentage >= 45) return StyleFactory.SOFT_YELLOW;
+        if (percentage >= 25) return ScreenUI.WARNING;
+        return ScreenUI.DANGER;
+    }
+
+    private String boardStatusDescription(int confidence) {
+        if (confidence >= 80) return "A franquia aprova plenamente a direção do projeto.";
+        if (confidence >= 65) return "A diretoria está satisfeita com o trabalho atual.";
+        if (confidence >= 45) return "O projeto está dentro do esperado, mas exige atenção.";
+        if (confidence >= 25) return "Resultados e decisões recentes aumentaram a cobrança.";
+        return "O cargo está ameaçado e uma reação é necessária.";
+    }
+
+    private String boardStatusLabel(int confidence) {
+        if (confidence >= 80) return "EXCELENTE";
+        if (confidence >= 65) return "ALTA";
+        if (confidence >= 45) return "ESTÁVEL";
+        if (confidence >= 25) return "SOB PRESSÃO";
+        return "CRÍTICA";
+    }
+
+    // =========================================================
     // ROSTER
     // =========================================================
 
@@ -613,8 +1039,8 @@ public class ClubManagementScreen implements Screen {
 
         panelHeader
             .add(filter)
-            .width(210f)
-            .height(48f)
+            .width(235f)
+            .height(52f)
             .right();
 
         panel
@@ -836,8 +1262,8 @@ public class ClubManagementScreen implements Screen {
 
             name +=
                 " • LES " +
-                    player.getInjuryDuration() +
-                    "J";
+                    player.getInjuryDaysRemaining() +
+                    "D";
 
         } else if (
             player.isSuspended()
@@ -1097,6 +1523,10 @@ public class ClubManagementScreen implements Screen {
         Table panel = ScreenUI.createSubtlePanel();
         panel.add(ScreenUI.createSectionTitle(game.skin, "ESTATÍSTICAS DA TEMPORADA")).colspan(2).left().padBottom(8f).row();
         addProfileDataRow(panel, "JOGOS", String.valueOf(player.getSeasonAppearances()), Color.WHITE);
+        addProfileDataRow(panel, "MINUTOS", String.valueOf(player.getSeasonMinutes()), StyleFactory.SOFT_YELLOW);
+        int growth = player.getSeasonOverallGrowth();
+        addProfileDataRow(panel, "EVOLUÇÃO OVR", (growth > 0 ? "+" : "") + growth,
+            growth >= 2 ? ScreenUI.SUCCESS : growth > 0 ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT);
         addProfileDataRow(panel, "GOLS", String.valueOf(player.getSeasonGoals()), StyleFactory.SOFT_YELLOW);
         addProfileDataRow(panel, "ASSISTÊNCIAS", String.valueOf(player.getSeasonAssists()), ScreenUI.SUCCESS);
         addProfileDataRow(panel, "CLEAN SHEETS", String.valueOf(player.getSeasonCleanSheets()), ScreenUI.SUCCESS);
@@ -1156,7 +1586,7 @@ public class ClubManagementScreen implements Screen {
     }
 
     private String getPlayerStatus(Player player) {
-        if (player.isInjured()) return "LESIONADO • " + player.getInjuryDuration() + "J";
+        if (player.isInjured()) return "LESIONADO • " + player.getInjuryDaysRemaining() + " dia" + (player.getInjuryDaysRemaining() == 1 ? "" : "s");
         if (player.isSuspended()) return "SUSPENSO • " + player.getSuspendedMatches() + "J";
         return "DISPONÍVEL";
     }
@@ -1936,6 +2366,7 @@ public class ClubManagementScreen implements Screen {
 
         pranchetaTexture.dispose();
         fieldTexture.dispose();
+        boardStarTexture.dispose();
 
         if (
             clubLogoTexture != null

@@ -70,10 +70,10 @@ public class DevelopmentEngine {
     }
 
     private double minutesFactor(Player player) {
-        int appearances = player.getSeasonAppearances();
-        if (appearances >= 12) return 1.15d;
-        if (appearances >= 5) return 1.00d;
-        if (appearances >= 1) return 0.85d;
+        int minutes = player.getSeasonMinutes();
+        if (minutes >= 1_000) return 1.15d;
+        if (minutes >= 450) return 1.00d;
+        if (minutes >= 90) return 0.85d;
         return 0.75d;
     }
 

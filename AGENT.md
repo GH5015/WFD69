@@ -25,6 +25,7 @@ O ponto de entrada da aplicação é `io.github.some_example_name.lwjgl3.Lwjgl3L
 `Main` é a composição da partida/carreira. Ele inicializa e mantém, entre outros:
 
 - `database`, `league` e `playerClub`;
+- alertas pós-partida do elenco, mantidos em `Main` até serem exibidos na `ClubManagementScreen`;
 - `matchEngine`, `seasonSimulator`, `playoffSimulator`, `developmentEngine` e `freeAgencyService`;
 - `draftScoutManager` e `draftClass`.
 
@@ -61,6 +62,11 @@ Ao adicionar estado de longa duração, inicialize-o uma vez em `Main.create()` 
 - `SeasonSimulator` cria/processa calendário; `PlayoffSimulator` e `League` coordenam a fase eliminatória.
 - `MatchEngine` prepara escalações e simula a partida. Mudanças nele precisam respeitar jogadores lesionados/suspensos, fadiga, moral, táticas, estatísticas e finanças.
 - Não marque uma partida como concluída, avance o índice/calendário ou atualize estatísticas duas vezes.
+- Quando a última partida de uma rodada regular terminar, a `League` registra o resumo como pendente. `CareerOverlay` o apresenta apenas no próximo clique em **Avançar dia**, por meio de `RoundSummaryDialog`; não mostre o painel novamente ao trocar de tela.
+- Lesões são medidas em dias restantes: CareerOverlay reduz um dia por avanço de data e médicos podem conceder recuperação adicional. O fim de uma partida não reduz a lesão. MatchEngine sorteia diagnósticos ponderados, de contusões de 1–4 dias a fraturas de 60–120 dias; fadiga torna os casos graves um pouco mais prováveis.
+- No início da Off Season, FreeAgencyService remove dos clubes os atletas cujo contrato terminou na temporada corrente, limpa escalação/tática e os adiciona uma única vez à lista de agentes livres.
+- League processa aposentadorias após o envelhecimento na transição para a Off Season: atletas com 33+ anos usam chance crescente por idade e, se aposentados, ficam em RetirementRecord. SeasonSummaryScreen encaminha para RetirementSummaryScreen antes do dashboard da Off Season.
+- Antes de League.startNewSeason(), FreeAgencyService aplica a barreira obrigatória de elenco de 23–26 atletas para todos os clubes. A Off Season mantém trocas disponíveis e a Free Agency cobre automaticamente qualquer déficit; excedentes são liberados ao mercado.
 - Preserve a separação entre ações do usuário e automação da IA: clubes não controlados pelo usuário podem escolher escalação automaticamente; o clube do usuário deve preservar suas escolhas válidas.
 
 ## Build, execução e validação

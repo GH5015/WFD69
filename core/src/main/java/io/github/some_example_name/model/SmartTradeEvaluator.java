@@ -1,5 +1,7 @@
 package io.github.some_example_name.model;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -9,12 +11,12 @@ public class SmartTradeEvaluator {
      * Calcula o valor real percebido por um clube específico ao receber um jogador.
      */
     public static long getPerceivedPlayerValue(Club receivingClub, Player player) {
-        long baseTradeValue = TradeValueCalculator.calculateTradeValue(player);
+        long baseTradeValue = TradeValueCalculator.calculateMarketPoints(player);
         return getPerceivedPlayerValue(receivingClub, player, baseTradeValue, -1);
     }
 
     public static long getPerceivedPlayerValue(Club receivingClub, Player player, int currentSeasonYear) {
-        long baseTradeValue = TradeValueCalculator.calculateTradeValue(player, currentSeasonYear);
+        long baseTradeValue = TradeValueCalculator.calculateMarketPoints(player, currentSeasonYear);
         return getPerceivedPlayerValue(receivingClub, player, baseTradeValue, currentSeasonYear);
     }
 
@@ -22,38 +24,46 @@ public class SmartTradeEvaluator {
         Map<String, Integer> positionNeeds = ClubNeedEvaluator.calculatePositionNeeds(receivingClub);
         ClubNeedEvaluator.TeamPhase phase = ClubNeedEvaluator.getTeamPhase(receivingClub);
 
-        int needStars = positionNeeds.getOrDefault(player.getPosition(), 3);
+        boolean currentClubIsEvaluatingItsOwnPlayer = player.getCurrentClub() == receivingClub;
+        int needStars = currentClubIsEvaluatingItsOwnPlayer
+            ? ClubNeedEvaluator.calculateNeedAfterRemoving(receivingClub, player)
+            : positionNeeds.getOrDefault(player.getPosition(), 3);
 
         // 1. Multiplicador de Carência de Posição
         double needMultiplier = 1.0;
         switch (needStars) {
-            case 5: needMultiplier = 1.30; break;
-            case 4: needMultiplier = 1.15; break;
-            case 3: needMultiplier = 1.00; break;
-            case 2: needMultiplier = 0.82; break;
-            case 1: needMultiplier = 0.65; break;
+            case 5: needMultiplier = currentClubIsEvaluatingItsOwnPlayer ? 1.28 : 1.30; break;
+            case 4: needMultiplier = currentClubIsEvaluatingItsOwnPlayer ? 1.16 : 1.15; break;
+            case 3: needMultiplier = currentClubIsEvaluatingItsOwnPlayer ? 1.05 : 1.00; break;
+            case 2: needMultiplier = currentClubIsEvaluatingItsOwnPlayer ? 1.00 : 0.82; break;
+            case 1: needMultiplier = currentClubIsEvaluatingItsOwnPlayer ? 0.95 : 0.65; break;
         }
 
         // 2. Multiplicador do Momento da Franquia
         double phaseMultiplier = 1.0;
         switch (phase) {
             case CONTENDER:
-                if (player.getOverall() >= 84) phaseMultiplier = 1.18;
-                else if (player.getAge() <= 20) phaseMultiplier = 0.82;
+                if (player.getOverall() >= 88 && player.getAge() <= 32) phaseMultiplier = 1.30;
+                else if (player.getOverall() >= 84) phaseMultiplier = 1.18;
+                else if (player.getAge() <= 21 && player.getOverall() < 76) phaseMultiplier = 0.72;
                 break;
 
             case BUYER:
-                if (player.getOverall() >= 80 && player.getAge() <= 27) phaseMultiplier = 1.14;
-                else if (player.getAge() >= 32) phaseMultiplier = 0.84;
+                if (player.getOverall() >= 84 && player.getAge() <= 29) phaseMultiplier = 1.20;
+                else if (player.getOverall() >= 80 && player.getAge() <= 27) phaseMultiplier = 1.12;
+                else if (player.getAge() >= 32) phaseMultiplier = 0.80;
                 break;
 
             case SELLER:
-                if (player.getPotential() - player.getOverall() >= 6) phaseMultiplier = 1.15;
+                if (player.getAge() <= 23 && player.getTruePotential() - player.getOverall() >= 6) phaseMultiplier = 1.28;
+                else if (player.getAge() >= 31) phaseMultiplier = 0.86;
                 break;
 
             case REBUILDING:
-                if (player.getAge() <= 21 || player.getPotential() >= 86) phaseMultiplier = 1.20;
-                else if (player.getAge() >= 29) phaseMultiplier = 0.78;
+                if (player.getAge() <= 21 && player.getTruePotential() >= 86) phaseMultiplier = 1.55;
+                else if (player.getAge() <= 23 || player.getTruePotential() >= 88) phaseMultiplier = 1.34;
+                else if (player.getAge() >= 31) phaseMultiplier = 0.68;
+                else if (player.getAge() >= 29) phaseMultiplier = 0.80;
                 break;
         }
 
@@ -70,7 +80,7 @@ public class SmartTradeEvaluator {
                 .orElse(0.0);
 
             if (avgSalary > 0 && player.getAnnualSalary() > (avgSalary * 1.8)) {
-                phaseMultiplier *= 0.85;
+                phaseMultiplier *= 0.90;
             }
         }
 
@@ -81,6 +91,12 @@ public class SmartTradeEvaluator {
             else if (remaining >= 4) phaseMultiplier *= 1.04;
         }
 
+        if (currentClubIsEvaluatingItsOwnPlayer) {
+            phaseMultiplier *= TradeRosterImpactEvaluator.getRetentionPremium(receivingClub, player);
+        }
+
+        if (player.getOverall() >= 92) phaseMultiplier *= 1.12d;
+
         return Math.round(baseTradeValue * needMultiplier * phaseMultiplier);
     }
 
@@ -88,8 +104,30 @@ public class SmartTradeEvaluator {
      * Calcula o valor percebido total de um pacote completo (Jogadores + Picks).
      */
     public static long calculateTotalPerceivedValue(Club evaluatingClub, List<Player> players, List<DraftPick> picks, int currentSeasonYear) {
-        long playerVal = players.stream().mapToLong(p -> getPerceivedPlayerValue(evaluatingClub, p, currentSeasonYear)).sum();
-        long pickVal = picks.stream().mapToLong(p -> DraftPickEvaluator.getPerceivedPickValue(evaluatingClub, p, currentSeasonYear)).sum();
+        List<Long> playerValues = new ArrayList<>();
+        for (Player player : players) {
+            playerValues.add(getPerceivedPlayerValue(evaluatingClub, player, currentSeasonYear));
+        }
+        playerValues.sort(Comparator.reverseOrder());
+
+        /* Vários reservas não substituem uma estrela e ainda consomem vagas
+         * de elenco. Cada jogador adicional sofre retorno decrescente. */
+        double[] playerWeights = {1d, 0.68d, 0.50d, 0.38d, 0.30d};
+        long playerVal = 0L;
+        for (int i = 0; i < playerValues.size(); i++) {
+            playerVal += Math.round(playerValues.get(i) * playerWeights[Math.min(i, playerWeights.length - 1)]);
+        }
+
+        List<Long> pickValues = new ArrayList<>();
+        for (DraftPick pick : picks) {
+            pickValues.add(DraftPickEvaluator.getPerceivedPickValue(evaluatingClub, pick, currentSeasonYear));
+        }
+        pickValues.sort(Comparator.reverseOrder());
+        double[] pickWeights = {1d, 0.88d, 0.78d, 0.70d, 0.64d};
+        long pickVal = 0L;
+        for (int i = 0; i < pickValues.size(); i++) {
+            pickVal += Math.round(pickValues.get(i) * pickWeights[Math.min(i, pickWeights.length - 1)]);
+        }
         return playerVal + pickVal;
     }
 

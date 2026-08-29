@@ -17,15 +17,26 @@ public class League {
     private final List<TradeRecord> tradeHistory = new ArrayList<>();
     private final List<Club> draftLotteryOrder = new ArrayList<>();
     private final List<DraftSelection> draftSelections = new ArrayList<>();
+    private final List<RetirementRecord> seasonRetirements = new ArrayList<>();
     private boolean draftFinalized;
     private String finalHostCity;
     private boolean offseasonTransitionProcessed;
+
+    /*
+     * Uma rodada só é exibida quando o usuário voltar a avançar o tempo.
+     * A chave diária impede que o mesmo resumo reapareça ao trocar de tela.
+     */
+    private Date pendingRoundSummaryDate;
+    private final Set<Long> displayedRoundSummaryDateKeys = new HashSet<>();
 
     public void nextSeason() {
         this.currentSeason++;
         this.currentStage = "REGULAR";
         this.playoffSeries.clear();
         this.playoffSeeds.clear();
+        this.pendingRoundSummaryDate = null;
+        this.displayedRoundSummaryDateKeys.clear();
+        this.seasonRetirements.clear();
     }
     public League(String name, int initialSeason) {
         this.name = name;
@@ -53,6 +64,7 @@ public class League {
         // estrela consolidada apenas por ter sido escolhido cedo.
         long annualSalary = calculateRookieAnnualSalary(pick, player);
         player.renewContract(annualSalary, pick.getRound() == 1 ? 4 : 2, currentSeason);
+        player.setDraftedYear(pick.getYear());
         player.transferTo(pick.getCurrentOwner());
     }
     private long calculateRookieAnnualSalary(DraftPick pick, Player player) {
@@ -123,6 +135,8 @@ public class League {
     public void setSchedule(List<Match> schedule) {
         this.schedule = schedule;
         this.currentMatchIndex = 0;
+        this.pendingRoundSummaryDate = null;
+        this.displayedRoundSummaryDateKeys.clear();
         if (!schedule.isEmpty()) {
             this.lastProcessedDate = schedule.get(0).getDate();
             Calendar firstDay = Calendar.getInstance();
@@ -133,6 +147,11 @@ public class League {
     }
 
     public int getCurrentSeason() { return currentSeason; }
+
+    /** Aposentadorias processadas na transição mais recente para a Off Season. */
+    public List<RetirementRecord> getSeasonRetirements() {
+        return new ArrayList<>(seasonRetirements);
+    }
 
     public Match getNextMatch() {
         return (currentMatchIndex < schedule.size()) ? schedule.get(currentMatchIndex) : null;
@@ -148,6 +167,84 @@ public class League {
         }
         int matchesPerRound = Math.max(1, clubs.size() / 2);
         return (playedCount / matchesPerRound) + 1;
+    }
+
+    /** Retorna as partidas da fase regular marcadas para o mesmo dia. */
+    public List<Match> getRegularMatchesOnDate(Date date) {
+        List<Match> matches = new ArrayList<>();
+        if (date == null) return matches;
+
+        for (Match match : schedule) {
+            if ("REGULAR".equals(match.getStage()) && sameCalendarDay(match.getDate(), date)) {
+                matches.add(match);
+            }
+        }
+        return matches;
+    }
+
+    /** Número estável da rodada, mesmo depois que a agenda já avançou. */
+    public int getRoundNumberForDate(Date date) {
+        if (date == null) return 0;
+
+        List<Date> dates = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        for (Match match : schedule) {
+            if (!"REGULAR".equals(match.getStage()) || match.getDate() == null) continue;
+            long key = calendarDayKey(match.getDate());
+            if (seen.add(key)) dates.add(match.getDate());
+        }
+        Collections.sort(dates);
+
+        for (int index = 0; index < dates.size(); index++) {
+            if (sameCalendarDay(dates.get(index), date)) return index + 1;
+        }
+        return 0;
+    }
+
+    public boolean hasPendingRoundSummary() {
+        return pendingRoundSummaryDate != null;
+    }
+
+    /**
+     * Consome a pendência apenas quando o diálogo efetivamente vai aparecer.
+     * Dessa forma, mudar de tela não descarta um resumo ainda não mostrado.
+     */
+    public Date consumePendingRoundSummaryDate() {
+        if (pendingRoundSummaryDate == null) return null;
+
+        Date date = new Date(pendingRoundSummaryDate.getTime());
+        displayedRoundSummaryDateKeys.add(calendarDayKey(date));
+        pendingRoundSummaryDate = null;
+        return date;
+    }
+
+    private void queueRoundSummaryIfComplete(Date roundDate) {
+        if (roundDate == null || pendingRoundSummaryDate != null) return;
+
+        long key = calendarDayKey(roundDate);
+        if (displayedRoundSummaryDateKeys.contains(key)) return;
+
+        List<Match> roundMatches = getRegularMatchesOnDate(roundDate);
+        if (roundMatches.isEmpty()) return;
+
+        for (Match match : roundMatches) {
+            if (!match.isPlayed()) return;
+        }
+
+        pendingRoundSummaryDate = new Date(roundDate.getTime());
+    }
+
+    private boolean sameCalendarDay(Date first, Date second) {
+        return first != null && second != null &&
+            calendarDayKey(first) == calendarDayKey(second);
+    }
+
+    private long calendarDayKey(Date date) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        return calendar.get(Calendar.YEAR) * 10000L +
+            (calendar.get(Calendar.MONTH) + 1) * 100L +
+            calendar.get(Calendar.DAY_OF_MONTH);
     }
 
     // Retorna as partidas pertencentes à rodada/data do próximo confronto
@@ -182,6 +279,10 @@ public class League {
             lastProcessedDate = completedMatch.getDate();
             if (currentDate == null || currentDate.before(lastProcessedDate)) currentDate = lastProcessedDate;
             currentMatchIndex++;
+
+            if (completedMatch.isPlayed() && "REGULAR".equals(completedMatch.getStage())) {
+                queueRoundSummaryIfComplete(completedMatch.getDate());
+            }
 
             if ("PLAYOFFS".equals(currentStage) && completedMatch.isPlayed()) {
                 advancePlayoffBracket(completedMatch);
@@ -350,16 +451,20 @@ public class League {
             for (Player p : club.getSquad()) {
                 p.resetSeasonStats();
             }
+            club.beginBoardSeason(this.currentSeason);
         }
 
 
         // Reinicia a agenda mantendo o calendário zerado
         this.currentMatchIndex = 0;
         this.schedule.clear();
+        this.pendingRoundSummaryDate = null;
+        this.displayedRoundSummaryDateKeys.clear();
         this.playoffSeries.clear();
         this.playoffSeeds.clear();
         this.draftLotteryOrder.clear();
         this.draftSelections.clear();
+        this.seasonRetirements.clear();
         this.draftFinalized = false;
         this.offseasonTransitionProcessed = false;
         DraftOrderService.initializeDraftPicks(this, currentSeason + 1);
@@ -369,19 +474,55 @@ public class League {
     private void processOffseasonTransition() {
         if (offseasonTransitionProcessed) return;
         offseasonTransitionProcessed = true;
+        seasonRetirements.clear();
+
         for (Club club : clubs) {
             club.getFinance().applyMonthlyBalance();
             List<Player> retiring = new ArrayList<>();
+
             for (Player player : club.getSquad()) {
                 player.recover(30);
                 player.setAge(player.getAge() + 1);
-                if (player.getAge() >= 40 && club.getSquad().size() - retiring.size() > TradeRulesValidator.MIN_ROSTER_SIZE) {
+
+                if (
+                    shouldRetire(player) &&
+                    club.getSquad().size() - retiring.size() > TradeRulesValidator.MIN_ROSTER_SIZE
+                ) {
                     retiring.add(player);
                 }
             }
-            for (Player player : retiring) player.transferTo(null);
+
+            for (Player player : retiring) {
+                retirePlayer(club, player);
+            }
         }
         DraftOrderService.initializeDraftPicks(this, currentSeason + 1);
+    }
+
+    /**
+     * A partir dos 33 anos, a probabilidade aumenta de forma acelerada:
+     * 33 anos ≈ 1%, 35 ≈ 11%, 37 ≈ 31%, 39 ≈ 61%, 40 ≈ 80%.
+     * Aos 41 anos ou mais a aposentadoria é certa.
+     */
+    private boolean shouldRetire(Player player) {
+        if (player == null || player.getAge() <= 32) return false;
+        if (player.getAge() >= 41) return true;
+
+        int yearsPastThirtyTwo = player.getAge() - 32;
+        double chance = Math.min(0.95d, 0.0125d * yearsPastThirtyTwo * yearsPastThirtyTwo);
+        String id = player.getId() != null ? player.getId() : player.getName();
+        long seed = ((long) currentSeason * 1_000_003L) ^ (id != null ? id.hashCode() : 0);
+        return new Random(seed).nextDouble() < chance;
+    }
+
+    private void retirePlayer(Club club, Player player) {
+        if (club == null || player == null) return;
+
+        String lastClubName = club.getName();
+        club.getStartingXI().remove(player);
+        club.getTacticsMap().entrySet().removeIf(entry -> entry.getValue() == player);
+        player.transferTo(null);
+        seasonRetirements.add(new RetirementRecord(player, lastClubName, currentSeason));
     }
 
     public Date getLastProcessedDate() { return lastProcessedDate; }

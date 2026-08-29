@@ -12,6 +12,9 @@ import java.util.Random;
 import java.util.stream.Collectors;
 
 public class MatchEngine {
+    /** Chance-base por equipe/minuto; fadiga e intensidade continuam pesando. */
+    private static final double INJURY_CHECK_CHANCE = 0.0115d;
+
     private final Random random = new Random();
 
     public void simulate(Match match) {
@@ -30,6 +33,23 @@ public class MatchEngine {
      * lesão, suspensão ou alteração anterior tiver deixado uma vaga vazia.
      */
     public void prepareMatchLineups(Match match) {
+        if (match == null) {
+            return;
+        }
+
+        prepareLineupsForPreview(match);
+        match.recordStartingLineups(
+            new java.util.ArrayList<>(match.getHomeTeam().getStartingXI()),
+            new java.util.ArrayList<>(match.getAwayTeam().getStartingXI())
+        );
+    }
+
+    /**
+     * Atualiza as escalações que aparecem na tela pré-jogo sem registrar
+     * definitivamente os atletas. Assim a IA já é exibida com onze nomes e
+     * o usuário ainda pode alterar sua equipe antes do pontapé inicial.
+     */
+    public void prepareLineupsForPreview(Match match) {
         if (match == null) {
             return;
         }
@@ -69,11 +89,11 @@ public class MatchEngine {
             away.getTempo(), away.getMentalityValue(), away.getPassing(), away.getWidth(), away.getPressure()
         );
 
-        // 2. Processamento de Lesões (frequência aumentada)
-        MatchEvent homeInjury = processInjuryCheck(hStarters, home, minute, hMods, true);
+        // 2. Processamento de lesões
+        MatchEvent homeInjury = processInjuryCheck(match, hStarters, home, minute, hMods, true);
         if (homeInjury != null) return homeInjury;
 
-        MatchEvent awayInjury = processInjuryCheck(aStarters, away, minute, aMods, false);
+        MatchEvent awayInjury = processInjuryCheck(match, aStarters, away, minute, aMods, false);
         if (awayInjury != null) return awayInjury;
 
         // 3. Determinação de Posse de Bola delegada à PossessionEngine
@@ -170,8 +190,8 @@ public class MatchEngine {
         }
     }
 
-    private MatchEvent processInjuryCheck(List<Player> starters, Club club, int minute, TacticalModifiers mods, boolean isHomeTeam) {
-        if (random.nextDouble() > 0.015) return null;
+    private MatchEvent processInjuryCheck(Match match, List<Player> starters, Club club, int minute, TacticalModifiers mods, boolean isHomeTeam) {
+        if (random.nextDouble() > INJURY_CHECK_CHANCE) return null;
 
         List<Player> activeStarters = starters.stream()
             .filter(p -> p.getMatchRedCards() == 0 && !p.isInjured())
@@ -185,19 +205,54 @@ public class MatchEngine {
         double totalRisk = fatigueRisk * mods.fatigueMultiplier;
 
         if (random.nextDouble() < totalRisk || random.nextDouble() < 0.35) {
-            int gamesOut = 1 + random.nextInt(5);
-            victim.setInjuryDuration(gamesOut);
+            InjuryProfile injury = drawInjuryProfile(fatigueRisk);
+            victim.injureForDays(injury.daysOut, injury.type);
+            match.registerPlayerExit(victim, minute);
             club.removeUnavailablePlayersFromStartingXI();
 
             return new MatchEvent(
                 minute,
-                "LESÃO! " + victim.getName() + " (" + club.getName() + ") sente dores musculares e precisa deixar o gramado! (Fora por " + gamesOut + " jogos)",
+                "LESÃO! " + victim.getName() + " (" + club.getName() + ") sofre " + injury.type + " e precisa deixar o gramado! (Fora por " + injury.daysOut + " dias)",
                 "LESIONADO",
                 isHomeTeam
             );
         }
 
         return null;
+    }
+
+    /**
+     * Sorteia diagnóstico e prazo. A fadiga aumenta apenas a chance de
+     * diagnósticos graves, mantendo contusões curtas como o resultado mais comum.
+     */
+    private InjuryProfile drawInjuryProfile(double fatigueRisk) {
+        double severityRoll = Math.min(
+            0.999d,
+            random.nextDouble() + Math.min(0.16d, Math.max(0d, fatigueRisk) * 0.20d)
+        );
+
+        if (severityRoll < 0.22d) return injury("CONTUSÃO", 1, 4);
+        if (severityRoll < 0.42d) return injury("TORÇÃO NO TORNOZELO", 4, 10);
+        if (severityRoll < 0.62d) return injury("DISTENSÃO MUSCULAR", 7, 16);
+        if (severityRoll < 0.78d) return injury("ESTIRAMENTO MUSCULAR", 12, 24);
+        if (severityRoll < 0.90d) return injury("ENTORSE NO JOELHO", 18, 35);
+        if (severityRoll < 0.97d) return injury("LESÃO LIGAMENTAR", 35, 65);
+        return injury("FRATURA", 60, 120);
+    }
+
+    private InjuryProfile injury(String type, int minimumDays, int maximumDays) {
+        int daysOut = minimumDays + random.nextInt(maximumDays - minimumDays + 1);
+        return new InjuryProfile(type, daysOut);
+    }
+
+    private static final class InjuryProfile {
+        private final String type;
+        private final int daysOut;
+
+        private InjuryProfile(String type, int daysOut) {
+            this.type = type;
+            this.daysOut = daysOut;
+        }
     }
 
     private MatchEvent processShotSequence(Match match, int minute, boolean homeAttacking, Club attacker, Club defender,
@@ -364,6 +419,7 @@ public class MatchEngine {
 
         if (severityRoll > 1.20) {
             foulCommitter.addRedCard();
+            match.registerPlayerExit(foulCommitter, minute);
             defender.removeUnavailablePlayersFromStartingXI();
             match.addCard(foulCommitter, "Vermelho");
             if (isDefenderHome) match.addHomeRedCard(); else match.addAwayRedCard();
@@ -378,6 +434,7 @@ public class MatchEngine {
 
         if (foulCommitter.getYellowCards() >= 1 && severityRoll >= 0.50) {
             foulCommitter.addYellowCard();
+            match.registerPlayerExit(foulCommitter, minute);
             defender.removeUnavailablePlayersFromStartingXI();
             match.addCard(foulCommitter, "Vermelho");
             if (isDefenderHome) match.addHomeRedCard(); else match.addAwayRedCard();
@@ -431,14 +488,6 @@ public class MatchEngine {
                 p.decreaseSuspension();
             }
 
-            if (
-                p.isInjured() &&
-                    p.getInjuryDuration() > 0 &&
-                    !p.wasInjuredInCurrentMatch()
-            ) {
-                p.decreaseInjury();
-            }
-
             p.resetMatchStats();
         }
 
@@ -449,14 +498,6 @@ public class MatchEngine {
                     p.isSuspended()
             ) {
                 p.decreaseSuspension();
-            }
-
-            if (
-                p.isInjured() &&
-                    p.getInjuryDuration() > 0 &&
-                    !p.wasInjuredInCurrentMatch()
-            ) {
-                p.decreaseInjury();
             }
 
             p.resetMatchStats();
@@ -489,6 +530,8 @@ public class MatchEngine {
 
         int awayGoals =
             match.getAwayGoals();
+
+        match.finishPlayerMinuteTracking();
 
         registerSeasonPerformance(
             home,
@@ -649,15 +692,18 @@ public class MatchEngine {
         Match match
     ) {
 
-        for (
-            Player player :
-            club.getStartingXI()
-        ) {
+        for (java.util.Map.Entry<Player, Integer> participant :
+            match.getPlayerMinutesForClub(club).entrySet()) {
+
+            Player player = participant.getKey();
+            int minutes = participant.getValue();
 
             player.addSeasonAppearance();
+            player.addSeasonMinutes(minutes);
 
             if (
                 goalsConceded == 0 &&
+                    minutes >= 60 &&
                     player.getPosition() != null &&
                     player.getPosition()
                         .matches(

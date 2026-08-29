@@ -11,6 +11,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 
 import io.github.some_example_name.database.DraftClass1970;
+import io.github.some_example_name.database.DraftClass1971;
+import io.github.some_example_name.database.DraftClassGenerator;
 import io.github.some_example_name.database.GameDatabase;
 import io.github.some_example_name.engine.MatchEngine;
 import io.github.some_example_name.engine.DevelopmentEngine;
@@ -19,6 +21,8 @@ import io.github.some_example_name.model.DraftScoutManager;
 import io.github.some_example_name.model.DraftOrderService;
 import io.github.some_example_name.model.FreeAgencyService;
 import io.github.some_example_name.model.League;
+import io.github.some_example_name.model.MatchEvent;
+import io.github.some_example_name.model.ManagerCareer;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.screens.CareerOverlay;
 import io.github.some_example_name.screens.MenuScreen;
@@ -28,6 +32,7 @@ import io.github.some_example_name.simulation.SeasonSimulator;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.StyleFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Main extends Game {
@@ -44,7 +49,32 @@ public class Main extends Game {
     public FreeAgencyService freeAgencyService;
 
     public Club playerClub;
+    public final ManagerCareer managerCareer = new ManagerCareer();
     public Drawable background;
+
+    /**
+     * Define a franquia controlada pelo jogador e prepara todos os clubes para
+     * o início da carreira. Manter essa troca centralizada evita que o clube
+     * anteriormente selecionado continue marcado como controlado pelo usuário.
+     */
+    public void selectPlayerClub(Club selectedClub) {
+        if (selectedClub == null) {
+            return;
+        }
+
+        List<Club> clubs = league != null
+            ? league.getClubs()
+            : database.getClubs();
+
+        for (Club club : clubs) {
+            club.setUserControlled(false);
+            club.autoSelectBestFormationAndXI();
+        }
+
+        selectedClub.setUserControlled(true);
+        playerClub = selectedClub;
+        managerCareer.startJob(selectedClub);
+    }
 
     // ==============================
     // DRAFT / SCOUTING
@@ -63,6 +93,43 @@ public class Main extends Game {
      * toda vez que DraftScoutingScreen é aberta.
      */
     public List<Player> draftClass;
+    public int draftClassYear;
+
+    /** Seleciona uma única classe persistente para cada ano de Draft. */
+    public void loadDraftClassForYear(int year) {
+        if (draftClass != null && draftClassYear == year) {
+            draftClass = DraftClassGenerator.ensureMinimumProspects(draftClass);
+            return;
+        }
+
+        List<Player> loadedClass = year == 1971
+            ? DraftClass1971.getPlayers()
+            : DraftClass1970.getPlayers();
+        draftClass = DraftClassGenerator.ensureMinimumProspects(loadedClass);
+        draftClassYear = year;
+        draftScoutManager = new DraftScoutManager(3);
+    }
+
+    /*
+     * Alertas do clube ocorridos durante a partida. Eles sobrevivem à troca
+     * da MatchScreen para a tela de elenco e são consumidos uma vez lá.
+     */
+    private final List<MatchEvent> pendingSquadAlerts =
+        new ArrayList<>();
+
+    public void queueSquadAlert(
+        MatchEvent event
+    ) {
+        if (event != null) {
+            pendingSquadAlerts.add(event);
+        }
+    }
+
+    public MatchEvent consumeSquadAlert() {
+        return pendingSquadAlerts.isEmpty()
+            ? null
+            : pendingSquadAlerts.remove(0);
+    }
 
     @Override
     public void create() {
@@ -91,6 +158,8 @@ public class Main extends Game {
             league.getCurrentSeason()
         );
         freeAgencyService = new FreeAgencyService(league);
+        // A temporada inaugural também respeita o limite obrigatório de elenco.
+        freeAgencyService.enforceRosterLimitsForNewSeason();
         DraftOrderService.initializeDraftPicks(
             league,
             league.getCurrentSeason() + 1
@@ -123,32 +192,29 @@ public class Main extends Game {
             );
         }
 
+        for (Club club : league.getClubs()) {
+            club.beginBoardSeason(league.getCurrentSeason());
+        }
+
         // ==============================
         // CLUBE DO USUÁRIO
         // ==============================
 
         if (!database.getClubs().isEmpty()) {
-            playerClub = database.getClubs().get(0);
-            playerClub.setUserControlled(true);
-
-            for (Club club : database.getClubs()) {
-                if (club != playerClub) {
-                    club.autoSelectBestFormationAndXI();
-                }
-            }
+            // Seleção provisória usada apenas para pré-visualizar a tela de
+            // escolha. A franquia definitiva é confirmada pelo usuário.
+            Club previewClub = database.getClubs().get(0);
+            previewClub.setUserControlled(true);
+            playerClub = previewClub;
         }
 
         // ==============================
         // DRAFT / SCOUTING
         // ==============================
 
-        // 3 estrelas inicialmente.
-        // Depois poderá depender do staff.
-        draftScoutManager = new DraftScoutManager(3);
-
-        // IMPORTANTÍSSIMO:
-        // a Draft Class é gerada apenas uma vez.
-        draftClass = DraftClass1970.getPlayers();
+        // A classe é gerada uma única vez e permanece estável durante
+        // todo o ciclo de scouting e Draft daquela temporada.
+        loadDraftClassForYear(league.getCurrentSeason() + 1);
 
         // ==============================
         // TELA INICIAL

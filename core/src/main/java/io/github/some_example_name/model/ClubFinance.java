@@ -193,6 +193,13 @@ public class ClubFinance {
     public void setBalance(long balance) { this.balance = balance; }
     public void applyMonthlyBalance() { this.balance += getMonthlyNetResult(); }
 
+    /** Débito único para investimentos do clube, sem permitir caixa negativo. */
+    public boolean spend(long amount) {
+        if (amount <= 0L || amount > balance) return false;
+        balance -= amount;
+        return true;
+    }
+
     public long getClubValuation() {
         return EconomicPower.calculateClubValuation(club);
     }

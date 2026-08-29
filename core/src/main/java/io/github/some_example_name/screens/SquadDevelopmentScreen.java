@@ -41,6 +41,7 @@ public class SquadDevelopmentScreen implements Screen {
     private String positionFilter = "TODAS";
     private String sortField = "PROGRESSÃO";
     private boolean sortAscending;
+    private boolean showingInjuredPlayers;
 
     public SquadDevelopmentScreen(Main game, Club club) {
         this.game = game;
@@ -63,23 +64,28 @@ public class SquadDevelopmentScreen implements Screen {
 
         Table page = ScreenUI.createPage(true);
         page.add(createHeader()).growX().height(78f).padBottom(10f).row();
-        page.add(createSummary()).growX().height(70f).padBottom(10f).row();
-        page.add(createFilters()).growX().height(105f).padBottom(10f).row();
-        page.add(createRosterPanel()).grow().row();
+        page.add(createViewTabs()).growX().height(44f).padBottom(10f).row();
+        if (showingInjuredPlayers) {
+            page.add(createInjurySummary()).growX().height(70f).padBottom(10f).row();
+            page.add(createInjuredPlayersPanel()).grow().row();
+        } else {
+            page.add(createSummary()).growX().height(70f).padBottom(10f).row();
+            page.add(createFilters()).growX().height(105f).padBottom(10f).row();
+            page.add(createRosterPanel()).grow().row();
+        }
         root.add(page);
 
         NavigationDrawer.attach(stage, game, club, "DESENV.", true);
-        CareerOverlay.attach(stage, game, club);
     }
 
     private Table createHeader() {
         Table header = ScreenUI.createPanel();
         Table identity = new Table();
-        Label title = new Label("DESENVOLVIMENTO DO ELENCO", game.skin, "font-title");
+        Label title = new Label(showingInjuredPlayers ? "JOGADORES LESIONADOS" : "DESENVOLVIMENTO DO ELENCO", game.skin, "font-title");
         title.setFontScale(0.72f);
         title.setColor(StyleFactory.GOLD);
         identity.add(title).left().row();
-        Label subtitle = ScreenUI.createSubtitle(game.skin, club.getName().toUpperCase());
+        Label subtitle = ScreenUI.createSubtitle(game.skin, showingInjuredPlayers ? "CENTRO MÉDICO • " + club.getName().toUpperCase() : club.getName().toUpperCase());
         subtitle.setFontScale(0.52f);
         subtitle.setColor(ScreenUI.MUTED_TEXT);
         identity.add(subtitle).left();
@@ -87,6 +93,141 @@ public class SquadDevelopmentScreen implements Screen {
         header.add(ScreenUI.createStatusBox(game.skin, "TEMPORADA", String.valueOf(game.league.getCurrentSeason()), StyleFactory.SOFT_YELLOW))
             .width(175f).height(48f);
         return header;
+    }
+
+    private Table createViewTabs() {
+        Table tabs = ScreenUI.createPanel();
+        TextButton development = createViewTab("DESENVOLVIMENTO", false);
+        TextButton injured = createViewTab("LESIONADOS (" + getInjuredPlayers().size() + ")", true);
+        tabs.add(development).width(230f).height(34f).padRight(8f);
+        tabs.add(injured).width(210f).height(34f);
+        return tabs;
+    }
+
+    private TextButton createViewTab(String text, boolean injuredTab) {
+        TextButton button = ScreenUI.createInteractiveButton(text, game.skin, "toggle");
+        button.getLabel().setFontScale(0.47f);
+        boolean selected = showingInjuredPlayers == injuredTab;
+        button.setChecked(selected);
+        button.setColor(selected ? StyleFactory.GOLD : StyleFactory.METAL_DARK);
+        button.getLabel().setColor(selected ? Color.BLACK : Color.WHITE);
+        button.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                showingInjuredPlayers = injuredTab;
+                refreshUI();
+            }
+        });
+        return button;
+    }
+
+    private Table createInjurySummary() {
+        List<Player> injured = getInjuredPlayers();
+        int imminent = 0;
+        int shortTerm = 0;
+        int mediumTerm = 0;
+        int longTerm = 0;
+
+        for (Player player : injured) {
+            int days = player.getInjuryDaysRemaining();
+            if (days <= 3) imminent++;
+            else if (days <= 14) shortTerm++;
+            else if (days <= 30) mediumTerm++;
+            else longTerm++;
+        }
+
+        Table summary = new Table();
+        summary.add(status("NO DEPARTAMENTO MÉDICO", String.valueOf(injured.size()), injured.isEmpty() ? ScreenUI.SUCCESS : ScreenUI.DANGER)).growX().uniformX().padRight(8f);
+        summary.add(status("ATÉ 3 DIAS", String.valueOf(imminent), imminent > 0 ? ScreenUI.SUCCESS : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("4–14 DIAS", String.valueOf(shortTerm), shortTerm > 0 ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("15–30 DIAS", String.valueOf(mediumTerm), mediumTerm > 0 ? ScreenUI.WARNING : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("31+ DIAS", String.valueOf(longTerm), longTerm > 0 ? ScreenUI.DANGER : ScreenUI.MUTED_TEXT)).growX().uniformX();
+        return summary;
+    }
+
+    private Table createInjuredPlayersPanel() {
+        Table panel = ScreenUI.createPanel();
+        panel.top();
+        List<Player> injured = getInjuredPlayers();
+
+        if (injured.isEmpty()) {
+            Table empty = new Table();
+            Label title = ScreenUI.createBoldValue(game.skin, "NENHUM JOGADOR LESIONADO", ScreenUI.SUCCESS, Align.center);
+            title.setFontScale(0.68f);
+            Label text = ScreenUI.createSubtitle(game.skin, "Elenco completo e disponível para a próxima partida.");
+            text.setColor(ScreenUI.MUTED_TEXT);
+            empty.add(title).padBottom(9f).row();
+            empty.add(text);
+            panel.add(empty).grow().center();
+            return panel;
+        }
+
+        Table table = new Table();
+        table.top();
+        Table header = ScreenUI.createTableHeaderRow();
+        header.add(ScreenUI.createTableHeaderLabel(game.skin, "JOGADOR", Align.left)).width(310f).padLeft(10f);
+        header.add(ScreenUI.createTableHeaderLabel(game.skin, "IDADE", Align.center)).width(76f);
+        header.add(ScreenUI.createTableHeaderLabel(game.skin, "POS", Align.center)).width(78f);
+        header.add(ScreenUI.createTableHeaderLabel(game.skin, "OVR", Align.center)).width(75f);
+        header.add(ScreenUI.createTableHeaderLabel(game.skin, "LESÃO", Align.center)).width(205f);
+        header.add(ScreenUI.createTableHeaderLabel(game.skin, "RETORNO", Align.center)).width(160f);
+        header.add(ScreenUI.createTableHeaderLabel(game.skin, "SITUAÇÃO", Align.center)).width(160f);
+        table.add(header).growX().height(42f).row();
+
+        int index = 0;
+        for (Player player : injured) {
+            table.add(createInjuredPlayerRow(player, index++)).growX().height(54f).row();
+        }
+
+        ScrollPane scroll = new ScrollPane(table, game.skin);
+        scroll.setFadeScrollBars(false);
+        panel.add(scroll).grow();
+        return panel;
+    }
+
+    private Table createInjuredPlayerRow(final Player player, int index) {
+        Table row = ScreenUI.createRow(index);
+        String injuryType = player.getInjuryType();
+        if (injuryType == null || injuryType.trim().isEmpty()) injuryType = "LESÃO";
+        row.add(ScreenUI.createBoldValue(game.skin, ScreenUI.shorten(player.getName(), 28), Color.WHITE, Align.left)).left().width(310f).padLeft(10f);
+        row.add(value(String.valueOf(player.getAge()), Color.WHITE)).width(76f);
+        row.add(ScreenUI.createBadge(game.skin, player.getPosition(), StyleFactory.getPositionColor(player.getPosition()))).width(78f).height(27f);
+        row.add(value(String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW)).width(75f);
+        row.add(value(injuryType.toUpperCase(), ScreenUI.DANGER)).width(205f);
+        row.add(value(returnEstimate(player.getInjuryDaysRemaining()), StyleFactory.SOFT_YELLOW)).width(160f);
+        row.add(value(injuryStatus(player.getInjuryDaysRemaining()), injuryStatusColor(player.getInjuryDaysRemaining()))).width(160f);
+        row.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                new PlayerDevelopmentDialog(game.skin, player, club).show(stage);
+            }
+        });
+        return row;
+    }
+
+    private List<Player> getInjuredPlayers() {
+        List<Player> injured = new ArrayList<>();
+        for (Player player : club.getSquad()) {
+            if (player.isInjured()) injured.add(player);
+        }
+        injured.sort(Comparator.comparingInt(Player::getInjuryDaysRemaining).reversed().thenComparing(Player::getName));
+        return injured;
+    }
+
+    private String returnEstimate(int days) {
+        return days == 1 ? "1 DIA" : days + " DIAS";
+    }
+
+    private String injuryStatus(int days) {
+        if (days <= 3) return "RETORNO IMINENTE";
+        if (days <= 14) return "EM RECUPERAÇÃO";
+        if (days <= 30) return "EM TRATAMENTO";
+        return "REABILITAÇÃO";
+    }
+
+    private Color injuryStatusColor(int days) {
+        if (days <= 3) return ScreenUI.SUCCESS;
+        if (days <= 14) return StyleFactory.SOFT_YELLOW;
+        if (days <= 30) return ScreenUI.WARNING;
+        return ScreenUI.DANGER;
     }
 
     private Table createSummary() {

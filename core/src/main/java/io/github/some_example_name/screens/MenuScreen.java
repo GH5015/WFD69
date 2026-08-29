@@ -55,7 +55,7 @@ public class MenuScreen implements Screen {
         startButton.getLabel().setFontScale(1.2f);
         startButton.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new ClubManagementScreen(game, game.playerClub));
+                game.setScreen(new ClubSelectionScreen(game));
             }
         });
 

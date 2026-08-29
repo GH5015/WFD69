@@ -60,30 +60,54 @@ public class GameDatabase {
     }
 
     private void initializeClubs() {
-        addClub("Santos Atlântico", "Brasil", "Ocidental", 95, "santos.png");
-        addClub("Rio Imperial", "Brasil", "Ocidental", 92, "rio.png");
-        addClub("Milano Calcio", "Itália", "Ocidental", 93, "milano.png");
-        addClub("Bavaria München", "Alemanha", "Ocidental", 94, "bavaria.png");
-        addClub("Manchester Albion", "Inglaterra", "Ocidental", 93, "manchester.png");
-        addClub("London Royals", "Inglaterra", "Ocidental", 91, "london.png");
-        addClub("Amsterdã Total", "Holanda", "Ocidental", 93, "amsterdam_total.png");
-        addClub("Madrid Castilla", "Espanha", "Ocidental", 92, "madrid.png");
-        addClub("Barcelona Mediterrâneo", "Espanha", "Ocidental", 91, "barcelona.png");
-        addClub("Budapest Danube", "Hungria", "Ocidental", 90, "budapest.png");
-        addClub("Lisboa Atlântica", "Portugal", "Ocidental", 93, "lisboa.png");
-        addClub("Buenos Aires Plata", "Argentina", "Ocidental", 91, "buenosaires.png");
-        addClub("Montevideo Oriental", "Uruguai", "Ocidental", 91, "montevideo.png");
-        addClub("Paris Lumière", "França", "Ocidental", 90, "paris.png");
-        addClub("Belfast Northern Stars", "Irlanda do Norte", "Ocidental", 88, "belfast.png");
-        addClub("Tokyo Rising Sun", "Japão", "Oriental", 85, "tokyo.png");
-        addClub("Seoul Tigers", "Coreia do Sul", "Oriental", 85, "seoul.png");
-        addClub("Tehran Lions", "Irã", "Oriental", 80, "tehran.png");
-        addClub("Baghdad Mesopotamia", "Iraque", "Oriental", 80, "baghdad.png");
-        addClub("Tel Aviv Stars", "Israel", "Oriental", 85, "telaviv.png");
+        /*
+         * Caixa inaugural da WFL. A distribuição combina tradição esportiva,
+         * dimensão do mercado e o momento administrativo de cada franquia.
+         * Por isso reputação e dinheiro não são equivalentes: Tokyo possui
+         * forte suporte corporativo, enquanto Belfast e Baghdad iniciam a
+         * carreira tentando reverter um déficit.
+         */
+        addClub("Santos Atlântico", "Brasil", "Ocidental", 95, "santos.png", 52_500_000L);
+        addClub("Rio Imperial", "Brasil", "Ocidental", 92, "rio.png", 46_000_000L);
+        addClub("Milano Calcio", "Itália", "Ocidental", 93, "milano.png", 55_000_000L);
+        addClub("Bavaria München", "Alemanha", "Ocidental", 94, "bavaria.png", 58_500_000L);
+        addClub("Manchester Albion", "Inglaterra", "Ocidental", 93, "manchester.png", 49_500_000L);
+        addClub("London Royals", "Inglaterra", "Ocidental", 91, "london.png", 31_000_000L);
+        addClub("Amsterdã Total", "Holanda", "Ocidental", 93, "amsterdam_total.png", 36_500_000L);
+        addClub("Madrid Castilla", "Espanha", "Ocidental", 92, "madrid.png", 68_000_000L);
+        addClub("Barcelona Mediterrâneo", "Espanha", "Ocidental", 91, "barcelona.png", 41_500_000L);
+        addClub("Budapest Danube", "Hungria", "Ocidental", 90, "budapest.png", 13_500_000L);
+        addClub("Lisboa Atlântica", "Portugal", "Ocidental", 93, "lisboa.png", 27_500_000L);
+        addClub("Buenos Aires Plata", "Argentina", "Ocidental", 91, "buenosaires.png", 22_000_000L);
+        addClub("Montevideo Oriental", "Uruguai", "Ocidental", 91, "montevideo.png", 9_500_000L);
+        addClub("Paris Lumière", "França", "Ocidental", 90, "paris.png", 44_500_000L);
+        addClub("Belfast Northern Stars", "Irlanda do Norte", "Ocidental", 88, "belfast.png", -1_800_000L);
+        addClub("Tokyo Rising Sun", "Japão", "Oriental", 85, "tokyo.png", 63_000_000L);
+        addClub("Seoul Tigers", "Coreia do Sul", "Oriental", 85, "seoul.png", 17_500_000L);
+        addClub("Tehran Lions", "Irã", "Oriental", 80, "tehran.png", 5_000_000L);
+        addClub("Baghdad Mesopotamia", "Iraque", "Oriental", 80, "baghdad.png", -4_600_000L);
+        addClub("Tel Aviv Stars", "Israel", "Oriental", 85, "telaviv.png", 19_500_000L);
     }
 
-    private void addClub(String name, String country, String conf, int rep, String logo) {
-        clubs.add(new Club(name, country, conf, rep, rep * 50000.0, name + " Arena", logo));
+    private void addClub(
+        String name,
+        String country,
+        String conf,
+        int rep,
+        String logo,
+        long initialBalance
+    ) {
+        Club club = new Club(
+            name,
+            country,
+            conf,
+            rep,
+            initialBalance,
+            name + " Arena",
+            logo
+        );
+        club.getFinance().setBalance(initialBalance);
+        clubs.add(club);
     }
 
     private void initializeSantosSquad() {
@@ -465,6 +489,26 @@ public class GameDatabase {
         attrs.put("fisico", fis);
         attrs.put("drible", dri);
         Position position = Position.valueOf(pos.toUpperCase());
+        TechnicalAttributes attributes = new TechnicalAttributes(attrs);
+
+        /* O overall depende da posição e dos atributos. Criamos esta leitura
+         * inicial para transformar o potencial bruto da base em um teto de
+         * desenvolvimento coerente com o nível e a idade do atleta. */
+        Player overallReference = new Player(
+            name,
+            nationality,
+            position,
+            null,
+            age,
+            attributes,
+            pot,
+            salary
+        );
+        int balancedPotential = balanceInitialPotential(
+            age,
+            overallReference.getOverall(),
+            pot
+        );
 
         return new Player(
             name,
@@ -472,10 +516,60 @@ public class GameDatabase {
             position,
             null,
             age,
-            new TechnicalAttributes(attrs),
-            pot,
+            attributes,
+            balancedPotential,
             salary
         );
+    }
+
+    /**
+     * Reequilibra somente os atletas da database inaugural. O valor original
+     * continua servindo como indicador de talento, mas sua influência diminui
+     * com a idade. Classes futuras do Draft mantêm seus próprios critérios.
+     */
+    private int balanceInitialPotential(
+        int age,
+        int overall,
+        int rawPotential
+    ) {
+        double retainedGrowth;
+        int maximumGrowth;
+
+        if (age <= 18) {
+            retainedGrowth = 0.62;
+            maximumGrowth = 13;
+        } else if (age <= 20) {
+            retainedGrowth = 0.55;
+            maximumGrowth = 11;
+        } else if (age <= 22) {
+            retainedGrowth = 0.45;
+            maximumGrowth = 8;
+        } else if (age <= 24) {
+            retainedGrowth = 0.35;
+            maximumGrowth = 6;
+        } else if (age <= 26) {
+            retainedGrowth = 0.25;
+            maximumGrowth = 4;
+        } else if (age <= 29) {
+            retainedGrowth = 0.15;
+            maximumGrowth = 2;
+        } else {
+            retainedGrowth = 0.0;
+            maximumGrowth = 0;
+        }
+
+        int safeOverall = Math.max(40, Math.min(99, overall));
+        int safeRawPotential = Math.max(
+            safeOverall,
+            Math.min(99, rawPotential)
+        );
+        int rawGrowth = safeRawPotential - safeOverall;
+        int balancedGrowth = Math.min(
+            maximumGrowth,
+            (int) Math.round(rawGrowth * retainedGrowth)
+        );
+
+        return Math.min(99, safeOverall + balancedGrowth);
     }
 
     private void fillRemainingSquads() {

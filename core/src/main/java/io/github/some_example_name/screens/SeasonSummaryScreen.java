@@ -357,10 +357,13 @@ public class SeasonSummaryScreen implements Screen {
         divider.background(StyleFactory.createSolid(StyleFactory.DARK_GOLD));
         panel.add(divider).growX().height(1f).pad(7f, 0f, 7f, 0f).row();
 
-        panel.add(ScreenUI.createSectionTitle(game.skin, "OBJETIVOS " + (game.league.getCurrentSeason() + 1))).left().padBottom(6f).row();
-        addObjective(panel, "Melhorar o aproveitamento acima de " + Math.min(70, club.getWinPercentage() + 12) + "%");
-        addObjective(panel, "Fortalecer o elenco com pelo menos 2 titulares");
-        addObjective(panel, "Desenvolver jovens talentos via Draft");
+        panel.add(ScreenUI.createSectionTitle(game.skin, "AVALIAÇÃO DA DIRETORIA")).left().padBottom(6f).row();
+        int boardScore = club.getFinalBoardScore();
+        addObjective(panel, "Resultado geral: " + boardScore + " / 100");
+        addObjective(panel, boardScore >= 50
+            ? "Permanência confirmada para o próximo ciclo"
+            : "Próxima temporada começará sob pressão");
+        addObjective(panel, "Novos objetivos serão apresentados em janeiro");
         return panel;
     }
 
@@ -426,11 +429,11 @@ public class SeasonSummaryScreen implements Screen {
             }
         });
 
-        TextButton enter = ScreenUI.createPrimaryButton(game.skin, "ENTRAR NA OFF SEASON  ›");
+        TextButton enter = ScreenUI.createPrimaryButton(game.skin, "VER APOSENTADORIAS  ›");
         enter.getLabel().setFontScale(0.64f);
         enter.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new OffSeasonScreen(game, club));
+                game.setScreen(new RetirementSummaryScreen(game, club));
             }
         });
 

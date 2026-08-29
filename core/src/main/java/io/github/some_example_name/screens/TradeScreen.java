@@ -1668,6 +1668,11 @@ public class TradeScreen implements Screen {
         int index
     ) {
 
+        boolean untouchable = TradeRosterImpactEvaluator.isUntouchable(
+            player.getCurrentClub(),
+            player
+        );
+
         Table row =
             ScreenUI.createRow(
                 index
@@ -1714,17 +1719,17 @@ public class TradeScreen implements Screen {
             )
             .width(90f);
 
+        Label marketStatus = ScreenUI.createSubtitle(
+            game.skin,
+            untouchable
+                ? "INTOCÁVEL"
+                : "Contr. " + formatRemainingContract(player)
+        );
+        marketStatus.setColor(untouchable ? StyleFactory.GOLD : ScreenUI.MUTED_TEXT);
+
         row
-            .add(
-                ScreenUI.createSubtitle(
-                    game.skin,
-                    "Contr. " +
-                        formatRemainingContract(
-                            player
-                        )
-                )
-            )
-            .width(105f)
+            .add(marketStatus)
+            .width(112f)
             .center();
 
         row
@@ -2054,10 +2059,17 @@ public class TradeScreen implements Screen {
                     3
                 );
 
-            StringBuilder urgencyText =
-                new StringBuilder(
-                    "Necessidade: "
-                );
+            boolean untouchable = TradeRosterImpactEvaluator.isUntouchable(club, player);
+
+            StringBuilder urgencyText = new StringBuilder();
+
+            if (untouchable) {
+                urgencyText.append("INTOCÁVEL • ");
+            }
+
+            urgencyText.append("Impacto XI: ")
+                .append(TradeRosterImpactEvaluator.getLineupImpactLabel(club, player))
+                .append(" • Nec.: ");
 
             for (
                 int i = 0;
@@ -2083,7 +2095,9 @@ public class TradeScreen implements Screen {
             );
 
             need.setColor(
-                urgency >= 4
+                untouchable
+                    ? StyleFactory.GOLD
+                    : urgency >= 4
                     ? ScreenUI.WARNING
                     : ScreenUI.MUTED_TEXT
             );

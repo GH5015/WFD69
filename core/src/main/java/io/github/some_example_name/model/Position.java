@@ -6,6 +6,7 @@ public enum Position {
 
     // Defensores
     CB("Zagueiro", false),
+    SW("Líbero", false),
     LB("Lateral Esquerdo", false),
     RB("Lateral Direito", false),
     LWB("Ala Esquerdo", false),

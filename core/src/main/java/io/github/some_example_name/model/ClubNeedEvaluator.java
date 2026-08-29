@@ -55,6 +55,31 @@ public class ClubNeedEvaluator {
     }
 
     /**
+     * Recalcula a carência da posição sem contar o atleta que está sendo
+     * negociado. Isso impede que um titular de elite barateie a própria saída
+     * apenas porque, com ele no elenco, a posição parecia bem servida.
+     */
+    public static int calculateNeedAfterRemoving(Club club, Player outgoingPlayer) {
+        if (club == null || outgoingPlayer == null || club.getSquad() == null) return 5;
+
+        List<Player> remaining = club.getSquad().stream()
+            .filter(player -> player != outgoingPlayer)
+            .filter(player -> player.getPosition().equals(outgoingPlayer.getPosition()))
+            .sorted((first, second) -> Integer.compare(second.getOverall(), first.getOverall()))
+            .collect(Collectors.toList());
+
+        if (remaining.isEmpty()) return 5;
+
+        int replacementOverall = remaining.get(0).getOverall();
+        int depth = remaining.size();
+        if (replacementOverall >= 86 && depth >= 2) return 1;
+        if (replacementOverall >= 82) return 2;
+        if (replacementOverall >= 76) return 3;
+        if (replacementOverall >= 70) return 4;
+        return 5;
+    }
+
+    /**
      * Determina a fase estratégica da franquia com base no Overall e Idade Médios do Top 11
      */
     public static TeamPhase getTeamPhase(Club club) {

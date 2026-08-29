@@ -15,6 +15,10 @@ public class Match {
     private List<Player> goalScorers;
     private List<Player> assisters;
     private Map<Player, String> cards;
+    private final Map<Player, Integer> playerMinutes = new HashMap<>();
+    private final Map<Player, Integer> activeMinuteStarts = new HashMap<>();
+    private final Map<Player, Club> playerMatchClubs = new HashMap<>();
+    private boolean minuteTrackingInitialized;
     private Date date;
     private String stage = "REGULAR";
     private String playoffSeriesId;
@@ -97,6 +101,59 @@ public class Match {
     public void addGoalScorer(Player p) { this.goalScorers.add(p); }
     public void addAssister(Player p) { this.assisters.add(p); }
     public void addCard(Player p, String t) { this.cards.put(p, t); }
+
+    /** Registra os atletas em campo no pontapé inicial sem reiniciar um jogo carregado. */
+    public void recordStartingLineups(List<Player> homePlayers, List<Player> awayPlayers) {
+        if (minuteTrackingInitialized) return;
+        minuteTrackingInitialized = true;
+        recordStartingLineup(homePlayers, homeTeam);
+        recordStartingLineup(awayPlayers, awayTeam);
+    }
+
+    private void recordStartingLineup(List<Player> players, Club club) {
+        if (players == null) return;
+        for (Player player : players) {
+            if (player == null) continue;
+            playerMinutes.putIfAbsent(player, 0);
+            activeMinuteStarts.put(player, 0);
+            playerMatchClubs.put(player, club);
+        }
+    }
+
+    /** Fecha os minutos do substituído e abre a contagem do atleta que entrou. */
+    public void registerSubstitution(Player outPlayer, Player inPlayer, int minute, Club club) {
+        registerPlayerExit(outPlayer, minute);
+        if (inPlayer == null) return;
+        int safeMinute = Math.max(0, Math.min(90, minute));
+        playerMinutes.putIfAbsent(inPlayer, 0);
+        activeMinuteStarts.put(inPlayer, safeMinute);
+        playerMatchClubs.put(inPlayer, club != null ? club : inPlayer.getCurrentClub());
+    }
+
+    /** Usado também em lesões e expulsões para não creditar os 90 minutos completos. */
+    public void registerPlayerExit(Player player, int minute) {
+        if (player == null) return;
+        Integer start = activeMinuteStarts.remove(player);
+        if (start == null) return;
+        int safeMinute = Math.max(start, Math.min(90, minute));
+        playerMinutes.put(player, playerMinutes.getOrDefault(player, 0) + safeMinute - start);
+    }
+
+    public void finishPlayerMinuteTracking() {
+        for (Player player : new ArrayList<>(activeMinuteStarts.keySet())) {
+            registerPlayerExit(player, 90);
+        }
+    }
+
+    public Map<Player, Integer> getPlayerMinutesForClub(Club club) {
+        Map<Player, Integer> result = new HashMap<>();
+        for (Map.Entry<Player, Integer> entry : playerMinutes.entrySet()) {
+            if (playerMatchClubs.get(entry.getKey()) == club && entry.getValue() > 0) {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
 
     private int homeCorners = 0;
     private int awayCorners = 0;

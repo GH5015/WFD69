@@ -1,6 +1,7 @@
 package io.github.some_example_name.utils;
 
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
@@ -11,6 +12,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
@@ -582,16 +584,19 @@ public final class ScreenUI {
 
         prepare(skin);
 
-        SelectBox<T> selectBox =
-            new SelectBox<>(skin);
+        SelectBox.SelectBoxStyle style = createVisibleSelectBoxStyle(skin);
+        SelectBox<T> selectBox = new VisibleSelectBox<>(style, style.font);
 
-        selectBox.setSize(220f, 52f);
-        selectBox.setMaxListCount(8);
+        selectBox.setSize(240f, 52f);
+        selectBox.setMaxListCount(7);
         selectBox.setAlignment(Align.left);
         selectBox.setTouchable(Touchable.enabled);
-        selectBox.getList().setTouchable(Touchable.enabled);
-
-        addHoverAnimation(selectBox, 1.025f);
+        /* O LibGDX usa Touchable.disabled na lista como estado interno de
+         * "popup fechado". Forçar enabled aqui fazia show() retornar antes
+         * de adicionar a lista ao Stage. */
+        selectBox.getList().setTouchable(Touchable.disabled);
+        selectBox.getList().setAlignment(Align.left);
+        selectBox.setScrollingDisabled(true);
 
         selectBox.addListener(
             new ChangeListener() {
@@ -603,27 +608,77 @@ public final class ScreenUI {
                 ) {
 
                     actor.clearActions();
-                    actor.addAction(
-                        Actions.sequence(
-                            Actions.scaleTo(
-                                1.045f,
-                                1.045f,
-                                0.10f,
-                                Interpolation.sineOut
-                            ),
-                            Actions.scaleTo(
-                                1f,
-                                1f,
-                                0.18f,
-                                Interpolation.sine
-                            )
-                        )
-                    );
+                    actor.setScale(1f);
                 }
             }
         );
 
         return selectBox;
+    }
+
+    /** Cria um estilo próprio para cada filtro, sempre legível sobre o painel. */
+    private static SelectBox.SelectBoxStyle createVisibleSelectBoxStyle(
+        Skin skin
+    ) {
+        SelectBox.SelectBoxStyle base = skin.get(
+            "default",
+            SelectBox.SelectBoxStyle.class
+        );
+
+        SelectBox.SelectBoxStyle style = new SelectBox.SelectBoxStyle(base);
+        BitmapFont font = base.font != null
+            ? base.font
+            : skin.get("default", BitmapFont.class);
+
+        style.font = font;
+        style.fontColor = new Color(StyleFactory.CREME_AGED);
+        style.disabledFontColor = new Color(StyleFactory.TEXT_DISABLED);
+        style.background = StyleFactory.createModernButton(
+            240,
+            52,
+            Color.valueOf("17251D"),
+            StyleFactory.GOLD
+        );
+        style.backgroundOver = StyleFactory.createModernButton(
+            240,
+            52,
+            Color.valueOf("294230"),
+            StyleFactory.PLAYOFF_GOLD
+        );
+        style.backgroundOpen = StyleFactory.createModernButton(
+            240,
+            52,
+            Color.valueOf("382E12"),
+            StyleFactory.SOFT_YELLOW
+        );
+        style.backgroundDisabled = StyleFactory.createModernButton(
+            240,
+            52,
+            Color.valueOf("18211C"),
+            Color.valueOf("3E4A43")
+        );
+        style.scrollStyle = new ScrollPane.ScrollPaneStyle();
+        style.scrollStyle.background = StyleFactory.createRoundedPanel(
+            Color.valueOf("09130E"),
+            StyleFactory.GOLD
+        );
+
+        com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle listStyle =
+            new com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle();
+        listStyle.font = font;
+        listStyle.fontColorUnselected = new Color(StyleFactory.CREME_AGED);
+        listStyle.fontColorSelected = new Color(StyleFactory.SOFT_YELLOW);
+        listStyle.selection = StyleFactory.createRoundedPanel(
+            Color.valueOf("403414"),
+            StyleFactory.GOLD
+        );
+        listStyle.background = StyleFactory.createRoundedPanel(
+            Color.valueOf("0C1711"),
+            StyleFactory.GOLD
+        );
+        style.listStyle = listStyle;
+
+        return style;
     }
 
     // =========================================================

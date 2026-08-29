@@ -32,6 +32,21 @@ public class TradeNegotiator {
             targetClub, offer.getTargetPlayers(), offer.getTargetPicks(), currentSeasonYear
         );
 
+        Player outgoingCornerstone = offer.getTargetPlayers().stream()
+            .max((first, second) -> Integer.compare(first.getOverall(), second.getOverall()))
+            .orElse(null);
+
+        if (violatesCornerstoneProtection(offer, outgoingCornerstone)) {
+            return new TradeDecision(
+                TradeDecision.Status.REJECTED,
+                "Não trocaremos um jogador geracional por um pacote de atletas de rotação. "
+                    + "A proposta precisa incluir outra estrela ou uma escolha premium de 1ª rodada.",
+                valueTargetReceives, valueTargetGivesUp, null
+            );
+        }
+
+        double requiredRatio = requiredAcceptanceRatio(targetClub, outgoingCornerstone);
+
         // Checagem de Salary Cap
         long newPayroll = targetClub.getFinance().getAnnualPayroll()
             - offer.getTargetPlayers().stream().mapToLong(Player::getAnnualSalary).sum()
@@ -46,7 +61,7 @@ public class TradeNegotiator {
         }
 
         // 2. Aceite Direto
-        if (valueTargetReceives >= (valueTargetGivesUp * 0.98)) {
+        if (valueTargetReceives >= (valueTargetGivesUp * requiredRatio)) {
             return new TradeDecision(
                 TradeDecision.Status.ACCEPTED,
                 "A proposta atende perfeitamente aos nossos objetivos estratégicos. Negócio fechado!",
@@ -55,8 +70,8 @@ public class TradeNegotiator {
         }
 
         // 3. Contraoferta
-        if (valueTargetReceives >= (valueTargetGivesUp * 0.70)) {
-            long minimumValueForAcceptance = (long) Math.ceil(valueTargetGivesUp * 0.98d);
+        if (valueTargetReceives >= (valueTargetGivesUp * 0.65)) {
+            long minimumValueForAcceptance = (long) Math.ceil(valueTargetGivesUp * requiredRatio);
             long marginNeeded = Math.max(1L, minimumValueForAcceptance - valueTargetReceives);
             TradeOffer counterOffer = buildCounterOffer(offer, userClub, marginNeeded, currentSeasonYear);
 
@@ -83,6 +98,33 @@ public class TradeNegotiator {
             "A proposta está muito distante do valor de mercado dos nossos jogadores. Não temos interesse na negociação nesses moldes.",
             valueTargetReceives, valueTargetGivesUp, null
         );
+    }
+
+    private static boolean violatesCornerstoneProtection(TradeOffer offer, Player cornerstone) {
+        if (cornerstone == null || (cornerstone.getOverall() < 90
+            && !TradeRosterImpactEvaluator.isUntouchable(offer.getTargetClub(), cornerstone))) return false;
+
+        int bestIncomingOverall = offer.getUserPlayers().stream()
+            .mapToInt(Player::getOverall)
+            .max()
+            .orElse(0);
+        boolean includesPremiumFirstRoundPick = offer.getUserPicks().stream()
+            .anyMatch(pick -> pick.getRound() == 1 && pick.getProjectedPosition() <= 8);
+
+        return bestIncomingOverall <= cornerstone.getOverall() - 7
+            && !includesPremiumFirstRoundPick;
+    }
+
+    private static double requiredAcceptanceRatio(Club targetClub, Player cornerstone) {
+        if (cornerstone == null) return 1.00d;
+        ClubNeedEvaluator.TeamPhase phase = ClubNeedEvaluator.getTeamPhase(targetClub);
+        if (cornerstone.getOverall() >= 92) {
+            return phase == ClubNeedEvaluator.TeamPhase.REBUILDING && cornerstone.getAge() >= 31
+                ? 1.05d
+                : 1.12d;
+        }
+        if (cornerstone.getOverall() >= 89) return 1.06d;
+        return 1.00d;
     }
 
     private static TradeOffer buildCounterOffer(TradeOffer originalOffer, Club userClub, long marginNeeded, int currentSeasonYear) {
