@@ -13,12 +13,11 @@ public class DefenseEngine {
         double baseDefense = team.getDefensiveRating();
 
         // 1. Aplica o multiplicador de defesa (diminui se for muito ofensivo)
-        double totalPower = baseDefense * mods.defenseMultiplier;
+        double totalPower = baseDefense * mods.defenseMultiplier
+            * mods.defensiveCoverageMultiplier;
 
-        // 2. Adiciona o impacto da Pressão Alta (se bem executada)
-        totalPower += (mods.pressingEfficiency - 1.0) * 15.0;
-
-        // 3. Variação momentânea de erro/acerto da zaga
+        // Pressão deixou de ser bônus defensivo fixo. Recuperações e quebras
+        // são resolvidas como eventos de posse pela MatchEngine.
         double defensePerformance = 0.88 + (random.nextDouble() * 0.24);
         return totalPower * defensePerformance;
     }

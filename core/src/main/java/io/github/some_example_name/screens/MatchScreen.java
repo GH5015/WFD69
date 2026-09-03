@@ -1,5 +1,7 @@
 package io.github.some_example_name.screens;
 
+import io.github.some_example_name.utils.ClubLogoAssets;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -8,6 +10,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -19,6 +22,7 @@ import io.github.some_example_name.utils.ResponsiveViewport;
 import java.util.Locale;
 
 import io.github.some_example_name.Main;
+import io.github.some_example_name.engine.TacticalSuitabilityEvaluator;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.MatchEvent;
@@ -126,6 +130,15 @@ public class MatchScreen implements Screen {
         new ArrayList<>();
 
     private Table goalOverlay;
+    private Table tacticalFeedbackHost;
+
+    private int lastTacticalFeedbackMinute = -20;
+    private int playerHighRegains = 0;
+    private int opponentHighRegains = 0;
+    private int playerTransitions = 0;
+    private int opponentTransitions = 0;
+    private TacticalDecisionSnapshot tacticalDecisionSnapshot;
+    private String lastTacticalFeedbackText = "";
 
     private TextButton pauseButton;
     private TextButton speed1xButton;
@@ -255,7 +268,7 @@ public class MatchScreen implements Screen {
                 createScoreboard()
             )
             .growX()
-            .height(108f)
+            .height(196f)
             .padBottom(10f)
             .row();
 
@@ -300,6 +313,15 @@ public class MatchScreen implements Screen {
         root.add(
             main
         );
+
+        Table feedbackLayer = new Table();
+        feedbackLayer.top().left();
+        feedbackLayer.pad(220f, 30f, 0f, 0f);
+        feedbackLayer.setTouchable(Touchable.disabled);
+        tacticalFeedbackHost = new Table();
+        tacticalFeedbackHost.top().left();
+        feedbackLayer.add(tacticalFeedbackHost).width(405f).top().left();
+        root.add(feedbackLayer);
     }
 
     // =========================================================
@@ -308,15 +330,37 @@ public class MatchScreen implements Screen {
 
     private Table createScoreboard() {
 
-        Table bar =
+        Table board =
             ScreenUI.createPanel();
 
-        bar.pad(
-            7f,
-            18f,
-            7f,
-            18f
+        board.pad(0f);
+
+        Table leagueRibbon = new Table();
+        leagueRibbon.setBackground(
+            StyleFactory.createRoundedPanel(
+                new Color(0.025f, 0.085f, 0.065f, 0.98f),
+                StyleFactory.DARK_GOLD
+            )
         );
+
+        Label leagueLabel = ScreenUI.createBoldValue(
+            game.skin,
+            "WFL  •  TEMPORADA " + game.league.getCurrentSeason(),
+            StyleFactory.SOFT_YELLOW,
+            Align.center
+        );
+        leagueLabel.setFontScale(0.58f);
+        leagueRibbon.add(leagueLabel).expandX().center();
+        board.add(leagueRibbon).growX().height(30f).row();
+
+        Table mainScore = new Table();
+        mainScore.setBackground(
+            StyleFactory.createRoundedPanel(
+                new Color(0.018f, 0.075f, 0.055f, 0.99f),
+                StyleFactory.GOLD
+            )
+        );
+        mainScore.pad(5f, 20f, 5f, 20f);
 
         matchStateLabel =
             new Label(
@@ -325,14 +369,11 @@ public class MatchScreen implements Screen {
                 "font-bold"
             );
 
-        matchStateLabel.setFontScale(0.48f);
-        matchStateLabel.setColor(ScreenUI.SUCCESS);
+        matchStateLabel.setFontScale(0.55f);
+        matchStateLabel.setColor(StyleFactory.SOFT_YELLOW);
 
-        bar
-            .add(matchStateLabel)
-            .width(132f)
-            .left()
-            .padRight(10f);
+        Table stateBadge = ScreenUI.createSubtlePanel();
+        stateBadge.add(matchStateLabel).pad(7f, 14f, 7f, 14f);
 
         // =====================================================
         // HOME
@@ -345,9 +386,9 @@ public class MatchScreen implements Screen {
                 true
             );
 
-        bar
+        mainScore
             .add(home)
-            .expandX()
+            .width(650f)
             .right();
 
         // =====================================================
@@ -366,10 +407,10 @@ public class MatchScreen implements Screen {
                 "font-title"
             );
 
-        scoreLabel.setFontScale(1.18f);
+        scoreLabel.setFontScale(1.72f);
 
         scoreLabel.setColor(
-            Color.WHITE
+            StyleFactory.CREME_AGED
         );
 
         scoreLabel.setAlignment(
@@ -378,7 +419,7 @@ public class MatchScreen implements Screen {
 
         center
             .add(scoreLabel)
-            .width(200f)
+            .width(270f)
             .center()
             .row();
 
@@ -389,9 +430,7 @@ public class MatchScreen implements Screen {
                 "font-bold"
             );
 
-        minuteLabel.setFontScale(
-            0.58f
-        );
+        minuteLabel.setFontScale(0.80f);
 
         minuteLabel.setColor(
             StyleFactory.GOLD
@@ -400,23 +439,17 @@ public class MatchScreen implements Screen {
         Table minuteCard =
             ScreenUI.createSubtlePanel();
 
-        minuteCard.add(minuteLabel).pad(3f, 16f, 3f, 16f);
+        minuteCard.add(minuteLabel).pad(4f, 28f, 4f, 28f);
 
-        center
-            .add(minuteCard)
-            .center()
-            .padTop(1f);
-
-        bar
-            .add(center)
-            .width(230f)
-            .center();
+        mainScore
+            .add()
+            .width(300f);
 
         // =====================================================
         // AWAY
         // =====================================================
 
-        bar
+        mainScore
             .add(
                 createScoreTeam(
                     match.getAwayTeam(),
@@ -424,10 +457,75 @@ public class MatchScreen implements Screen {
                     false
                 )
             )
-            .expandX()
-            .left();
+            .width(650f)
+            .left()
+            .padRight(0f);
 
-        return bar;
+        Table centeredScoreLayer = new Table();
+        centeredScoreLayer.center();
+        centeredScoreLayer.add(center).width(300f).center();
+
+        Table stateLayer = new Table();
+        stateLayer.top().right();
+        stateLayer
+            .add(stateBadge)
+            .width(145f)
+            .height(42f)
+            .padTop(10f)
+            .padRight(14f);
+
+        Stack scoreArea = new Stack();
+        scoreArea.add(mainScore);
+        scoreArea.add(centeredScoreLayer);
+        scoreArea.add(stateLayer);
+
+        board.add(scoreArea).growX().height(130f).row();
+
+        Table informationStrip = new Table();
+        informationStrip.setBackground(
+            StyleFactory.createRoundedPanel(
+                new Color(0.025f, 0.075f, 0.060f, 0.98f),
+                StyleFactory.DARK_GOLD
+            )
+        );
+        informationStrip.pad(2f, 18f, 2f, 18f);
+
+        Label stadium = ScreenUI.createBoldValue(
+            game.skin,
+            "◉  " + match.getHomeTeam().getStadium().toUpperCase(Locale.ROOT),
+            StyleFactory.CREME_AGED,
+            Align.left
+        );
+        stadium.setFontScale(0.48f);
+        stadium.getColor().a = 0.78f;
+
+        Label round = ScreenUI.createBoldValue(
+            game.skin,
+            getMatchRoundLabel(),
+            StyleFactory.CREME_AGED,
+            Align.right
+        );
+        round.setFontScale(0.48f);
+        round.getColor().a = 0.78f;
+
+        informationStrip.add(stadium).width(760f).left();
+        informationStrip.add(minuteCard).width(122f).center().padTop(-12f);
+        informationStrip.add(round).width(760f).right();
+        board.add(informationStrip).growX().height(34f);
+
+        return board;
+    }
+
+    private String getMatchRoundLabel() {
+        if ("REGULAR".equals(match.getStage())) {
+            int round = game.league.getRoundNumberForDate(match.getDate());
+            return round > 0 ? "▣  RODADA " + round : "▣  TEMPORADA REGULAR";
+        }
+
+        String stage = match.getStage() == null
+            ? "PLAYOFFS"
+            : match.getStage().replace('_', ' ');
+        return "▣  " + stage.toUpperCase(Locale.ROOT);
     }
 
     private Table createScoreTeam(
@@ -455,7 +553,7 @@ public class MatchScreen implements Screen {
                 home ? Align.right : Align.left
             );
 
-        formation.setFontScale(0.46f);
+        formation.setFontScale(0.56f);
 
         identity.add(name).expandX().right().row();
         identity.add(formation).expandX().right().padTop(2f);
@@ -467,7 +565,7 @@ public class MatchScreen implements Screen {
             team
                 .add(identity)
                 .right()
-                .padRight(10f);
+                .padRight(14f);
 
             if (
                 logoTexture != null
@@ -486,8 +584,8 @@ public class MatchScreen implements Screen {
 
                 team
                     .add(logo)
-                    .width(78f)
-                    .height(70f);
+                    .width(148f)
+                    .height(116f);
             }
 
         } else {
@@ -509,8 +607,8 @@ public class MatchScreen implements Screen {
 
                 team
                     .add(logo)
-                    .width(78f)
-                    .height(70f);
+                    .width(148f)
+                    .height(116f);
             }
 
             identity.getCell(formation).align(Align.left);
@@ -518,7 +616,7 @@ public class MatchScreen implements Screen {
             team
                 .add(identity)
                 .left()
-                .padLeft(10f);
+                .padLeft(14f);
         }
 
         return team;
@@ -540,7 +638,7 @@ public class MatchScreen implements Screen {
             );
 
         label.setFontScale(
-            0.66f
+            0.92f
         );
 
         label.setColor(
@@ -652,7 +750,7 @@ public class MatchScreen implements Screen {
         if (homeLogoTexture != null) {
             Image homeLogo = new Image(new TextureRegionDrawable(homeLogoTexture));
             homeLogo.setScaling(Scaling.fit);
-            graph.add(homeLogo).size(36f).padRight(8f);
+            graph.add(homeLogo).size(42f).padRight(9f);
         }
 
         momentumBars = new Table();
@@ -662,7 +760,7 @@ public class MatchScreen implements Screen {
         if (awayLogoTexture != null) {
             Image awayLogo = new Image(new TextureRegionDrawable(awayLogoTexture));
             awayLogo.setScaling(Scaling.fit);
-            graph.add(awayLogo).size(36f).padLeft(8f);
+            graph.add(awayLogo).size(42f).padLeft(9f);
         }
 
         panel.add(graph).growX().height(40f);
@@ -1353,47 +1451,8 @@ public class MatchScreen implements Screen {
     }
 
     private void initializeMatchBench() {
-
         matchBenchPlayers.clear();
-
-        if (
-            playerClub == null
-        ) {
-
-            return;
-        }
-
-        List<Player> starters =
-            new ArrayList<>(
-                playerClub.getTacticsMap()
-                    .values()
-            );
-
-        for (
-            Player player :
-            playerClub.getSquad()
-        ) {
-
-            if (
-                !starters.contains(
-                    player
-                ) &&
-                    player.canPlay()
-            ) {
-
-                matchBenchPlayers.add(
-                    player
-                );
-
-                if (
-                    matchBenchPlayers.size() ==
-                        7
-                ) {
-
-                    return;
-                }
-            }
-        }
+        if (playerClub != null) matchBenchPlayers.addAll(playerClub.getBenchPlayers());
     }
 
     private void showHalftimeSequence() {
@@ -1683,6 +1742,258 @@ public class MatchScreen implements Screen {
                 match.getAwayTeam()
             );
         }
+
+        tacticalDecisionSnapshot = TacticalDecisionSnapshot.capture(
+            match,
+            playerClub,
+            currentMinute,
+            playerHighRegains,
+            playerTransitions
+        );
+        showTacticalFeedback(
+            "AJUSTE REGISTRADO",
+            "Vou observar como a equipe responde nos próximos minutos.",
+            StyleFactory.SOFT_YELLOW
+        );
+    }
+
+    // =========================================================
+    // AUXILIAR TÁTICO
+    // =========================================================
+
+    private void updateTacticalCounters() {
+        if (playerClub == null) return;
+        boolean home = match.getHomeTeam() == playerClub;
+        playerHighRegains = home ? match.getHomeHighRegains() : match.getAwayHighRegains();
+        opponentHighRegains = home ? match.getAwayHighRegains() : match.getHomeHighRegains();
+        playerTransitions = home ? match.getHomeTransitions() : match.getAwayTransitions();
+        opponentTransitions = home ? match.getAwayTransitions() : match.getHomeTransitions();
+    }
+
+    private void maybeShowTacticalFeedback() {
+        if (playerClub == null || currentMinute < 8 || matchFinished) return;
+
+        if (
+            tacticalDecisionSnapshot != null &&
+                currentMinute >= tacticalDecisionSnapshot.minute + 6
+        ) {
+            TacticalDecisionSnapshot snapshot = tacticalDecisionSnapshot;
+            tacticalDecisionSnapshot = null;
+            showDecisionEvaluation(snapshot);
+            return;
+        }
+
+        if (currentMinute - lastTacticalFeedbackMinute < 12) return;
+
+        TacticalSuitabilityEvaluator.Profile profile =
+            TacticalSuitabilityEvaluator.evaluate(playerClub, playerClub.getStartingXI());
+        double sustainability = TacticalSuitabilityEvaluator.calculateSustainability(
+            profile.getEffectivePhysical(),
+            playerClub.getTempo(),
+            playerClub.getPressure(),
+            currentMinute
+        );
+
+        int shotDifference = playerShots() - opponentShots();
+        int possession = playerPossession();
+        int scoreDifference = playerGoals() - opponentGoals();
+
+        if (currentMinute >= 62 && sustainability < .84d) {
+            showTacticalFeedback(
+                "INTENSIDADE CAINDO",
+                "Nossa capacidade física já não sustenta o ritmo e a pressão. Considere reduzir a carga ou renovar o fôlego.",
+                ScreenUI.WARNING
+            );
+        } else if (opponentHighRegains >= 2 && playerClub.getPassing() <= 40f) {
+            showTacticalFeedback(
+                "SAÍDA SOB PRESSÃO",
+                "Eles estão recuperando alto contra nosso passe curto. Um jogo mais direto pode escapar da primeira linha.",
+                ScreenUI.WARNING
+            );
+        } else if (playerHighRegains >= 2 && playerClub.getPressure() >= 70f) {
+            showTacticalFeedback(
+                "PRESSÃO FUNCIONANDO",
+                "Estamos recuperando a bola no campo ofensivo. A pressão está produzindo vantagem real.",
+                ScreenUI.SUCCESS
+            );
+        } else if (playerTransitions >= 2 && playerClub.getTempo() >= 60f) {
+            showTacticalFeedback(
+                "ESPAÇO NAS TRANSIÇÕES",
+                "Nossa aceleração após recuperar a bola está encontrando a defesa adversária aberta.",
+                ScreenUI.SUCCESS
+            );
+        } else if (opponentTransitions >= playerTransitions + 3) {
+            showTacticalFeedback(
+                "TRANSIÇÃO DEFENSIVA EXPOSTA",
+                "O adversário está escapando com frequência depois das nossas perdas. Precisamos proteger melhor a retaguarda.",
+                ScreenUI.WARNING
+            );
+        } else if (possession >= 59 && shotDifference >= 0) {
+            showTacticalFeedback(
+                "CONTROLE DO JOGO",
+                "Estamos circulando a bola com segurança e mantendo o adversário longe do controle da partida.",
+                ScreenUI.SUCCESS
+            );
+        } else if (shotDifference >= 4) {
+            showTacticalFeedback(
+                "VANTAGEM TERRITORIAL",
+                "A estrutura está criando finalizações com frequência. Temos " + shotDifference + " chutes de vantagem.",
+                ScreenUI.SUCCESS
+            );
+        } else if (shotDifference <= -4) {
+            showTacticalFeedback(
+                "ESTAMOS CEDENDO ESPAÇO",
+                "O adversário finaliza demais. Precisamos de mais cobertura ou menos jogadores comprometidos à frente.",
+                ScreenUI.WARNING
+            );
+        } else if (scoreDifference > 0 && playerClub.getMentalityValue() >= 78f) {
+            showTacticalFeedback(
+                "ATENÇÃO À VANTAGEM",
+                "Estamos vencendo, mas continuamos expondo muitos jogadores. Há risco desnecessário nas transições.",
+                StyleFactory.SOFT_YELLOW
+            );
+        } else if (scoreDifference < 0 && currentMinute >= 68 && playerClub.getMentalityValue() <= 40f) {
+            showTacticalFeedback(
+                "POUCA PRESENÇA OFENSIVA",
+                "Estamos atrás no placar e ainda comprometemos poucos jogadores com o ataque.",
+                ScreenUI.WARNING
+            );
+        } else if (currentMinute <= 14) {
+            int tacticalFit = profile.getOverallFitScore(playerClub);
+            showTacticalFeedback(
+                tacticalFit >= 76 ? "BOA EXECUÇÃO INICIAL" : "EXECUÇÃO EXIGENTE",
+                tacticalFit >= 76
+                    ? "O elenco iniciou confortável com as instruções. Adequação tática em " + tacticalFit + "%."
+                    : "Algumas instruções não combinam bem com o XI atual. Adequação tática em " + tacticalFit + "%.",
+                tacticalFit >= 76 ? ScreenUI.SUCCESS : StyleFactory.SOFT_YELLOW
+            );
+        }
+    }
+
+    private void showDecisionEvaluation(TacticalDecisionSnapshot snapshot) {
+        int goalSwing = (playerGoals() - snapshot.playerGoals)
+            - (opponentGoals() - snapshot.opponentGoals);
+        int shotSwing = (playerShots() - snapshot.playerShots)
+            - (opponentShots() - snapshot.opponentShots);
+        int possessionGain = playerPossession() - snapshot.playerPossession;
+        int newHighRegains = playerHighRegains - snapshot.playerHighRegains;
+        int newTransitions = playerTransitions - snapshot.playerTransitions;
+
+        if (goalSwing > 0) {
+            showTacticalFeedback(
+                "O AJUSTE FUNCIONOU",
+                "A equipe respondeu à mudança e transformou a nova dinâmica em vantagem no placar.",
+                ScreenUI.SUCCESS
+            );
+        } else if (shotSwing >= 2) {
+            showTacticalFeedback(
+                "RESPOSTA POSITIVA",
+                "Depois da mudança, criamos " + shotSwing + " finalizações líquidas a mais que o adversário.",
+                ScreenUI.SUCCESS
+            );
+        } else if (newHighRegains >= 2) {
+            showTacticalFeedback(
+                "PRESSÃO RESPONDEU",
+                "O novo ajuste já gerou " + newHighRegains + " recuperações no campo ofensivo.",
+                ScreenUI.SUCCESS
+            );
+        } else if (newTransitions >= 2) {
+            showTacticalFeedback(
+                "TRANSIÇÕES MELHORES",
+                "A mudança abriu caminhos para acelerar após a recuperação da bola.",
+                ScreenUI.SUCCESS
+            );
+        } else if (possessionGain >= 6) {
+            showTacticalFeedback(
+                "MAIS CONTROLE",
+                "Ganhamos " + possessionGain + " pontos percentuais de posse desde o ajuste.",
+                ScreenUI.SUCCESS
+            );
+        } else if (shotSwing <= -2) {
+            showTacticalFeedback(
+                "AJUSTE SEM RESPOSTA",
+                "A mudança ainda não funcionou: o adversário criou mais e continua encontrando espaços.",
+                ScreenUI.WARNING
+            );
+        } else {
+            showTacticalFeedback(
+                "EFEITO AINDA NEUTRO",
+                "A partida se estabilizou, mas ainda não há evidência clara de vantagem com o novo ajuste.",
+                ScreenUI.MUTED_TEXT
+            );
+        }
+    }
+
+    private void showTacticalFeedback(String titleText, String message, Color accent) {
+        if (
+            tacticalFeedbackHost == null ||
+                message == null ||
+                message.equals(lastTacticalFeedbackText)
+        ) return;
+
+        lastTacticalFeedbackText = message;
+        lastTacticalFeedbackMinute = currentMinute;
+        tacticalFeedbackHost.clear();
+
+        Table card = ScreenUI.createSubtlePanel();
+        card.pad(9f, 12f, 9f, 12f);
+        card.setTouchable(Touchable.disabled);
+
+        Table header = new Table();
+        Label role = ScreenUI.createBoldValue(
+            game.skin,
+            "AUXILIAR TÁTICO • " + currentMinute + "'",
+            accent,
+            Align.left
+        );
+        role.setFontScale(.44f);
+        header.add(role).growX().left();
+        Label status = ScreenUI.createBoldValue(game.skin, titleText, accent, Align.right);
+        status.setFontScale(.36f);
+        status.setWrap(true);
+        header.add(status).width(145f).right();
+        card.add(header).growX().padBottom(5f).row();
+
+        Label copy = ScreenUI.createSubtitle(game.skin, message);
+        copy.setWrap(true);
+        copy.setFontScale(.50f);
+        copy.setColor(StyleFactory.CREME_AGED);
+        card.add(copy).growX().width(370f).left();
+
+        tacticalFeedbackHost.add(card).growX().top().left();
+        card.getColor().a = 0f;
+        card.moveBy(-18f, 0f);
+        card.addAction(
+            Actions.sequence(
+                Actions.parallel(
+                    Actions.fadeIn(.22f),
+                    Actions.moveBy(18f, 0f, .22f, Interpolation.fade)
+                ),
+                Actions.delay(4.6f),
+                Actions.fadeOut(.30f),
+                Actions.removeActor()
+            )
+        );
+    }
+
+    private int playerGoals() {
+        return match.getHomeTeam() == playerClub ? match.getHomeGoals() : match.getAwayGoals();
+    }
+
+    private int opponentGoals() {
+        return match.getHomeTeam() == playerClub ? match.getAwayGoals() : match.getHomeGoals();
+    }
+
+    private int playerShots() {
+        return match.getHomeTeam() == playerClub ? match.getHomeShots() : match.getAwayShots();
+    }
+
+    private int opponentShots() {
+        return match.getHomeTeam() == playerClub ? match.getAwayShots() : match.getHomeShots();
+    }
+
+    private int playerPossession() {
+        return match.getHomeTeam() == playerClub ? match.getHomePossession() : match.getAwayPossession();
     }
 
     // =========================================================
@@ -1752,6 +2063,8 @@ public class MatchScreen implements Screen {
                                     );
 
                             refreshMatchStats();
+                            updateTacticalCounters();
+                            maybeShowTacticalFeedback();
 
                             if (
                                 event != null
@@ -2912,11 +3225,7 @@ public class MatchScreen implements Screen {
             ) {
 
                 Texture texture =
-                    new Texture(
-                        Gdx.files.internal(
-                            club.getLogoPath()
-                        )
-                    );
+                    ClubLogoAssets.load(club.getLogoPath());
 
                 texture.setFilter(
                     Texture.TextureFilter.Linear,
@@ -2932,6 +3241,57 @@ public class MatchScreen implements Screen {
         }
 
         return null;
+    }
+
+    private static final class TacticalDecisionSnapshot {
+        private final int minute;
+        private final int playerGoals;
+        private final int opponentGoals;
+        private final int playerShots;
+        private final int opponentShots;
+        private final int playerPossession;
+        private final int playerHighRegains;
+        private final int playerTransitions;
+
+        private TacticalDecisionSnapshot(
+            int minute,
+            int playerGoals,
+            int opponentGoals,
+            int playerShots,
+            int opponentShots,
+            int playerPossession,
+            int playerHighRegains,
+            int playerTransitions
+        ) {
+            this.minute = minute;
+            this.playerGoals = playerGoals;
+            this.opponentGoals = opponentGoals;
+            this.playerShots = playerShots;
+            this.opponentShots = opponentShots;
+            this.playerPossession = playerPossession;
+            this.playerHighRegains = playerHighRegains;
+            this.playerTransitions = playerTransitions;
+        }
+
+        private static TacticalDecisionSnapshot capture(
+            Match match,
+            Club playerClub,
+            int minute,
+            int highRegains,
+            int transitions
+        ) {
+            boolean home = match.getHomeTeam() == playerClub;
+            return new TacticalDecisionSnapshot(
+                minute,
+                home ? match.getHomeGoals() : match.getAwayGoals(),
+                home ? match.getAwayGoals() : match.getHomeGoals(),
+                home ? match.getHomeShots() : match.getAwayShots(),
+                home ? match.getAwayShots() : match.getHomeShots(),
+                home ? match.getHomePossession() : match.getAwayPossession(),
+                highRegains,
+                transitions
+            );
+        }
     }
 
     // =========================================================

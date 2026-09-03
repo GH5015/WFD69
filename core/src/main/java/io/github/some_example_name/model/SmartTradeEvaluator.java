@@ -154,9 +154,12 @@ public class SmartTradeEvaluator {
             - offer.getTargetPlayers().stream().mapToLong(Player::getAnnualSalary).sum()
             + offer.getUserPlayers().stream().mapToLong(Player::getAnnualSalary).sum();
 
-        if (newPayroll > targetClub.getFinance().getSalaryCap()) {
-            return new TradeResult(false, "A IA recusou: O negócio violaria o Salary Cap do " + targetClub.getName() + ".");
+        if (!targetClub.getFinance().isWithinHardCap(newPayroll)) {
+            return new TradeResult(false, "A IA recusou: o negócio violaria o Hard Cap do " + targetClub.getName() + ".");
         }
+
+        long taxCost = targetClub.getFinance().getLuxuryTaxAmount(newPayroll);
+        if (taxCost > 0L) valueTargetReceives -= Math.max(1L, taxCost / 25_000L);
 
         if (valueTargetReceives >= valueTargetGivesUp) {
             return new TradeResult(true, "A proposta foi aceita! O " + targetClub.getName() + " considerou o negócio estratégico para o elenco.");

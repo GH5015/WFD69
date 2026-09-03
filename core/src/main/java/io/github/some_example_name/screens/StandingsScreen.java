@@ -1,5 +1,7 @@
 package io.github.some_example_name.screens;
 
+import io.github.some_example_name.utils.ClubLogoAssets;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -367,6 +369,31 @@ public class StandingsScreen implements Screen {
         panel
             .add(playoffsButton)
             .width(155f)
+            .height(42f)
+            .padRight(7f);
+
+        TextButton historyButton =
+            ScreenUI.createSecondaryButton(
+                game.skin,
+                "MEMÓRIA DA WFL"
+            );
+
+        historyButton
+            .getLabel()
+            .setFontScale(0.50f);
+
+        historyButton.addListener(
+            new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    game.setScreen(new LeagueHistoryScreen(game, playerClub));
+                }
+            }
+        );
+
+        panel
+            .add(historyButton)
+            .width(180f)
             .height(42f);
 
         panel
@@ -776,12 +803,8 @@ public class StandingsScreen implements Screen {
 
         int playoffCutoff =
             conference == null
-                ? 8
-                : conference.equals(
-                "Ocidental"
-            )
-                ? 6
-                : 2;
+                ? game.league.getPlayoffQualifierCount()
+                : game.league.getConferencePlayoffPlaces(conference);
 
         int position =
             1;
@@ -796,8 +819,7 @@ public class StandingsScreen implements Screen {
                     playerClub;
 
             boolean playoffZone =
-                position <=
-                    playoffCutoff;
+                game.league.isInPlayoffQualificationZone(standings.club);
 
             Table row =
                 ScreenUI.createRow(
@@ -867,14 +889,14 @@ public class StandingsScreen implements Screen {
 
                 row
                     .add(logo)
-                    .width(55f)
-                    .height(32f);
+                    .width(64f)
+                    .height(38f);
 
             } else {
 
                 row
                     .add()
-                    .width(55f);
+                    .width(64f);
             }
 
             // =================================================
@@ -1042,7 +1064,7 @@ public class StandingsScreen implements Screen {
             // =================================================
 
             if (
-                position ==
+                conference != null && position ==
                     playoffCutoff &&
                     position <
                         rows.size()
@@ -1460,7 +1482,9 @@ public class StandingsScreen implements Screen {
             Label message =
                 new Label(
                     "Os playoffs ainda não começaram.\n" +
-                        "Classificam-se 6 clubes da Conferência Ocidental e 2 da Oriental.",
+                        "Classificam-se " + game.league.getConferencePlayoffPlaces("Ocidental") + " clubes do Ocidente e "
+                        + game.league.getConferencePlayoffPlaces("Oriental") + " do Oriente."
+                        + (game.league.getPlayoffQualifierCount() > 8 ? "\nPlay-In em jogo único antes das quartas; os melhores recebem bye." : ""),
                     game.skin
                 );
 
@@ -1492,6 +1516,14 @@ public class StandingsScreen implements Screen {
                 new Table();
 
             bracket.top();
+
+            if (game.league.getPlayoffQualifierCount() > 8) {
+                bracket.add(createBracketRound("WILD CARD / PLAY-IN", "JOGO ÚNICO",
+                    game.league.getPlayoffQualifierCount() == 10
+                        ? new String[]{"PIW1", "PIE1"}
+                        : new String[]{"PIW1", "PIW2", "PIE1", "PIE2"}, series))
+                    .width(300f).top().padRight(18f);
+            }
 
             bracket
                 .add(
@@ -1531,9 +1563,10 @@ public class StandingsScreen implements Screen {
                 .width(300f)
                 .top();
 
-            panel
-                .add(bracket)
-                .center();
+            ScrollPane bracketScroll = new ScrollPane(bracket, game.skin);
+            bracketScroll.setScrollingDisabled(false, true);
+            bracketScroll.setFadeScrollBars(false);
+            panel.add(bracketScroll).growX().expandY().top();
         }
 
         return panel;
@@ -1785,11 +1818,7 @@ public class StandingsScreen implements Screen {
             ) {
 
                 Texture texture =
-                    new Texture(
-                        Gdx.files.internal(
-                            path
-                        )
-                    );
+                    ClubLogoAssets.load(path);
 
                 clubLogos.put(
                     path,

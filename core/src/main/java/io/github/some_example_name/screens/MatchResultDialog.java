@@ -1,5 +1,7 @@
 package io.github.some_example_name.screens;
 
+import io.github.some_example_name.utils.ClubLogoAssets;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
@@ -11,6 +13,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
 
 import io.github.some_example_name.Main;
+import io.github.some_example_name.engine.TacticalPerformanceReport;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
@@ -361,8 +364,8 @@ public class MatchResultDialog extends Dialog {
 
             block
                 .add(logo)
-                .width(155f)
-                .height(82f)
+                .width(180f)
+                .height(96f)
                 .center()
                 .row();
         }
@@ -376,7 +379,7 @@ public class MatchResultDialog extends Dialog {
             );
 
         name.setFontScale(
-            0.57f
+            0.62f
         );
 
         name.setAlignment(
@@ -468,7 +471,8 @@ public class MatchResultDialog extends Dialog {
         String[] tabs = {
             "RESUMO",
             "DESTAQUES",
-            "JOGADORES"
+            "JOGADORES",
+            "DESEMPENHO TÁTICO"
         };
 
         for (
@@ -550,6 +554,12 @@ public class MatchResultDialog extends Dialog {
 
                 break;
 
+            case 3:
+
+                buildTacticalPerformanceTab();
+
+                break;
+
             case 0:
             default:
 
@@ -557,6 +567,8 @@ public class MatchResultDialog extends Dialog {
 
                 break;
         }
+
+        ScreenUI.animateTabContent(contentContainer);
     }
 
     // =========================================================
@@ -1100,6 +1112,101 @@ public class MatchResultDialog extends Dialog {
     // HIGHLIGHTS TAB
     // =========================================================
 
+    private void buildTacticalPerformanceTab() {
+        Club evaluatedClub = game.playerClub;
+        if (
+            evaluatedClub == null ||
+                (match.getHomeTeam() != evaluatedClub && match.getAwayTeam() != evaluatedClub)
+        ) evaluatedClub = match.getHomeTeam();
+
+        TacticalPerformanceReport report = TacticalPerformanceReport.analyze(match, evaluatedClub);
+        Table layout = new Table();
+
+        Table grade = ScreenUI.createSubtlePanel();
+        grade.top();
+        grade.pad(16f, 18f, 16f, 18f);
+        grade.add(ScreenUI.createSectionTitle(game.skin, "DESEMPENHO TÁTICO"))
+            .growX().center().padBottom(10f).row();
+
+        Label stars = new Label(report.getStarsText(), game.skin, "font-title");
+        stars.setFontScale(.80f);
+        stars.setColor(StyleFactory.GOLD);
+        grade.add(stars).center().row();
+
+        Label rating = new Label(
+            String.format(java.util.Locale.US, "%.1f", report.getRating()),
+            game.skin,
+            "font-title"
+        );
+        rating.setFontScale(1.35f);
+        rating.setColor(getGradeColor((float) report.getRating()));
+        grade.add(rating).center().padBottom(10f).row();
+
+        Label styleCaption = ScreenUI.createSubtitle(game.skin, "ESTILO");
+        styleCaption.setFontScale(.46f);
+        grade.add(styleCaption).center().row();
+        Label style = ScreenUI.createBoldValue(
+            game.skin, report.getStyle().toUpperCase(), StyleFactory.SOFT_YELLOW, Align.center
+        );
+        style.setFontScale(.54f);
+        style.setWrap(true);
+        grade.add(style).width(280f).center().padTop(3f).padBottom(12f).row();
+
+        Table fit = ScreenUI.createStatusBox(
+            game.skin,
+            "ADEQUAÇÃO AO PLANO",
+            report.getFitScore() + "%",
+            report.getFitScore() >= 76 ? ScreenUI.SUCCESS : StyleFactory.SOFT_YELLOW
+        );
+        grade.add(fit).growX().height(55f);
+
+        layout.add(grade).width(330f).growY().padRight(10f);
+        layout.add(createTacticalLessonsPanel(
+            "O QUE FUNCIONOU",
+            report.getStrengths(),
+            true
+        )).width(410f).growY().padRight(10f);
+        layout.add(createTacticalLessonsPanel(
+            "O QUE NÃO FUNCIONOU",
+            report.getWeaknesses(),
+            false
+        )).width(410f).growY();
+
+        contentContainer.add(layout).grow();
+    }
+
+    private Table createTacticalLessonsPanel(
+        String title,
+        List<String> lessons,
+        boolean positive
+    ) {
+        Table panel = ScreenUI.createSubtlePanel();
+        panel.top();
+        panel.pad(15f, 17f, 15f, 17f);
+        Color accent = positive ? ScreenUI.SUCCESS : ScreenUI.WARNING;
+
+        Label heading = ScreenUI.createSectionTitle(game.skin, title);
+        heading.setColor(accent);
+        panel.add(heading).growX().left().padBottom(12f).row();
+
+        for (String lesson : lessons) {
+            Table row = ScreenUI.createRow(0);
+            row.pad(8f, 9f, 8f, 9f);
+            Label marker = ScreenUI.createBoldValue(
+                game.skin, positive ? "✓" : "⚠", accent, Align.center
+            );
+            marker.setFontScale(.52f);
+            row.add(marker).width(28f).top().padRight(5f);
+            Label copy = ScreenUI.createSubtitle(game.skin, lesson);
+            copy.setWrap(true);
+            copy.setFontScale(.52f);
+            copy.setColor(StyleFactory.CREME_AGED);
+            row.add(copy).growX().width(320f).left();
+            panel.add(row).growX().height(55f).padBottom(6f).row();
+        }
+        return panel;
+    }
+
     private void buildHighlightsTab() {
 
         Table layout =
@@ -1504,8 +1611,7 @@ public class MatchResultDialog extends Dialog {
             6f;
 
         boolean home =
-            match.getHomeTeam()
-                .getStartingXI()
+            match.getParticipantsForClub(match.getHomeTeam())
                 .contains(
                     player
                 );
@@ -1710,7 +1816,7 @@ public class MatchResultDialog extends Dialog {
 
         for (
             Player player :
-            club.getStartingXI()
+            match.getParticipantsForClub(club)
         ) {
 
             if (
@@ -1943,11 +2049,7 @@ public class MatchResultDialog extends Dialog {
                     .exists()
             ) {
 
-                return new Texture(
-                    Gdx.files.internal(
-                        club.getLogoPath()
-                    )
-                );
+                return ClubLogoAssets.load(club.getLogoPath());
             }
 
         } catch (

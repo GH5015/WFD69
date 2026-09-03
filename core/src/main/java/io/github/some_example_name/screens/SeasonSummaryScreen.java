@@ -1,5 +1,7 @@
 package io.github.some_example_name.screens;
 
+import io.github.some_example_name.utils.ClubLogoAssets;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -104,7 +106,7 @@ public class SeasonSummaryScreen implements Screen {
             StyleFactory.SOFT_YELLOW,
             Align.right
         );
-        clubName.setFontScale(0.62f);
+        clubName.setFontScale(0.67f);
 
         header.add(season).left().expandX();
         header.add(clubName).right().padRight(10f);
@@ -112,7 +114,7 @@ public class SeasonSummaryScreen implements Screen {
         if (clubLogo != null) {
             Image logo = new Image(new TextureRegionDrawable(clubLogo));
             logo.setScaling(Scaling.fit);
-            header.add(logo).size(44f);
+            header.add(logo).size(52f);
         }
 
         return header;
@@ -152,7 +154,7 @@ public class SeasonSummaryScreen implements Screen {
         if (clubLogo != null) {
             Image logo = new Image(new TextureRegionDrawable(clubLogo));
             logo.setScaling(Scaling.fit);
-            panel.add(logo).size(105f).padRight(18f);
+            panel.add(logo).size(120f).padRight(20f);
         }
 
         Table identity = new Table();
@@ -273,7 +275,7 @@ public class SeasonSummaryScreen implements Screen {
     private Table createFinancialPanel() {
 
         ClubFinance finance = club.getFinance();
-        long ticket = finance.getTicketRevenue() * 12L;
+        long ticket = finance.getSeasonTicketRevenue();
         long tv = finance.getTvRevenue() * 12L;
         long shirts = finance.getShirtSalesRevenue() * 12L;
         long prizes = finance.getSeasonPrizeEarnings();
@@ -429,11 +431,11 @@ public class SeasonSummaryScreen implements Screen {
             }
         });
 
-        TextButton enter = ScreenUI.createPrimaryButton(game.skin, "VER APOSENTADORIAS  ›");
+        TextButton enter = ScreenUI.createPrimaryButton(game.skin, "VER PRÊMIOS WFL  ›");
         enter.getLabel().setFontScale(0.64f);
         enter.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new RetirementSummaryScreen(game, club));
+                game.setScreen(new WflAwardsScreen(game, club));
             }
         });
 
@@ -506,7 +508,7 @@ public class SeasonSummaryScreen implements Screen {
         if (club == null || club.getLogoPath() == null) return null;
         try {
             if (Gdx.files.internal(club.getLogoPath()).exists()) {
-                return new Texture(Gdx.files.internal(club.getLogoPath()));
+                return ClubLogoAssets.load(club.getLogoPath());
             }
         } catch (Exception ignored) {
         }

@@ -18,6 +18,7 @@ public class FreeAgencyService {
     public enum OfferStatus {
         PENDING("AGUARDANDO"),
         ACCEPTED("ACEITOU"),
+        COUNTER_OFFER("CONTRAOFERTA"),
         REJECTED("RECUSOU");
 
         private final String label;
@@ -40,6 +41,10 @@ public class FreeAgencyService {
         private final int competingOffers;
         private OfferStatus status;
         private String decisionMessage;
+        private long counterAnnualSalary;
+        private int counterYears;
+        public long getCounterAnnualSalary() { return counterAnnualSalary; }
+        public int getCounterYears() { return counterYears; }
 
         private Offer(
             Player player,
@@ -98,6 +103,7 @@ public class FreeAgencyService {
     private final League league;
     private final List<Player> freeAgents = new ArrayList<>();
     private final List<Offer> userOffers = new ArrayList<>();
+    private final List<Offer> unshownUserDecisions = new ArrayList<>();
     private final Set<String> favourites = new HashSet<>();
     private final Random random = new Random(1969L);
 
@@ -125,6 +131,13 @@ public class FreeAgencyService {
         return Collections.unmodifiableList(userOffers);
     }
 
+    /** Retorna somente decisões novas e impede que o mesmo pop-up reapareça. */
+    public List<Offer> consumeUserDecisions() {
+        List<Offer> decisions = new ArrayList<>(unshownUserDecisions);
+        unshownUserDecisions.clear();
+        return decisions;
+    }
+
     public boolean isFavourite(Player player) {
         return player != null && favourites.contains(player.getId());
     }
@@ -138,7 +151,8 @@ public class FreeAgencyService {
 
     public long getRequestedAnnualSalary(Player player) {
         if (player == null) return 0L;
-        return roundAnnual(Math.max(360_000L, player.getAnnualSalary() * 108L / 100L));
+        return roundAnnual(Math.max(360_000L,
+            Math.round(Math.max(player.getAnnualSalary(), player.getMarketAnnualSalary()) * 1.08d)));
     }
 
     public int getPreferredYears(Player player) {
@@ -186,12 +200,13 @@ public class FreeAgencyService {
 
     public long getLuxuryTax(Club club, long projectedPayroll) {
         if (club == null) return 0L;
-        return Math.max(0L, projectedPayroll - club.getFinance().getSalaryCap()) / 2L;
+        return club.getFinance().getLuxuryTaxAmount(projectedPayroll);
     }
 
     public Offer findOffer(Player player) {
         if (player == null) return null;
-        for (Offer offer : userOffers) {
+        for (int i = userOffers.size() - 1; i >= 0; i--) {
+            Offer offer = userOffers.get(i);
             if (offer.player == player) return offer;
         }
         return null;
@@ -211,14 +226,19 @@ public class FreeAgencyService {
         if (existing != null && existing.status == OfferStatus.PENDING) {
             return new Submission(false, "Já existe uma proposta aguardando resposta para " + player.getName() + ".", existing);
         }
-        if (annualSalary < getRequestedAnnualSalary(player) * 65L / 100L) {
+        if (years < 1 || years > 5 || annualSalary < getRequestedAnnualSalary(player) * 75L / 100L) {
             return new Submission(false, player.getName() + " considera a oferta muito abaixo do mercado.", null);
+        }
+        long projectedPayroll = getProjectedPayroll(club, annualSalary);
+        if (!club.getFinance().isWithinHardCap(projectedPayroll)) {
+            return new Submission(false, "A proposta ultrapassaria o Hard Cap de "
+                + formatMillions(club.getFinance().getHardCap()) + ".", null);
         }
 
         int safeYears = clamp(years, 1, 5);
         Offer offer = new Offer(
             player,
-            roundAnnual(annualSalary),
+            annualSalary,
             safeYears,
             getInterestStars(player, club),
             estimateAcceptanceChance(player, club, annualSalary, safeYears),
@@ -237,6 +257,29 @@ public class FreeAgencyService {
             if (userClub == null || userClub.getSquad().size() >= MAX_SQUAD_SIZE) {
                 offer.status = OfferStatus.REJECTED;
                 offer.decisionMessage = "A proposta expirou porque o elenco atingiu o limite de jogadores.";
+                queueUserDecision(offer);
+                continue;
+            }
+            if (!userClub.getFinance().isWithinHardCap(getProjectedPayroll(userClub, offer.annualSalary))) {
+                offer.status = OfferStatus.REJECTED;
+                offer.decisionMessage = "A proposta expirou porque a folha atingiu o Hard Cap.";
+                queueUserDecision(offer);
+                continue;
+            }
+
+            PlayerNegotiation.Response negotiation = PlayerNegotiation.respond(
+                offer.player.negotiationSession(userClub, currentYear, "FREE_AGENCY"),
+                getRequestedAnnualSalary(offer.player), offer.annualSalary, offer.years,
+                getPreferredYears(offer.player), getInterestStars(offer.player, userClub),
+                offer.player.getId() + ":" + userClub.getName() + ":" + currentYear
+            );
+            if (!negotiation.accepted) {
+                offer.status = negotiation.rejected ? OfferStatus.REJECTED : OfferStatus.COUNTER_OFFER;
+                offer.counterAnnualSalary = negotiation.salary;
+                offer.counterYears = negotiation.years;
+                offer.decisionMessage = negotiation.message + (negotiation.rejected ? "" :
+                    " Pede " + formatMillions(negotiation.salary) + "/ano por " + negotiation.years + " anos.");
+                queueUserDecision(offer);
                 continue;
             }
 
@@ -250,24 +293,223 @@ public class FreeAgencyService {
 
             if (userScore >= 52.0 && (best == null || userScore >= best.score)) {
                 offer.player.transferTo(userClub);
-                offer.player.renewContract(offer.annualSalary, offer.years, currentYear);
+                offer.player.renewContract(
+                    offer.annualSalary,
+                    offer.years,
+                    getContractStartYear(currentYear)
+                );
                 offer.player.setTradeBlockedDays(60);
                 freeAgents.remove(offer.player);
                 offer.status = OfferStatus.ACCEPTED;
                 offer.decisionMessage = offer.player.getName() + " aceitou: " + offer.years + " anos por " + formatMillions(offer.annualSalary) + "/ano.";
+                queueUserDecision(offer);
             } else {
                 offer.status = OfferStatus.REJECTED;
                 if (best != null && best.score >= 52.0) {
                     offer.player.transferTo(best.club);
-                    offer.player.renewContract(best.salary, best.years, currentYear);
+                    offer.player.renewContract(
+                        best.salary,
+                        best.years,
+                        getContractStartYear(currentYear)
+                    );
                     offer.player.setTradeBlockedDays(60);
                     freeAgents.remove(offer.player);
                     offer.decisionMessage = offer.player.getName() + " escolheu " + best.club.getName() + ". A proposta financeira não foi o único fator.";
                 } else {
                     offer.decisionMessage = offer.player.getName() + " decidiu aguardar uma proposta mais adequada.";
                 }
+                queueUserDecision(offer);
             }
         }
+    }
+
+    private void queueUserDecision(Offer offer) {
+        if (offer != null && !unshownUserDecisions.contains(offer)) {
+            unshownUserDecisions.add(offer);
+        }
+    }
+
+    /**
+     * Permite que as franquias da IA iniciem suas próprias negociações. Cada
+     * clube realiza no máximo uma contratação por dia; reposições de elenco
+     * têm prioridade e somente duas melhorias opcionais podem ocorrer em toda
+     * a liga no mesmo avanço.
+     */
+    public int processAiFreeAgentSignings(Club userClub, int currentYear) {
+        if (!SeasonCalendar.isFreeAgentSigningOpen(league)) return 0;
+        if (
+            "OFFSEASON".equals(league.getCurrentStage()) &&
+            !league.isDraftFinalized()
+        ) {
+            return 0;
+        }
+
+        collectExpiredPlayers();
+        ensureMarketDepth();
+
+        List<Club> candidates = new ArrayList<>(league.getClubs());
+        Collections.shuffle(candidates, random);
+
+        int signings = 0;
+        int optionalSignings = 0;
+        boolean offseason = "OFFSEASON".equals(league.getCurrentStage());
+
+        for (Club club : candidates) {
+            if (
+                club == null ||
+                club == userClub ||
+                club.isUserControlled() ||
+                club.getSquad().size() >= MAX_SQUAD_SIZE
+            ) {
+                continue;
+            }
+
+            boolean rosterDeficit = club.getSquad().size() < MIN_SQUAD_SIZE;
+            boolean availabilityEmergency = countAvailablePlayers(club) < 18;
+            boolean optionalUpgrade = offseason &&
+                optionalSignings < 2 &&
+                allowsOptionalSigning(club) &&
+                random.nextDouble() < 0.28;
+
+            if (!rosterDeficit && !availabilityEmergency && !optionalUpgrade) {
+                continue;
+            }
+
+            Player target = selectAiFreeAgent(
+                club,
+                rosterDeficit || availabilityEmergency
+            );
+            if (target == null) continue;
+
+            long salary = roundAnnual((long) (
+                getRequestedAnnualSalary(target) *
+                (0.94 + random.nextDouble() * 0.17)
+            ));
+            if (!club.getFinance().canAffordSalary(salary)) continue;
+
+            int years = clamp(
+                getPreferredYears(target) + random.nextInt(3) - 1,
+                1,
+                5
+            );
+            double offerScore = scoreOffer(
+                target,
+                club,
+                salary,
+                years,
+                randomSwing()
+            );
+            if (offerScore < 52.0) continue;
+
+            target.transferTo(club);
+            target.renewContract(
+                salary,
+                years,
+                getContractStartYear(currentYear)
+            );
+            target.setTradeBlockedDays(60);
+            freeAgents.remove(target);
+            signings++;
+
+            if (!rosterDeficit && !availabilityEmergency) {
+                optionalSignings++;
+            }
+        }
+
+        return signings;
+    }
+
+    private Player selectAiFreeAgent(Club club, boolean mandatorySigning) {
+        Player best = null;
+        int bestScore = Integer.MIN_VALUE;
+        ClubNeedEvaluator.TeamPhase phase = ClubNeedEvaluator.getTeamPhase(club);
+
+        for (Player player : freeAgents) {
+            if (
+                player == null ||
+                player.getCurrentClub() != null ||
+                !player.canPlay() ||
+                hasPendingUserOffer(player)
+            ) {
+                continue;
+            }
+
+            long requested = getRequestedAnnualSalary(player);
+            if (!club.getFinance().canAffordSalary(requested)) continue;
+            if (!mandatorySigning && !isMeaningfulUpgrade(club, player, phase)) {
+                continue;
+            }
+
+            int score = rosterNeedScore(club, player);
+            switch (phase) {
+                case CONTENDER:
+                    score += player.getOverall() * 18 - player.getAge() * 2;
+                    break;
+                case BUYER:
+                    score += player.getOverall() * 13 + player.getPotential() * 5;
+                    break;
+                case REBUILDING:
+                    score += player.getPotential() * 15 - player.getAge() * 8;
+                    break;
+                case SELLER:
+                default:
+                    score += player.getOverall() * 8 + player.getPotential() * 4;
+                    break;
+            }
+            score += getInterestStars(player, club) * 35;
+
+            if (best == null || score > bestScore) {
+                best = player;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean isMeaningfulUpgrade(
+        Club club,
+        Player candidate,
+        ClubNeedEvaluator.TeamPhase phase
+    ) {
+        int weakestOverall = Integer.MAX_VALUE;
+        String candidateRole = role(candidate.getPosition());
+        for (Player player : club.getSquad()) {
+            if (candidateRole.equals(role(player.getPosition()))) {
+                weakestOverall = Math.min(weakestOverall, player.getOverall());
+            }
+        }
+
+        if (weakestOverall == Integer.MAX_VALUE) return true;
+        if (phase == ClubNeedEvaluator.TeamPhase.REBUILDING) {
+            return candidate.getAge() <= 24 &&
+                candidate.getPotential() >= weakestOverall + 5;
+        }
+        return candidate.getOverall() >= weakestOverall + 4;
+    }
+
+    private boolean allowsOptionalSigning(Club club) {
+        return ClubNeedEvaluator.getTeamPhase(club) !=
+            ClubNeedEvaluator.TeamPhase.SELLER;
+    }
+
+    private int countAvailablePlayers(Club club) {
+        int available = 0;
+        for (Player player : club.getSquad()) {
+            if (player != null && player.canPlay()) available++;
+        }
+        return available;
+    }
+
+    private boolean hasPendingUserOffer(Player player) {
+        Offer offer = findOffer(player);
+        return offer != null && offer.status == OfferStatus.PENDING;
+    }
+
+    private int getContractStartYear(int currentYear) {
+        return "OFFSEASON".equals(league.getCurrentStage())
+            ? currentYear + 1
+            : currentYear;
     }
 
     public static String formatMillions(long amount) {
@@ -317,12 +559,17 @@ public class FreeAgencyService {
     public int releaseExpiredContractsAtOffseasonStart() {
         if (league == null || !"OFFSEASON".equals(league.getCurrentStage())) return 0;
 
+        // AI clubs get the same contractual negotiation rules before losing their players.
+        AiContractRenewalService.renewExpiringContracts(league);
+
         int released = 0;
         int year = league.getCurrentSeason();
         for (Club club : league.getClubs()) {
             List<Player> expired = new ArrayList<>();
             for (Player player : club.getSquad()) {
-                if (player.isFreeAgent(year)) expired.add(player);
+                if (player.isContractExpiringAtSeasonEnd(year)) {
+                    expired.add(player);
+                }
             }
 
             for (Player player : expired) {
@@ -342,6 +589,7 @@ public class FreeAgencyService {
     }
 
     private void collectExpiredPlayers() {
+        if (league != null) addUndraftedFreeAgents(league.getFinancialSanctionFreeAgents());
         releaseExpiredContractsAtOffseasonStart();
     }
 
@@ -379,7 +627,7 @@ public class FreeAgencyService {
                 signing.renewContract(
                     getRequestedAnnualSalary(signing),
                     Math.max(1, getPreferredYears(signing)),
-                    league.getCurrentSeason()
+                    getContractStartYear(league.getCurrentSeason())
                 );
                 signing.setTradeBlockedDays(60);
                 freeAgents.remove(signing);

@@ -113,7 +113,7 @@ public final class ContractRenewalService {
                         getSalaryFloorMultiplier(
                             player
                         ),
-                    player.getAnnualSalary() *
+                    Math.max(player.getAnnualSalary(), player.getMarketAnnualSalary()) *
                         desiredMultiplier
                 )
             );
@@ -195,11 +195,7 @@ public final class ContractRenewalService {
                 player.getAnnualSalary() +
                 offeredAnnualSalary;
 
-        if (
-            projectedPayroll >
-                club.getFinance()
-                    .getSalaryCap()
-        ) {
+        if (!club.getFinance().isWithinHardCap(projectedPayroll)) {
             return 0;
         }
 
@@ -260,129 +256,23 @@ public final class ContractRenewalService {
     }
 
     public static Decision evaluateProposal(
-        Player player,
-        Club club,
-        int currentYear,
-        long offeredAnnualSalary,
-        int offeredYears
+        Player player, Club club, int currentYear, long offeredAnnualSalary, int offeredYears
     ) {
-        Demand demand =
-            calculateDemand(
-                player,
-                club,
-                currentYear
-            );
-
-        int chance =
-            estimateAcceptanceChance(
-                player,
-                club,
-                currentYear,
-                offeredAnnualSalary,
-                offeredYears
-            );
-
-        long projectedPayroll =
-            club.getFinance()
-                .getAnnualPayroll() -
-                player.getAnnualSalary() +
-                offeredAnnualSalary;
-
-        if (
-            projectedPayroll >
-                club.getFinance()
-                    .getSalaryCap()
-        ) {
-            return new Decision(
-                Outcome.REJECTED,
-                "A proposta ultrapassa o Salary Cap do clube.",
-                0L,
-                0,
-                0
-            );
+        Demand demand = calculateDemand(player, club, currentYear);
+        int chance = estimateAcceptanceChance(player, club, currentYear, offeredAnnualSalary, offeredYears);
+        long payroll = club.getFinance().getAnnualPayroll() - player.getAnnualSalary() + offeredAnnualSalary;
+        if (!club.getFinance().isWithinHardCap(payroll) || offeredAnnualSalary <= 0 || offeredYears < 1 || offeredYears > 5) {
+            return new Decision(Outcome.REJECTED, "Proposta inválida ou acima do Hard Cap.", 0, 0, 0);
         }
-
-        if (
-            offeredAnnualSalary <
-                (demand.minimumAnnualSalary *
-                    0.92)
-        ) {
-            boolean testsFreeAgency =
-                player.getRemainingContractYears(
-                    currentYear
-                ) == 0;
-
-            return new Decision(
-                testsFreeAgency
-                    ? Outcome.FREE_AGENCY
-                    : Outcome.REJECTED,
-                testsFreeAgency
-                    ? player.getName() + " prefere testar a Free Agency a aceitar esse valor."
-                    : player.getName() + " considera o salário abaixo do seu valor de mercado.",
-                0L,
-                0,
-                chance
-            );
-        }
-
-        boolean durationFits =
-            Math.abs(
-                offeredYears -
-                    demand.preferredYears
-            ) <= 1;
-
-        if (
-            offeredAnnualSalary >=
-                demand.desiredAnnualSalary &&
-                durationFits
-        ) {
-            return new Decision(
-                Outcome.ACCEPTED,
-                player.getName() + " aceitou a renovação. O papel no clube e a proposta são compatíveis com seu desempenho.",
-                offeredAnnualSalary,
-                offeredYears,
-                chance
-            );
-        }
-
-        long counterSalary =
-            offeredAnnualSalary >=
-                demand.minimumAnnualSalary
-                    ? demand.desiredAnnualSalary
-                    : demand.minimumAnnualSalary;
-
-        long maximumAffordableSalary =
-            club.getFinance()
-                .getSalaryCap() -
-                club.getFinance()
-                    .getAnnualPayroll() +
-                player.getAnnualSalary();
-
-        if (
-            maximumAffordableSalary <
-                demand.minimumAnnualSalary
-        ) {
-            return new Decision(
-                Outcome.REJECTED,
-                "O clube não possui espaço no Salary Cap para a renovação mínima de " + player.getName() + ".",
-                0L,
-                0,
-                chance
-            );
-        }
-
-        counterSalary = Math.min(
-            counterSalary,
-            maximumAffordableSalary
+        PlayerNegotiation.Response response = PlayerNegotiation.respond(
+            player.negotiationSession(club, currentYear, "RENEWAL"),
+            demand.desiredAnnualSalary, offeredAnnualSalary, offeredYears, demand.preferredYears,
+            demand.interestStars, player.getId() + ":" + club.getName() + ":" + currentYear
         );
-
-        return new Decision(
-            Outcome.COUNTER_OFFER,
-            player.getName() + " está disposto a negociar, mas acredita que seu desempenho justifica um valor maior.",
-            counterSalary,
-            demand.preferredYears,
-            chance
-        );
+        Outcome outcome = response.accepted ? Outcome.ACCEPTED
+            : response.rejected ? Outcome.REJECTED : Outcome.COUNTER_OFFER;
+        return new Decision(outcome, player.getName() + ": " + response.message,
+            response.salary, response.years, chance);
     }
 
     public static boolean isAttackingOrMidfieldPlayer(

@@ -70,6 +70,7 @@ public final class AiTradeService {
 
         long sellerPlayerValue = SmartTradeEvaluator.getPerceivedPlayerValue(seller, player, season);
         List<DraftPick> picks = new ArrayList<>(buyer.getDraftPicks());
+        picks.removeIf(pick -> pick == null || !pick.isAvailableForTrade(league));
         picks.sort(Comparator.<DraftPick>comparingLong(
             pick -> DraftPickEvaluator.getPerceivedPickValue(seller, pick, season)
         ).reversed());

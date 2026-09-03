@@ -2,9 +2,13 @@ package io.github.some_example_name.engine;
 
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.ClubFinance;
+import io.github.some_example_name.model.AttendanceService;
+import io.github.some_example_name.model.League;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.MatchEvent;
 import io.github.some_example_name.model.Player;
+import io.github.some_example_name.model.StaffRole;
+import io.github.some_example_name.model.StaffImpact;
 import io.github.some_example_name.model.TechnicalAttributes;
 
 import java.util.List;
@@ -16,8 +20,18 @@ public class MatchEngine {
     private static final double INJURY_CHECK_CHANCE = 0.0115d;
 
     private final Random random = new Random();
+    private final League league;
+
+    public MatchEngine() {
+        this(null);
+    }
+
+    public MatchEngine(League league) {
+        this.league = league;
+    }
 
     public void simulate(Match match) {
+        AttendanceService.ensureAttendance(league, match);
         prepareMatchLineups(match);
 
         for (int min = 1; min <= 90; min++) {
@@ -38,6 +52,7 @@ public class MatchEngine {
         }
 
         prepareLineupsForPreview(match);
+        match.capturePrematchTactics();
         match.recordStartingLineups(
             new java.util.ArrayList<>(match.getHomeTeam().getStartingXI()),
             new java.util.ArrayList<>(match.getAwayTeam().getStartingXI())
@@ -82,11 +97,24 @@ public class MatchEngine {
         List<Player> aStarters = away.getStartingXI();
 
         // 1. Modificadores Táticos calculados via TacticalEngine
-        TacticalModifiers hMods = TacticalEngine.calculateModifiers(
-            home.getTempo(), home.getMentalityValue(), home.getPassing(), home.getWidth(), home.getPressure()
+        TacticalContextEngine.ContextPair tacticalContext = TacticalContextEngine.apply(
+            home, hStarters, away, aStarters, match, minute
         );
-        TacticalModifiers aMods = TacticalEngine.calculateModifiers(
-            away.getTempo(), away.getMentalityValue(), away.getPassing(), away.getWidth(), away.getPressure()
+        TacticalModifiers hMods = tacticalContext.getHomeModifiers();
+        TacticalModifiers aMods = tacticalContext.getAwayModifiers();
+        match.recordTacticalSample(
+            true,
+            home,
+            tacticalContext.getHomeFit().getOverallFitScore(home),
+            tacticalContext.getHomeSustainability(),
+            minute
+        );
+        match.recordTacticalSample(
+            false,
+            away,
+            tacticalContext.getAwayFit().getOverallFitScore(away),
+            tacticalContext.getAwaySustainability(),
+            minute
         );
 
         // 2. Processamento de lesões
@@ -101,16 +129,13 @@ public class MatchEngine {
         boolean homeAttacking = possessionClub.equals(home);
 
         // Atualização do Momentum e da Posse no objeto Match
-        double hMidPower = calculateSectorPower(hStarters, "passe") * 1.08 * hMods.possessionMultiplier;
-        double aMidPower = calculateSectorPower(aStarters, "passe") * aMods.possessionMultiplier;
+        double hMidPower = calculateSectorPower(hStarters, "passe") * 1.08 * hMods.possessionMultiplier * coachMultiplier(home);
+        double aMidPower = calculateSectorPower(aStarters, "passe") * aMods.possessionMultiplier * coachMultiplier(away);
         double totalMid = Math.max(1, hMidPower + aMidPower);
 
         float momentum = (float) (hMidPower / totalMid) + (random.nextFloat() * 0.2f - 0.10f);
         match.setMomentum(Math.max(0.05f, Math.min(0.95f, momentum)));
         match.setPossession((int) (match.getHomeMomentum() * 100));
-
-        // Filtro para frequência de eventos narrativos
-        if (random.nextDouble() > 0.85) return null;
 
         Club attacker = homeAttacking ? home : away;
         Club defender = homeAttacking ? away : home;
@@ -121,10 +146,94 @@ public class MatchEngine {
         List<Player> attStarters = homeAttacking ? hStarters : aStarters;
         List<Player> defStarters = homeAttacking ? aStarters : hStarters;
 
+        // O ritmo controla quantos minutos se transformam em ações reais.
+        // Em ritmo 30 a partida é deliberadamente mais fechada; acima de 75
+        // o crescimento acelera e produz um jogo muito mais caótico.
+        double maximumEventChance = clamp(
+            .70d + Math.max(0d, attMods.tempoSetting - 85d) * .01d,
+            .70d,
+            .85d
+        );
+        double eventChance = clamp(.58d * attMods.eventFrequencyMultiplier, .28d, maximumEventChance);
+        if (random.nextDouble() > eventChance) return null;
+
+        boolean forcedTransition = false;
+        boolean highRegain = false;
+        boolean pressBroken = false;
+
+        // O time sem a bola tenta recuperar. Pressão bem executada vira uma
+        // transição curta; se a primeira linha falhar, a defesa fica exposta.
+        if (random.nextDouble() < defMods.regainChance) {
+            double regainSuccess = clamp(
+                .46d * defMods.pressingEfficiency / Math.max(.72d, attMods.passRetentionMultiplier),
+                .24d,
+                .72d
+            );
+            if (random.nextDouble() < regainSuccess) {
+                highRegain = random.nextDouble() < defMods.highRegainChance;
+                Club previousAttacker = attacker;
+                attacker = defender;
+                defender = previousAttacker;
+                TacticalModifiers previousAttMods = attMods;
+                attMods = defMods;
+                defMods = previousAttMods;
+                List<Player> previousAttStarters = attStarters;
+                attStarters = defStarters;
+                defStarters = previousAttStarters;
+                homeAttacking = !homeAttacking;
+                forcedTransition = true;
+            } else if (random.nextDouble() < defMods.pressBreakRisk) {
+                pressBroken = true;
+            }
+        }
+
+        // Ritmo, inadequação do passe e pressão rival aumentam as perdas.
+        // A perda muda de fato o sentido da jogada e cria um contra-ataque.
+        if (!forcedTransition) {
+            double turnoverChance = clamp(
+                .07d * attMods.turnoverRiskMultiplier * defMods.opponentErrorMultiplier
+                    / Math.max(.78d, attMods.passRetentionMultiplier),
+                .025d,
+                .22d
+            );
+            if (random.nextDouble() < turnoverChance) {
+                pressBroken = false;
+                Club previousAttacker = attacker;
+                attacker = defender;
+                defender = previousAttacker;
+                TacticalModifiers previousAttMods = attMods;
+                attMods = defMods;
+                defMods = previousAttMods;
+                List<Player> previousAttStarters = attStarters;
+                attStarters = defStarters;
+                defStarters = previousAttStarters;
+                homeAttacking = !homeAttacking;
+                forcedTransition = true;
+            }
+        }
+
         // 4. Cálculo da Força Ofensiva e Defensiva delegados aos sub-motores
-        boolean isCounterAttack = random.nextDouble() < (0.20 * attMods.counterAttackMultiplier);
+        boolean isCounterAttack = forcedTransition
+            || random.nextDouble() < clamp(.16d * attMods.counterAttackMultiplier, .06d, .40d);
+        if (forcedTransition) {
+            if (homeAttacking) match.addHomeTransition(); else match.addAwayTransition();
+        }
+        if (highRegain) {
+            if (homeAttacking) match.addHomeHighRegain(); else match.addAwayHighRegain();
+        }
         double atkPower = AttackEngine.calculateAttackPower(attacker, attMods, isCounterAttack);
         double defPower = DefenseEngine.calculateDefensePower(defender, defMods);
+        if (isCounterAttack) {
+            defPower /= Math.max(.72d, defMods.counterVulnerabilityMultiplier);
+        }
+        if (pressBroken) {
+            defPower *= 1d - defMods.pressBreakDefensePenalty;
+        }
+        if (highRegain) {
+            atkPower *= 1.08d;
+        }
+        atkPower *= coachMultiplier(attacker);
+        defPower *= coachMultiplier(defender);
 
         /* Fadiga, moral e mando de campo influenciam todos os lances. */
         atkPower *= calculateLineupCondition(attStarters);
@@ -136,19 +245,33 @@ public class MatchEngine {
         }
 
         double actionRoll = random.nextDouble();
+        double shotActionEnd = clamp(
+            .35d + (attMods.eventFrequencyMultiplier - 1d) * .08d
+                + (attMods.playersCommittedForward - 6) * .025d,
+            .27d,
+            .52d
+        );
+        double foulActionEnd = Math.min(.78d, shotActionEnd + .28d);
+        double crossingActionEnd = Math.min(.90d, foulActionEnd + .14d);
 
         // --- MÓDULO A: FINALIZAÇÕES E GOLS ---
-        if (actionRoll < 0.35) {
+        if (actionRoll < shotActionEnd) {
             double overallDiff = attacker.getOverall() - defender.getOverall();
-            double shotTriggerChance = 0.40 + (overallDiff > 0 ? (overallDiff / 80.0) : 0);
+            double shotTriggerChance = .52d
+                + (overallDiff > 0 ? overallDiff / 100d : overallDiff / 180d)
+                + (attMods.boxPresenceMultiplier - 1d) * .18d
+                + (attMods.centralCreationMultiplier - 1d) * .20d
+                + (isCounterAttack ? .08d : 0d);
+            shotTriggerChance = clamp(shotTriggerChance, .30d, .84d);
 
             if (random.nextDouble() < shotTriggerChance) {
-                return processShotSequence(match, minute, homeAttacking, attacker, defender, attStarters, defStarters, atkPower, defPower, attMods);
+                return processShotSequence(match, minute, homeAttacking, attacker, defender,
+                    attStarters, defStarters, atkPower, defPower, attMods, isCounterAttack, highRegain);
             }
         }
 
         // --- MÓDULO B: DISPUTAS FÍSICAS, FALTAS E CARTÕES ---
-        if (actionRoll >= 0.35 && actionRoll < 0.65) {
+        if (actionRoll >= shotActionEnd && actionRoll < foulActionEnd) {
             String disciplineOutcome = DefenseEngine.checkFoulOrCard(defMods);
             if (!disciplineOutcome.equals("NENHUM") || random.nextDouble() < 0.30) {
                 return processFoulSequence(match, minute, homeAttacking, attacker, defender, attStarters, defStarters, defMods);
@@ -156,7 +279,7 @@ public class MatchEngine {
         }
 
         // --- MÓDULO C: ESCANTEIOS E CRUZAMENTOS ---
-        if (actionRoll >= 0.65 && actionRoll < 0.80) {
+        if (actionRoll >= foulActionEnd && actionRoll < crossingActionEnd) {
             if (AttackEngine.isCrossingPlay(attMods)) {
                 if (homeAttacking) match.addHomeCorner(); else match.addAwayCorner();
 
@@ -173,7 +296,35 @@ public class MatchEngine {
         Player passer = getPasserPlayer(attStarters);
         String passerName = passer != null ? passer.getName() : "O meio-campo";
 
-        if (random.nextDouble() < 0.50) {
+        if (highRegain) {
+            return new MatchEvent(
+                minute,
+                attacker.getName() + " recupera no campo ofensivo e acelera antes que a defesa consiga se reorganizar.",
+                "RECUPERACAO_ALTA",
+                homeAttacking
+            );
+        } else if (forcedTransition) {
+            return new MatchEvent(
+                minute,
+                "Perda de bola! " + attacker.getName() + " dispara em transição contra uma defesa aberta.",
+                "TRANSICAO",
+                homeAttacking
+            );
+        } else if (attMods.passingSetting <= 40f && random.nextDouble() < 0.58) {
+            return new MatchEvent(
+                minute,
+                attacker.getName() + " combina passes curtos e tenta uma infiltração por dentro.",
+                "POSSE",
+                homeAttacking
+            );
+        } else if (attMods.passingSetting >= 60f && random.nextDouble() < 0.58) {
+            return new MatchEvent(
+                minute,
+                passerName + " procura um lançamento longo e a disputa pela segunda bola.",
+                "CONSTRUCAO",
+                homeAttacking
+            );
+        } else if (random.nextDouble() < 0.50) {
             return new MatchEvent(
                 minute,
                 attacker.getName() + " troca passes no campo de ataque (" + attMods.detectedStyle + ").",
@@ -191,8 +342,6 @@ public class MatchEngine {
     }
 
     private MatchEvent processInjuryCheck(Match match, List<Player> starters, Club club, int minute, TacticalModifiers mods, boolean isHomeTeam) {
-        if (random.nextDouble() > INJURY_CHECK_CHANCE) return null;
-
         List<Player> activeStarters = starters.stream()
             .filter(p -> p.getMatchRedCards() == 0 && !p.isInjured())
             .collect(Collectors.toList());
@@ -200,6 +349,12 @@ public class MatchEngine {
         if (activeStarters.isEmpty()) return null;
 
         Player victim = activeStarters.get(random.nextInt(activeStarters.size()));
+
+        int doctorLevel = club.getStaffLevel(StaffRole.DOCTOR);
+        double doctorRisk = StaffImpact.injuryRiskMultiplier(doctorLevel);
+        double relapseRisk = victim.getRelapseRiskDays() > 0
+            ? StaffImpact.relapseRiskMultiplier(doctorLevel) : 1d;
+        if (random.nextDouble() > INJURY_CHECK_CHANCE * doctorRisk * relapseRisk) return null;
 
         double fatigueRisk = (100.0 - victim.getFatigue()) / 100.0;
         double totalRisk = fatigueRisk * mods.fatigueMultiplier;
@@ -219,6 +374,11 @@ public class MatchEngine {
         }
 
         return null;
+    }
+
+    private double coachMultiplier(Club club) {
+        int level = club != null ? club.getStaffLevel(StaffRole.COACH) : 3;
+        return StaffImpact.coachPerformance(level);
     }
 
     /**
@@ -257,7 +417,8 @@ public class MatchEngine {
 
     private MatchEvent processShotSequence(Match match, int minute, boolean homeAttacking, Club attacker, Club defender,
                                            List<Player> attStarters, List<Player> defStarters,
-                                           double atkPower, double defPower, TacticalModifiers attMods) {
+                                           double atkPower, double defPower, TacticalModifiers attMods,
+                                           boolean counterAttack, boolean highRegain) {
 
         Player shooter = getBestAvailableAttacker(attStarters);
         Player goalkeeper = getGoalkeeper(defStarters);
@@ -290,18 +451,25 @@ public class MatchEngine {
             disparityMultiplier = Math.max(0.15, 1.0 - (Math.abs(overallDiff) / 20.0));
         }
 
-        double shotQuality = (atkPower / Math.max(1, atkPower + defPower)) * (shooterAtkAttr / 100.0) * disparityMultiplier;
+        double shotQuality = (atkPower / Math.max(1, atkPower + defPower))
+            * (shooterAtkAttr / 100.0)
+            * disparityMultiplier
+            * attMods.boxPresenceMultiplier;
         float xGValue = (float) Math.min(0.85, Math.max(0.04, shotQuality * (0.30 + random.nextDouble() * 0.30)));
 
+        boolean onTarget = random.nextDouble() < clamp(shotQuality * 0.50 + 0.30, .18d, .82d);
+
         if (homeAttacking) {
-            match.addHomeShot(true);
+            match.addHomeShot(onTarget);
             match.addHomeXG(xGValue);
         } else {
-            match.addAwayShot(true);
+            match.addAwayShot(onTarget);
             match.addAwayXG(xGValue);
         }
 
-        boolean onTarget = random.nextDouble() < (shotQuality * 0.50 + 0.30);
+        String transitionPrefix = highRegain
+            ? "Roubo no campo de ataque! "
+            : counterAttack ? "Contra-ataque rápido! " : "";
 
         if (onTarget) {
             int gkReflexes = goalkeeper != null ? goalkeeper.getTechnicalAttributes().getGoleiro() : 60;
@@ -331,23 +499,45 @@ public class MatchEngine {
                 String typeShot = (xGValue > 0.3f) ? " numa bomba de dentro da área!" : " de fora da área no ângulo!";
                 return new MatchEvent(
                     minute,
-                    "GOOOOOL DO " + attacker.getName().toUpperCase() + "! " + shooter.getName() + typeShot,
+                    transitionPrefix + "GOOOOOL DO " + attacker.getName().toUpperCase() + "! " + shooter.getName() + typeShot,
                     "GOL",
                     homeAttacking
                 );
             } else {
+                double reboundChance = clamp(
+                    .08d * attMods.boxPresenceMultiplier
+                        * (attMods.playersCommittedForward / 6d),
+                    .04d,
+                    .22d
+                );
+                if (random.nextDouble() < reboundChance) {
+                    if (homeAttacking) {
+                        match.addHomeShot(false);
+                        match.addHomeXG(.05f);
+                    } else {
+                        match.addAwayShot(false);
+                        match.addAwayXG(.05f);
+                    }
+                    return new MatchEvent(
+                        minute,
+                        transitionPrefix + "O goleiro rebate e " + attacker.getName()
+                            + " ganha a segunda bola, mas a finalização é bloqueada.",
+                        "REBOTE_OFENSIVO",
+                        homeAttacking
+                    );
+                }
                 if (random.nextDouble() < 0.35) {
                     if (homeAttacking) match.addHomeCorner(); else match.addAwayCorner();
                     return new MatchEvent(
                         minute,
-                        "DEFESAÇA! " + (goalkeeper != null ? goalkeeper.getName() : "O goleiro") + " espalma o chute de " + shooter.getName() + " para escanteio!",
+                        transitionPrefix + "DEFESAÇA! " + (goalkeeper != null ? goalkeeper.getName() : "O goleiro") + " espalma o chute de " + shooter.getName() + " para escanteio!",
                         "ESCANTEIO",
                         homeAttacking
                     );
                 }
                 return new MatchEvent(
                     minute,
-                    shooter.getName() + " finaliza forte no meio do gol, mas " + (goalkeeper != null ? goalkeeper.getName() : "o goleiro") + " encaixa sem dar rebote.",
+                    transitionPrefix + shooter.getName() + " finaliza forte no meio do gol, mas " + (goalkeeper != null ? goalkeeper.getName() : "o goleiro") + " encaixa sem dar rebote.",
                     "CHUTE",
                     homeAttacking
                 );
@@ -356,7 +546,7 @@ public class MatchEngine {
 
         return new MatchEvent(
             minute,
-            shooter.getName() + " (" + attacker.getName() + ") arrisca a finalização, mas a bola sai longe da meta.",
+            transitionPrefix + shooter.getName() + " (" + attacker.getName() + ") arrisca a finalização, mas a bola sai longe da meta.",
             "CHUTE",
             homeAttacking
         );
@@ -507,19 +697,20 @@ public class MatchEngine {
         // FADIGA
         // ==============================
 
-        for (
-            Player p :
-            home.getStartingXI()
-        ) {
-            p.applyMatchFatigue();
-        }
+        TacticalModifiers homeTacticalLoad = TacticalEngine.calculateModifiers(
+            home.getTempo(), home.getMentalityValue(), home.getPassing(), home.getWidth(), home.getPressure()
+        );
+        TacticalModifiers awayTacticalLoad = TacticalEngine.calculateModifiers(
+            away.getTempo(), away.getMentalityValue(), away.getPassing(), away.getWidth(), away.getPressure()
+        );
+        double homeFatigueMultiplier = homeTacticalLoad.fatigueMultiplier
+            * StaffImpact.matchFatigueMultiplier(home.getStaffLevel(StaffRole.FITNESS_COACH));
+        double awayFatigueMultiplier = awayTacticalLoad.fatigueMultiplier
+            * StaffImpact.matchFatigueMultiplier(away.getStaffLevel(StaffRole.FITNESS_COACH));
 
-        for (
-            Player p :
-            away.getStartingXI()
-        ) {
-            p.applyMatchFatigue();
-        }
+        match.finishPlayerMinuteTracking();
+        applyParticipantFatigue(match, home, homeFatigueMultiplier);
+        applyParticipantFatigue(match, away, awayFatigueMultiplier);
 
         // ==============================
         // RESULTADO
@@ -530,8 +721,6 @@ public class MatchEngine {
 
         int awayGoals =
             match.getAwayGoals();
-
-        match.finishPlayerMinuteTracking();
 
         registerSeasonPerformance(
             home,
@@ -553,6 +742,18 @@ public class MatchEngine {
         );
 
         match.setPlayed(true);
+
+        if (!match.isGateRevenueRecorded()) {
+            long grossGateRevenue = (long) match.getAttendance() * match.getAverageTicketPrice();
+            long gateRevenue = Math.round(grossGateRevenue * ClubFinance.CLUB_GATE_REVENUE_SHARE);
+            home.getFinance().recordGateRevenue(gateRevenue);
+            match.recordGateRevenue(gateRevenue);
+        }
+
+        // O desgaste pertence ao estádio que recebeu a partida. Como toda
+        // simulação termina neste ponto, jogos do usuário e da IA seguem a
+        // mesma regra sem risco de esquecer algum fluxo de calendário.
+        home.recordHomeMatchStadiumWear();
 
         // ==============================
         // ESTATÍSTICAS HISTÓRICAS CLUBES
@@ -585,60 +786,8 @@ public class MatchEngine {
         // MORAL
         // ==============================
 
-        double homeOvr =
-            home.getOverall();
-
-        double awayOvr =
-            away.getOverall();
-
-        Club winner = null;
-
-        if (
-            homeGoals >
-                awayGoals
-        ) {
-
-            home.updateSquadMorale(
-                1,
-                awayOvr
-            );
-
-            away.updateSquadMorale(
-                -1,
-                homeOvr
-            );
-
-            winner = home;
-
-        } else if (
-            awayGoals >
-                homeGoals
-        ) {
-
-            home.updateSquadMorale(
-                -1,
-                awayOvr
-            );
-
-            away.updateSquadMorale(
-                1,
-                homeOvr
-            );
-
-            winner = away;
-
-        } else {
-
-            home.updateSquadMorale(
-                0,
-                awayOvr
-            );
-
-            away.updateSquadMorale(
-                0,
-                homeOvr
-            );
-        }
+        match.applyPostMatchMorale();
+        Club winner = homeGoals > awayGoals ? home : awayGoals > homeGoals ? away : null;
 
         // ==============================
         // PREMIAÇÕES WFL
@@ -682,6 +831,28 @@ public class MatchEngine {
                         ClubFinance.PRIZE_CHAMPION
                     );
             }
+        }
+        match.restorePrematchTactics();
+    }
+
+    private double physicalFatigueResistance(Player player) {
+        if (player == null || player.getTechnicalAttributes() == null) return 1d;
+        int physical = player.getTechnicalAttributes().getFisico();
+        return clamp(1.15d - (physical - 50d) * .006d, .78d, 1.22d);
+    }
+
+    private void applyParticipantFatigue(Match match, Club club, double tacticalLoad) {
+        java.util.Map<Player, Integer> minutes = match.getPlayerMinutesForClub(club);
+        if (minutes.isEmpty()) {
+            for (Player player : club.getStartingXI()) {
+                player.applyMatchFatigue(tacticalLoad * physicalFatigueResistance(player));
+            }
+            return;
+        }
+        for (java.util.Map.Entry<Player, Integer> participant : minutes.entrySet()) {
+            double share = clamp(participant.getValue() / 90d, .10d, 1d);
+            Player player = participant.getKey();
+            player.applyMatchFatigue(tacticalLoad * physicalFatigueResistance(player) * share);
         }
     }
 
@@ -825,5 +996,9 @@ public class MatchEngine {
 
         if (passers.isEmpty()) return null;
         return passers.get(random.nextInt(passers.size()));
+    }
+
+    private double clamp(double value, double minimum, double maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
     }
 }

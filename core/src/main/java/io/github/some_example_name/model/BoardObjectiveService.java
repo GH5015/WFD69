@@ -180,9 +180,17 @@ public final class BoardObjectiveService {
         int matches = row != null ? row.matches : 0;
         double target = objective.getTarget();
         switch (objective.getType()) {
-            case MAKE_PLAYOFFS:
-                return result(objective, matches == 0 ? 50 : playoffProgress(position),
-                    matches == 0 ? "Aguardando início da temporada" : position + "º lugar");
+            case MAKE_PLAYOFFS: {
+                List<StandingsRow> conferenceRows = league.getFullStandings(club.getConference());
+                int conferencePosition = 1;
+                for (StandingsRow standing : conferenceRows) {
+                    if (standing.club == club) break;
+                    conferencePosition++;
+                }
+                return result(objective, matches == 0 ? 50
+                    : rankProgress(conferencePosition, league.getConferencePlayoffPlaces(club.getConference())),
+                    matches == 0 ? "Aguardando início da temporada" : conferencePosition + "º na conferência");
+            }
             case TABLE_POSITION:
                 return result(objective, matches == 0 ? 50 : rankProgress(position, (int) target),
                     matches == 0 ? "Aguardando início da temporada" : position + "º lugar");
@@ -342,15 +350,6 @@ public final class BoardObjectiveService {
         else rows.sort(Comparator.comparingInt((StandingsRow r) -> r.goalsAgainst));
         for (int i = 0; i < rows.size(); i++) if (rows.get(i).club == club) return i + 1;
         return rows.size();
-    }
-
-    private static double playoffProgress(int position) {
-        if (position <= 8) return 100;
-        if (position == 9) return 75;
-        if (position == 10) return 60;
-        if (position == 11) return 40;
-        if (position == 12) return 20;
-        return 0;
     }
 
     private static double rankProgress(int position, int target) {

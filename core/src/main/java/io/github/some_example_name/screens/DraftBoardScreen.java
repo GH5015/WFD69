@@ -28,7 +28,7 @@ import io.github.some_example_name.utils.StyleFactory;
 
 import java.util.List;
 
-/** Painel de projeção das 40 escolhas, atualizado pela classificação vigente. */
+/** Painel de projeção de todas as escolhas, atualizado pela classificação vigente. */
 public class DraftBoardScreen implements Screen {
     private final Main game;
     private final Club club;
@@ -58,11 +58,12 @@ public class DraftBoardScreen implements Screen {
         int draftYear = game.league.getCurrentSeason() + 1;
         List<DraftPick> picks = DraftOrderService.getCurrentDraftOrder(game.league, draftYear);
         Table page = ScreenUI.createPage(true);
-        page.add(ScreenUI.createHeader(game.skin, "PROJEÇÃO DO DRAFT", "DRAFT " + draftYear + "  •  40 ESCOLHAS"))
+        int totalPicks = DraftOrderService.picksPerRound(game.league, draftYear) * 2;
+        page.add(ScreenUI.createHeader(game.skin, "PROJEÇÃO DO DRAFT", "DRAFT " + draftYear + "  •  " + totalPicks + " ESCOLHAS"))
             .growX().height(ScreenUI.HEADER_HEIGHT).padBottom(10f).row();
 
         Table summary = ScreenUI.createPanel();
-        summary.add(ScreenUI.createStatusBox(game.skin, "ESCOLHAS", picks.size() + "/40", picks.size() == 40 ? ScreenUI.SUCCESS : ScreenUI.WARNING)).growX().uniformX().padRight(8f);
+        summary.add(ScreenUI.createStatusBox(game.skin, "ESCOLHAS", picks.size() + "/" + totalPicks, picks.size() == totalPicks ? ScreenUI.SUCCESS : ScreenUI.WARNING)).growX().uniformX().padRight(8f);
         summary.add(ScreenUI.createStatusBox(game.skin, "ORDEM", "TABELA ATUAL", StyleFactory.SOFT_YELLOW)).growX().uniformX().padRight(8f);
         summary.add(ScreenUI.createStatusBox(game.skin, "SUA FRANQUIA", club.getName(), StyleFactory.getPositionColor("CM"))).growX().uniformX();
         page.add(summary).growX().height(64f).padBottom(10f).row();
@@ -83,7 +84,6 @@ public class DraftBoardScreen implements Screen {
         Table content = new Table();
         content.top();
         int previousRound = 0;
-        int overallPick = 0;
         int cardInRound = 0;
         for (DraftPick pick : picks) {
             if (pick.getRound() != previousRound) {
@@ -92,7 +92,7 @@ public class DraftBoardScreen implements Screen {
                 cardInRound = 0;
                 content.add(createRoundDivider(previousRound)).colspan(2).growX().height(36f).padTop(5f).padBottom(5f).row();
             }
-            content.add(createPickCard(pick, ++overallPick)).width(620f).height(76f).padRight(cardInRound % 2 == 0 ? 8f : 0f).padBottom(6f);
+            content.add(createPickCard(pick, pick.getProjectedOverallPosition())).width(620f).height(76f).padRight(cardInRound % 2 == 0 ? 8f : 0f).padBottom(6f);
             cardInRound++;
             if (cardInRound % 2 == 0) content.row();
         }
@@ -105,7 +105,8 @@ public class DraftBoardScreen implements Screen {
 
     private Table createRoundDivider(int round) {
         Table divider = ScreenUI.createSubtlePanel();
-        divider.add(ScreenUI.createSectionTitle(game.skin, round + "ª RODADA  •  ESCOLHAS " + ((round - 1) * 20 + 1) + "–" + (round * 20))).left().padLeft(12f);
+        int count = DraftOrderService.picksPerRound(game.league, game.league.getCurrentSeason() + 1);
+        divider.add(ScreenUI.createSectionTitle(game.skin, round + "ª RODADA  •  ESCOLHAS " + ((round - 1) * count + 1) + "–" + (round * count))).left().padLeft(12f);
         divider.add(ScreenUI.createSubtitle(game.skin, "A ordem muda conforme a classificação da liga")).right().expandX().padRight(12f);
         return divider;
     }

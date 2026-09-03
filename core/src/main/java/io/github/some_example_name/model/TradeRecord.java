@@ -47,7 +47,7 @@ public final class TradeRecord {
             assets.add(player.getName() + " (OVR " + player.getOverall() + ")");
         }
         for (DraftPick pick : picks) {
-            assets.add(pick.getYear() + " • " + pick.getRound() + "ª rodada (#" + pick.getProjectedPosition() + ")");
+            assets.add(pick.getYear() + " • " + pick.getRound() + "ª rodada (geral #" + pick.getProjectedOverallPosition() + ")");
         }
         return assets;
     }

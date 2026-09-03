@@ -1,18 +1,23 @@
 # Uniformes da seleção de clubes
 
-Adicione três imagens PNG transparentes para cada franquia usando este padrão:
+Na tela de seleção, cada franquia exibe apenas um uniforme principal.
+Adicione a imagem PNG na raiz de `assets` usando o padrão:
 
-- `<chave>_home.png` — uniforme de casa
-- `<chave>_away.png` — uniforme visitante
-- `<chave>_third.png` — uniforme alternativo
+- `uniforme_<chave>.png`
 
 Chaves disponíveis:
 
 `santos`, `rio`, `milano`, `bavaria`, `manchester`, `london`, `amsterdam`,
 `madrid`, `barcelona`, `budapest`, `lisboa`, `buenosaires`, `montevideo`,
-`paris`, `belfast`, `tokyo`, `seoul`, `tehran`, `baghdad` e `telaviv`.
+`paris`, `belfast`, `tokyo`, `seoul`, `tehran`, `baghdad`, `telaviv`,
+`mexico`, `cairo`, `shanghai`, `sidney`, `newyork`, `riyadh`, `bangkok`,
+`bombay`, `marseille` e `jakarta`.
 
-Exemplo: `santos_home.png`, `santos_away.png`, `santos_third.png`.
+Exemplo: `assets/uniforme_santos.png`.
 
-Enquanto uma imagem não existir, a interface mostra uma camisa genérica. O arquivo
-legado `uniforme_santos.png` também é reconhecido como uniforme de casa do Santos.
+As grafias `uniforme_amsterdan.png` e `uniforme_theran.png` também são reconhecidas
+para Amsterdã Total e Tehran Lions, respectivamente.
+
+Os arquivos `assets/uniforms/<chave>_home.png` e `assets/<chave>_home.png`
+continuam funcionando como alternativas. Os arquivos `uniforme_...` têm prioridade.
+Enquanto nenhuma imagem existir, a interface mostra uma camisa genérica.

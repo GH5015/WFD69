@@ -6,7 +6,7 @@ public class DraftPickEvaluator {
      * Calcula o valor em pontos de troca de uma Pick do Draft.
      */
     public static long calculatePickValue(DraftPick pick, int currentSeasonYear) {
-        int projected = Math.max(1, Math.min(20, pick.getProjectedPosition()));
+        int projected = Math.max(1, Math.min(pick.getPicksPerRound(), pick.getProjectedPosition()));
         long baseValue = calculateBaseValue(pick.getRound(), projected);
 
         /* Enquanto a posição não é definida, a incerteza reduz fortemente o
@@ -34,7 +34,8 @@ public class DraftPickEvaluator {
             if (projected <= 5) return 365L - ((projected - 4) * 38L);
             if (projected <= 10) return 292L - ((projected - 6) * 21L);
             if (projected <= 15) return 180L - ((projected - 11) * 12L);
-            return 116L - ((projected - 16) * 11L);
+            if (projected <= 20) return 116L - ((projected - 16) * 11L);
+            return Math.max(32L, 72L - (projected - 20) * 4L);
         }
 
         if (projected <= 3) return 108L - ((projected - 1) * 10L);

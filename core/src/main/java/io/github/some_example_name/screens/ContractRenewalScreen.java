@@ -113,7 +113,7 @@ public class ContractRenewalScreen implements Screen {
         Table panel = ScreenUI.createPanel();
         long cap = club.getFinance().getSalaryCap();
         long payroll = club.getFinance().getAnnualPayroll();
-        long space = cap - payroll;
+        long hardCap = club.getFinance().getHardCap();
 
         panel.add(ScreenUI.createStatusBox(
             game.skin,
@@ -124,16 +124,31 @@ public class ContractRenewalScreen implements Screen {
 
         panel.add(ScreenUI.createStatusBox(
             game.skin,
-            "FOLHA SALARIAL",
-            formatMoney(payroll),
-            payroll <= cap ? ScreenUI.SUCCESS : ScreenUI.DANGER
+            "LUXURY TAX",
+            formatMoney(club.getFinance().getLuxuryTaxThreshold()),
+            ScreenUI.WARNING
         )).growX().uniformX().padRight(8f);
 
         panel.add(ScreenUI.createStatusBox(
             game.skin,
-            "ESPAÇO DISPONÍVEL",
-            formatMoney(space),
-            space >= 0 ? ScreenUI.SUCCESS : ScreenUI.DANGER
+            "HARD CAP",
+            formatMoney(hardCap),
+            ScreenUI.DANGER
+        )).growX().uniformX().padRight(8f);
+
+        panel.add(ScreenUI.createStatusBox(
+            game.skin,
+            "FOLHA SALARIAL",
+            formatMoney(payroll),
+            payroll > hardCap ? ScreenUI.DANGER : payroll > club.getFinance().getLuxuryTaxThreshold()
+                ? ScreenUI.WARNING : payroll > cap ? StyleFactory.SOFT_YELLOW : ScreenUI.SUCCESS
+        )).growX().uniformX().padRight(8f);
+
+        panel.add(ScreenUI.createStatusBox(
+            game.skin,
+            "SITUAÇÃO",
+            club.getFinance().getPayrollStatus(payroll),
+            payroll <= hardCap ? ScreenUI.SUCCESS : ScreenUI.DANGER
         )).growX().uniformX();
 
         return panel;
@@ -332,11 +347,13 @@ public class ContractRenewalScreen implements Screen {
         Runnable updateProposal = () -> {
             long offered = Math.round(salarySlider.getValue()) * 1_000L;
             long projected = club.getFinance().getAnnualPayroll() - player.getAnnualSalary() + offered;
-            long capSpace = club.getFinance().getSalaryCap() - projected;
+            long capSpace = club.getFinance().getHardCap() - projected;
             int probability = ContractRenewalService.estimateAcceptanceChance(player, club, currentYear, offered, years[0]);
             offeredSalary.setText(formatMoney(offered) + " / ano");
-            capImpact.setText("Salary Cap: " + formatMoney(club.getFinance().getAnnualPayroll()) + " → " + formatMoney(projected) + "  •  espaço: " + formatMoney(capSpace));
-            capImpact.setColor(capSpace >= 0 ? ScreenUI.SUCCESS : ScreenUI.DANGER);
+            capImpact.setText("Folha: " + formatMoney(club.getFinance().getAnnualPayroll()) + " → " + formatMoney(projected)
+                + "  •  " + club.getFinance().getPayrollStatus(projected) + "  •  espaço Hard Cap: " + formatMoney(capSpace));
+            capImpact.setColor(capSpace < 0 ? ScreenUI.DANGER : projected > club.getFinance().getLuxuryTaxThreshold()
+                ? ScreenUI.WARNING : projected > club.getFinance().getSalaryCap() ? StyleFactory.SOFT_YELLOW : ScreenUI.SUCCESS);
             chance.setText("PROBABILIDADE DE ACEITAÇÃO  " + probability + "%");
             chance.setColor(getProbabilityColor(probability));
             chanceBar.setText(createProbabilityBar(probability));
@@ -482,6 +499,13 @@ public class ContractRenewalScreen implements Screen {
             refreshUI();
             return;
         }
+        long projected = club.getFinance().getAnnualPayroll() - player.getAnnualSalary() + annualSalary;
+        if (player.getCurrentClub() != club || annualSalary <= 0 || years < 1 || years > 5
+            || !club.getFinance().isWithinHardCap(projected)) {
+            Dialog blocked = new Dialog("RENOVAÇÃO BLOQUEADA", game.skin);
+            blocked.text("O vínculo ou o espaço no Hard Cap mudou. Revise a proposta.").button("OK").show(stage);
+            return;
+        }
         player.renewContract(annualSalary, years, game.league.getCurrentSeason());
         refreshUI();
     }
@@ -490,8 +514,9 @@ public class ContractRenewalScreen implements Screen {
         Dialog dialog = new Dialog("", game.skin);
         dialog.setModal(true);
         dialog.setMovable(false);
-        dialog.getContentTable().background(StyleFactory.createMetallicBoard(860, 690, Color.valueOf("141A16")));
-        dialog.getContentTable().pad(18f, 24f, 14f, 24f);
+        dialog.setResizable(false);
+        dialog.getContentTable().background(StyleFactory.createMetallicBoard(920, 720, Color.valueOf("091813")));
+        dialog.getContentTable().pad(20f, 26f, 16f, 26f);
         return dialog;
     }
 
@@ -531,9 +556,7 @@ public class ContractRenewalScreen implements Screen {
     }
 
     private String formatStars(int stars) {
-        StringBuilder builder = new StringBuilder();
-        for (int index = 0; index < 5; index++) builder.append(index < stars ? "★" : "☆");
-        return builder.toString();
+        return ScreenUI.formatStars(stars);
     }
 
     private Color getInterestColor(int stars) {

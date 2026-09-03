@@ -16,15 +16,24 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
 import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
+import io.github.some_example_name.engine.TacticalEngine;
+import io.github.some_example_name.engine.FormationShapeEvaluator;
+import io.github.some_example_name.engine.TacticalMatchupEvaluator;
+import io.github.some_example_name.engine.TacticalModifiers;
+import io.github.some_example_name.engine.TacticalPreset;
+import io.github.some_example_name.engine.TacticalSuitabilityEvaluator;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Formation;
+import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.ClubUniformAssets;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
@@ -32,6 +41,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TacticsScreen implements Screen {
+
+    private static final TacticalPreset[] QUICK_PRESETS = TacticalPreset.values();
 
     private final Main game;
     private final Club club;
@@ -42,6 +53,7 @@ public class TacticsScreen implements Screen {
 
     private Texture pitchTexture;
     private Texture jerseyTexture;
+    private Drawable jerseyDrawable;
 
     private Texture sliderBackgroundTexture;
     private Texture sliderKnobTexture;
@@ -176,13 +188,14 @@ public class TacticsScreen implements Screen {
         body
             .add(left)
             .grow()
+            .minWidth(0f)
             .padRight(10f);
 
         body
             .add(
                 createRightPanel()
             )
-            .width(365f)
+            .width(showTacticsTab ? 600f : 365f)
             .growY();
 
         page
@@ -963,13 +976,7 @@ public class TacticsScreen implements Screen {
         ) {
 
             Image jersey =
-                new Image(
-                    new TextureRegionDrawable(
-                        new TextureRegion(
-                            jerseyTexture
-                        )
-                    )
-                );
+                new Image(jerseyDrawable);
 
             jersey.setScaling(
                 Scaling.fit
@@ -1141,7 +1148,7 @@ public class TacticsScreen implements Screen {
 
             Label hint =
                 new Label(
-                    "Selecione um jogador no plantel e depois clique em uma posição do campo.",
+                    "Selecione um jogador e clique no campo, ou troque um reserva por um não relacionado.",
                     game.skin
                 );
 
@@ -1449,16 +1456,10 @@ public class TacticsScreen implements Screen {
             }
         }
 
-        reserves.sort(
-            (
-                a,
-                b
-            ) ->
-                Integer.compare(
-                    b.getOverall(),
-                    a.getOverall()
-                )
-        );
+        List<Player> chosenBench = club.getBenchPlayers();
+        reserves.removeAll(chosenBench);
+        reserves.sort((a, b) -> Integer.compare(b.getOverall(), a.getOverall()));
+        reserves.addAll(0, chosenBench);
 
         Table list =
             new Table();
@@ -1563,6 +1564,7 @@ public class TacticsScreen implements Screen {
             ScreenUI.createRow(
                 index
             );
+        row.setName("tactics-squad-" + player.getId());
 
         boolean selected =
             player ==
@@ -1648,11 +1650,11 @@ public class TacticsScreen implements Screen {
                         return;
                     }
 
-                    selectedPlayer =
-                        selectedPlayer ==
-                            player
-                            ? null
-                            : player;
+                    if (selectedPlayer != null && club.swapBenchPlayers(selectedPlayer, player)) {
+                        selectedPlayer = null;
+                    } else {
+                        selectedPlayer = selectedPlayer == player ? null : player;
+                    }
 
                     refreshUI();
                 }
@@ -1675,9 +1677,16 @@ public class TacticsScreen implements Screen {
             new Table();
 
         cards.top();
+        cards.defaults().minWidth(0f);
 
         Slider.SliderStyle sliderStyle =
             createSliderStyle();
+
+        cards
+            .add(createQuickPresetsPanel())
+            .growX()
+            .padBottom(8f)
+            .row();
 
         // =====================================================
         // RITMO
@@ -1687,7 +1696,7 @@ public class TacticsScreen implements Screen {
             new Slider(
                 0f,
                 100f,
-                5f,
+                1f,
                 false,
                 sliderStyle
             );
@@ -1698,11 +1707,9 @@ public class TacticsScreen implements Screen {
 
         Label tempoValue =
             valueLabel(
-                Math.round(
-                    club.getTempo()
-                ) +
-                    "%"
+                tacticalValueText(club.getTempo())
             );
+        updateTacticalValueLabel(tempoValue, club.getTempo());
 
         tempo.addListener(
             new ChangeListener() {
@@ -1717,12 +1724,7 @@ public class TacticsScreen implements Screen {
                         tempo.getValue()
                     );
 
-                    tempoValue.setText(
-                        Math.round(
-                            tempo.getValue()
-                        ) +
-                            "%"
-                    );
+                    updateTacticalValueLabel(tempoValue, tempo.getValue());
                 }
             }
         );
@@ -1749,9 +1751,9 @@ public class TacticsScreen implements Screen {
 
         Slider mentality =
             new Slider(
-                10f,
-                90f,
-                20f,
+                0f,
+                100f,
+                1f,
                 false,
                 sliderStyle
             );
@@ -1762,8 +1764,9 @@ public class TacticsScreen implements Screen {
 
         Label mentalityValue =
             valueLabel(
-                club.getMentality()
+                tacticalValueText(club.getMentalityValue())
             );
+        updateTacticalValueLabel(mentalityValue, club.getMentalityValue());
 
         mentality.addListener(
             new ChangeListener() {
@@ -1777,43 +1780,8 @@ public class TacticsScreen implements Screen {
                     float value =
                         mentality.getValue();
 
-                    if (
-                        value <=
-                            20
-                    ) {
-
-                        club.setMentality(
-                            "Defensiva"
-                        );
-
-                    } else if (
-                        value <=
-                            40
-                    ) {
-
-                        club.setMentality(
-                            "Equilibrada"
-                        );
-
-                    } else if (
-                        value <=
-                            60
-                    ) {
-
-                        club.setMentality(
-                            "Ofensiva"
-                        );
-
-                    } else {
-
-                        club.setMentality(
-                            "Ultra Ofensiva"
-                        );
-                    }
-
-                    mentalityValue.setText(
-                        club.getMentality()
-                    );
+                    club.setMentalityValue(value);
+                    updateTacticalValueLabel(mentalityValue, value);
                 }
             }
         );
@@ -1825,7 +1793,7 @@ public class TacticsScreen implements Screen {
                 tacticCard(
                     "MENTALIDADE",
                     "Defensiva",
-                    "Ofensiva",
+                    "Ultraofensiva",
                     mentality,
                     mentalityValue
                 )
@@ -1842,7 +1810,7 @@ public class TacticsScreen implements Screen {
             new Slider(
                 0f,
                 100f,
-                5f,
+                1f,
                 false,
                 sliderStyle
             );
@@ -1853,11 +1821,9 @@ public class TacticsScreen implements Screen {
 
         Label passingValue =
             valueLabel(
-                Math.round(
-                    club.getPassing()
-                ) +
-                    "%"
+                tacticalValueText(club.getPassing())
             );
+        updateTacticalValueLabel(passingValue, club.getPassing());
 
         passing.addListener(
             new ChangeListener() {
@@ -1872,12 +1838,7 @@ public class TacticsScreen implements Screen {
                         passing.getValue()
                     );
 
-                    passingValue.setText(
-                        Math.round(
-                            passing.getValue()
-                        ) +
-                            "%"
-                    );
+                    updateTacticalValueLabel(passingValue, passing.getValue());
                 }
             }
         );
@@ -1906,7 +1867,7 @@ public class TacticsScreen implements Screen {
             new Slider(
                 0f,
                 100f,
-                5f,
+                1f,
                 false,
                 sliderStyle
             );
@@ -1917,11 +1878,9 @@ public class TacticsScreen implements Screen {
 
         Label widthValue =
             valueLabel(
-                Math.round(
-                    club.getWidth()
-                ) +
-                    "%"
+                tacticalValueText(club.getWidth())
             );
+        updateTacticalValueLabel(widthValue, club.getWidth());
 
         width.addListener(
             new ChangeListener() {
@@ -1936,12 +1895,7 @@ public class TacticsScreen implements Screen {
                         width.getValue()
                     );
 
-                    widthValue.setText(
-                        Math.round(
-                            width.getValue()
-                        ) +
-                            "%"
-                    );
+                    updateTacticalValueLabel(widthValue, width.getValue());
                 }
             }
         );
@@ -1970,7 +1924,7 @@ public class TacticsScreen implements Screen {
             new Slider(
                 0f,
                 100f,
-                5f,
+                1f,
                 false,
                 sliderStyle
             );
@@ -1981,11 +1935,9 @@ public class TacticsScreen implements Screen {
 
         Label pressureValue =
             valueLabel(
-                Math.round(
-                    club.getPressure()
-                ) +
-                    "%"
+                tacticalValueText(club.getPressure())
             );
+        updateTacticalValueLabel(pressureValue, club.getPressure());
 
         pressure.addListener(
             new ChangeListener() {
@@ -2000,12 +1952,7 @@ public class TacticsScreen implements Screen {
                         pressure.getValue()
                     );
 
-                    pressureValue.setText(
-                        Math.round(
-                            pressure.getValue()
-                        ) +
-                            "%"
-                    );
+                    updateTacticalValueLabel(pressureValue, pressure.getValue());
                 }
             }
         );
@@ -2022,6 +1969,28 @@ public class TacticsScreen implements Screen {
                     pressureValue
                 )
             )
+            .growX()
+            .padBottom(8f)
+            .row();
+
+        cards
+            .add(
+                createTacticalRiskPanel()
+            )
+            .growX()
+            .padBottom(8f)
+            .row();
+
+        cards
+            .add(
+                createSquadSuitabilityPanel()
+            )
+            .growX()
+            .padBottom(8f)
+            .row();
+
+        cards
+            .add(createTacticalMatchupPanel())
             .growX()
             .padBottom(8f)
             .row();
@@ -2052,9 +2021,12 @@ public class TacticsScreen implements Screen {
             false
         );
 
+        // Os cards acompanham a largura disponível; apenas a rolagem vertical é necessária.
+        scroll.setScrollingDisabled(true, false);
+
         root
             .add(scroll)
-            .grow();
+            .grow().minWidth(0f);
 
         return root;
     }
@@ -2125,16 +2097,105 @@ public class TacticsScreen implements Screen {
         return card;
     }
 
+    private Table createQuickPresetsPanel() {
+        Table panel = ScreenUI.createSubtlePanel();
+        panel.top();
+
+        TacticalPreset active = findActivePreset();
+        Table heading = new Table();
+        heading.add(ScreenUI.createSectionTitle(game.skin, "PRESETS RÁPIDOS"))
+            .growX().left();
+        Label current = ScreenUI.createBoldValue(
+            game.skin,
+            active != null ? active.getLabel() : "PERSONALIZADA",
+            active != null ? ScreenUI.SUCCESS : ScreenUI.MUTED_TEXT,
+            Align.right
+        );
+        current.setFontScale(.36f);
+        heading.add(current).right();
+        panel.add(heading).growX().padBottom(3f).row();
+
+        Label legend = ScreenUI.createSubtitle(
+            game.skin,
+            "RIT • MEN • PAS • AMP • PRE"
+        );
+        legend.setFontScale(.40f);
+        legend.setColor(ScreenUI.MUTED_TEXT);
+        panel.add(legend).growX().left().padBottom(5f).row();
+
+        Table grid = new Table();
+        for (int i = 0; i < QUICK_PRESETS.length; i++) {
+            TacticalPreset preset = QUICK_PRESETS[i];
+            TextButton button = createPresetButton(preset, preset == active);
+            grid.add(button).growX().minWidth(0f).uniformX().height(48f).pad(2f);
+            if (i % 2 == 1) grid.row();
+        }
+        panel.add(grid).growX();
+        return panel;
+    }
+
+    private TextButton createPresetButton(TacticalPreset preset, boolean active) {
+        String values = Math.round(preset.getTempo()) + " • "
+            + Math.round(preset.getMentality()) + " • "
+            + Math.round(preset.getPassing()) + " • "
+            + Math.round(preset.getWidth()) + " • "
+            + Math.round(preset.getPressure());
+        TextButton button = ScreenUI.createInteractiveButton(
+            preset.getLabel() + "\n" + values,
+            game.skin
+        );
+        button.getLabel().setWrap(true);
+        button.getLabel().setAlignment(Align.center);
+        button.getLabel().setFontScale(.36f);
+        button.setColor(active ? StyleFactory.GOLD : StyleFactory.METAL_DARK);
+        button.getLabel().setColor(active ? Color.BLACK : StyleFactory.CREME_AGED);
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                applyPreset(preset);
+            }
+        });
+        return button;
+    }
+
+    private void applyPreset(TacticalPreset preset) {
+        preset.applyTo(club);
+        refreshUI();
+    }
+
+    private TacticalPreset findActivePreset() {
+        for (TacticalPreset preset : QUICK_PRESETS) {
+            if (preset.matches(club)) return preset;
+        }
+        return null;
+    }
+
     private Label valueLabel(
         String value
     ) {
-
-        return ScreenUI.createBoldValue(
+        Label label = ScreenUI.createBoldValue(
             game.skin,
             value,
             StyleFactory.SOFT_YELLOW,
             Align.right
         );
+        label.setFontScale(.42f);
+        return label;
+    }
+
+    private String tacticalValueText(float value) {
+        return Math.round(value) + "% • " + TacticalEngine.interpretLevel(value);
+    }
+
+    private void updateTacticalValueLabel(Label label, float value) {
+        label.setText(tacticalValueText(value));
+        label.setColor(tacticalRiskColor(value));
+    }
+
+    private Color tacticalRiskColor(float value) {
+        if (value >= 90f) return ScreenUI.DANGER;
+        if (value >= 75f) return ScreenUI.WARNING;
+        return StyleFactory.SOFT_YELLOW;
     }
 
     /** Atualiza os indicadores de leitura ao terminar o ajuste do slider. */
@@ -2163,6 +2224,209 @@ public class TacticsScreen implements Screen {
     // =========================================================
     // TACTICAL FEEDBACK
     // =========================================================
+
+    private Table createTacticalRiskPanel() {
+        Table panel = ScreenUI.createSubtlePanel();
+        panel.top();
+        panel.add(ScreenUI.createSectionTitle(game.skin, "CUSTO TÁTICO"))
+            .left().expandX();
+
+        int physicalLoad = TacticalEngine.calculatePhysicalLoadPercent(
+            club.getTempo(), club.getPressure()
+        );
+        int pressureLoad = TacticalEngine.calculatePressureLoadPercent(club.getPressure());
+        TacticalModifiers modifiers = TacticalEngine.calculateModifiers(
+            club.getTempo(), club.getMentalityValue(), club.getPassing(), club.getWidth(), club.getPressure()
+        );
+        float highestSetting = Math.max(
+            Math.max(club.getTempo(), club.getMentalityValue()),
+            Math.max(club.getPassing(), Math.max(club.getWidth(), club.getPressure()))
+        );
+        Color riskColor = tacticalRiskColor(highestSetting);
+        String loadText = physicalLoad == 0
+            ? "DESGASTE NORMAL"
+            : "DESGASTE " + (physicalLoad > 0 ? "+" : "") + physicalLoad + "%";
+        Label load = ScreenUI.createBoldValue(game.skin, loadText, riskColor, Align.right);
+        load.setFontScale(.46f);
+        panel.add(load).right().row();
+
+        String pressureText = pressureLoad == 0
+            ? "Pressão em nível neutro."
+            : "Pressão: " + (pressureLoad > 0 ? "+" : "") + pressureLoad + "% de carga física"
+                + " • recuperação alta +" + Math.round(modifiers.highRegainChance * 100d) + "%"
+                + " • erros rivais +" + Math.round((modifiers.opponentErrorMultiplier - 1d) * 100d) + "%";
+        String structureText = modifiers.playersCommittedForward + " jogadores apoiam o ataque";
+        if (modifiers.pressBreakDefensePenalty > 0d) {
+            structureText += " • pressão quebrada: cobertura -"
+                + Math.round(modifiers.pressBreakDefensePenalty * 100d) + "%";
+        }
+        String warning;
+        if (highestSetting >= 90f) {
+            warning = "Configuração extrema: maior risco de desgaste, cartões, erros e exposição defensiva.";
+        } else if (highestSetting >= 75f) {
+            warning = "Configuração muito alta: o ganho tático passa a cobrar um custo crescente.";
+        } else {
+            warning = "Carga controlada. Valores acima de 75 elevam os riscos de forma não linear.";
+        }
+
+        Label details = ScreenUI.createSubtitle(
+            game.skin,
+            pressureText + "\n" + structureText + "\n" + warning
+        );
+        details.setWrap(true);
+        details.setColor(highestSetting >= 75f ? riskColor : ScreenUI.MUTED_TEXT);
+        details.setFontScale(.49f);
+        panel.add(details).colspan(2).growX().minWidth(0f).minHeight(68f).left().padTop(5f);
+        return panel;
+    }
+
+    private Table createSquadSuitabilityPanel() {
+        Table panel = ScreenUI.createSubtlePanel();
+        panel.top();
+
+        TacticalSuitabilityEvaluator.Profile profile = TacticalSuitabilityEvaluator.evaluate(
+            club,
+            club.getStartingXI()
+        );
+        int overallFit = profile.getOverallFitScore(club);
+        Table heading = new Table();
+        heading.add(ScreenUI.createSectionTitle(game.skin, "ADEQUAÇÃO À TÁTICA"))
+            .growX().left();
+        Label fitValue = ScreenUI.createBoldValue(
+            game.skin, overallFit + "%", suitabilityColor(overallFit), Align.right
+        );
+        fitValue.setFontScale(.48f);
+        heading.add(fitValue).right();
+        panel.add(heading).growX().padBottom(3f).row();
+        panel.add(ScreenUI.createBlockProgress(game.skin, overallFit, 18, suitabilityColor(overallFit)))
+            .growX().height(10f).padBottom(7f).row();
+
+        panel.add(createSuitabilityRow(
+            profile.getPassingStyleLabel(),
+            profile.getPassingFitLabel(),
+            passingSuitabilityDetails(profile),
+            suitabilityColor(profile.getPassingFitScore())
+        )).growX().padBottom(5f).row();
+
+        panel.add(createSuitabilityRow(
+            "AMPLITUDE",
+            profile.getWidthFitLabel(),
+            widthSuitabilityDetails(profile),
+            widthSuitabilityColor(profile)
+        )).growX().padBottom(5f).row();
+
+        int sustainableAt85 = (int) Math.round(100d * TacticalSuitabilityEvaluator.calculateSustainability(
+            profile.getEffectivePhysical(), club.getTempo(), club.getPressure(), 85
+        ));
+        panel.add(createSuitabilityRow(
+            "CAPACIDADE FÍSICA",
+            profile.getIntensityFitLabel(club),
+            "Físico médio " + profile.getAveragePhysical() + " • condição " + profile.getAverageFatigue()
+                + "% • eficiência prevista aos 85': " + sustainableAt85 + "%",
+            sustainableAt85 >= 94 ? ScreenUI.SUCCESS : sustainableAt85 >= 84
+                ? StyleFactory.SOFT_YELLOW : ScreenUI.WARNING
+        )).growX().padBottom(5f).row();
+
+        FormationShapeEvaluator.Shape shape = FormationShapeEvaluator.evaluate(club);
+        panel.add(createSuitabilityRow(
+            "OCUPAÇÃO DA FORMAÇÃO",
+            club.getFormation() != null ? club.getFormation().getName() : "SEM FORMAÇÃO",
+            shape.describe(),
+            StyleFactory.SOFT_YELLOW
+        )).growX();
+        return panel;
+    }
+
+    private Table createTacticalMatchupPanel() {
+        Table panel = ScreenUI.createSubtlePanel();
+        panel.top();
+        Match next = game.league != null ? game.league.getNextMatchForClub(club) : null;
+        Club opponent = null;
+        if (next != null) {
+            opponent = next.getHomeTeam() == club ? next.getAwayTeam() : next.getHomeTeam();
+        }
+        String title = opponent == null
+            ? "ANÁLISE DO CONFRONTO"
+            : "CONFRONTO • " + opponent.getName().toUpperCase();
+        Label matchupTitle = ScreenUI.createSectionTitle(game.skin, title);
+        matchupTitle.setWrap(true);
+        panel.add(matchupTitle).growX().minWidth(0f).left().padBottom(5f).row();
+
+        if (opponent == null) {
+            Label empty = ScreenUI.createSubtitle(game.skin, "O próximo adversário ainda não está definido.");
+            empty.setFontScale(.48f);
+            panel.add(empty).growX().left();
+            return panel;
+        }
+
+        TacticalMatchupEvaluator.Result result = TacticalMatchupEvaluator.analyze(club, opponent);
+        List<String> insights = next.getHomeTeam() == club
+            ? result.getHomeInsights() : result.getAwayInsights();
+        if (insights.isEmpty()) {
+            insights = new ArrayList<>();
+            insights.add("• confronto equilibrado, sem vantagem estrutural clara");
+        }
+        Label analysis = ScreenUI.createSubtitle(game.skin, String.join("\n", insights));
+        analysis.setWrap(true);
+        analysis.setFontScale(.50f);
+        analysis.setColor(ScreenUI.MUTED_TEXT);
+        panel.add(analysis).growX().minWidth(0f).left();
+        return panel;
+    }
+
+    private Table createSuitabilityRow(String titleText, String statusText, String detailText, Color color) {
+        Table row = ScreenUI.createRow(0);
+        row.pad(6f, 8f, 6f, 8f);
+        Table copy = new Table();
+        copy.left();
+        Label title = ScreenUI.createBoldValue(game.skin, titleText, StyleFactory.CREME_AGED, Align.left);
+        title.setFontScale(.42f);
+        title.setWrap(true);
+        copy.add(title).growX().left().row();
+        Label details = ScreenUI.createSubtitle(game.skin, detailText);
+        details.setWrap(true);
+        details.setFontScale(.47f);
+        copy.add(details).growX().minWidth(0f).left().padTop(2f);
+        row.add(copy).growX().minWidth(0f).left().padRight(8f);
+
+        Label status = ScreenUI.createBoldValue(game.skin, statusText, color, Align.right);
+        status.setFontScale(.36f);
+        status.setWrap(true);
+        row.add(status).width(105f).right();
+        return row;
+    }
+
+    private String passingSuitabilityDetails(TacticalSuitabilityEvaluator.Profile profile) {
+        if (club.getPassing() <= 40f) {
+            return "Passe médio " + profile.getAveragePass() + " • Drible " + profile.getAverageDribble()
+                + (profile.getPassingFitScore() >= 72 ? " • boa retenção e criação central" : " • risco maior de perdas");
+        }
+        if (club.getPassing() >= 60f) {
+            return "Adequação " + profile.getPassingFitScore()
+                + (profile.getPassingFitScore() >= 72 ? " • lançamentos e segunda bola favorecidos" : " • lançamentos pouco eficientes");
+        }
+        return "Adequação " + profile.getPassingFitScore() + " • construção neutra";
+    }
+
+    private String widthSuitabilityDetails(TacticalSuitabilityEvaluator.Profile profile) {
+        return profile.getNaturalWidePlayers() + " jogadores naturais pelos lados • qualidade "
+            + profile.getWideQuality()
+            + (club.getWidth() >= 75f && profile.getNaturalWidePlayers() < 2
+                ? " • risco de espaçamento excessivo" : "");
+    }
+
+    private Color suitabilityColor(int score) {
+        if (score >= 72) return ScreenUI.SUCCESS;
+        if (score >= 68) return StyleFactory.SOFT_YELLOW;
+        return ScreenUI.WARNING;
+    }
+
+    private Color widthSuitabilityColor(TacticalSuitabilityEvaluator.Profile profile) {
+        if (club.getWidth() < 60f) return ScreenUI.MUTED_TEXT;
+        if (profile.getWideQuality() >= 78 && profile.getNaturalWidePlayers() >= 3) return ScreenUI.SUCCESS;
+        if (profile.getWideQuality() >= 70 && profile.getNaturalWidePlayers() >= 2) return StyleFactory.SOFT_YELLOW;
+        return ScreenUI.WARNING;
+    }
 
     private Table createTacticalSummaryPanel() {
 
@@ -2193,7 +2457,7 @@ public class TacticsScreen implements Screen {
         panel
             .add(summary)
             .growX()
-            .width(315f)
+            .minWidth(0f)
             .left();
 
         return panel;
@@ -2317,14 +2581,13 @@ public class TacticsScreen implements Screen {
 
     private String buildTacticalSummary() {
 
-        String mentality =
-            club.getMentalityValue() <= 30f
-                ? "defensiva"
-                : club.getMentalityValue() >= 70f
-                    ? "muito ofensiva"
-                    : club.getMentalityValue() >= 50f
-                        ? "ofensiva"
-                        : "equilibrada";
+        float mentalityValue = club.getMentalityValue();
+        String mentality = mentalityValue <= 25f ? "defensiva"
+            : mentalityValue <= 40f ? "cautelosa"
+            : mentalityValue <= 59f ? "equilibrada"
+            : mentalityValue <= 74f ? "positiva"
+            : mentalityValue <= 89f ? "ofensiva"
+            : "ultraofensiva";
 
         String pressure =
             club.getPressure() >= 65f
@@ -2559,11 +2822,7 @@ public class TacticsScreen implements Screen {
         pixmap.dispose();
     }
 
-    /**
-     * Usa o uniforme do clube no campo tático. Quando uma carreira for
-     * iniciada com outro clube, o ícone neutro mantém o card legível até que
-     * o uniforme específico daquele clube esteja disponível nos assets.
-     */
+    /** Usa a mesma camisa principal exibida na seleção da franquia. */
     private void ensureJerseyTexture() {
 
         if (
@@ -2573,12 +2832,7 @@ public class TacticsScreen implements Screen {
             return;
         }
 
-        String jerseyAsset =
-            club.getName()
-                .toLowerCase()
-                .contains("santos")
-                    ? "uniforme_santos.png"
-                    : "Icons8/icons8-camisa-de-jogador-50.png";
+        String jerseyAsset = ClubUniformAssets.forClub(club);
 
         jerseyTexture =
             new Texture(
@@ -2586,6 +2840,8 @@ public class TacticsScreen implements Screen {
                     jerseyAsset
                 )
             );
+        jerseyTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        jerseyDrawable = ClubUniformAssets.drawable(jerseyTexture);
     }
 
     // =========================================================

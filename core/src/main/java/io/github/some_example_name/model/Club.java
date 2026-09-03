@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.EnumMap;
 import io.github.some_example_name.model.DraftPick;
+import io.github.some_example_name.database.StaffDatabase;
 
 public class Club {
     private String name;
@@ -18,11 +19,14 @@ public class Club {
     private double budget;
     private String stadiumName;
     private int stadiumCapacity = 30000;
+    private int stadiumCondition = 100;
+    private int averageTicketPrice;
     private String stadiumRenovationName;
     private int stadiumRenovationTargetCapacity;
     private int stadiumRenovationTotalDays;
     private int stadiumRenovationDaysRemaining;
     private long stadiumRenovationCost;
+    private int stadiumRenovationTemporaryCapacity;
     private String philosophy = "Desenvolver Jovens";
     private String logoPath;
     private boolean userControlled = false;
@@ -39,7 +43,75 @@ public class Club {
 
     private List<Player> squad;
     private List<Player> startingXI;
+    private List<Player> selectedBench = new ArrayList<>();
+    public static final int BENCH_SIZE = 7;
+
+    /** Persistent pre-match bench; replace only slots invalidated by lineup/availability changes. */
+    public List<Player> getBenchPlayers() {
+        if (selectedBench == null) selectedBench = new ArrayList<>();
+        List<Player> starters = new ArrayList<>(tacticsMap.values());
+        if (starters.isEmpty()) starters.addAll(startingXI);
+        Set<Player> seen = new HashSet<>();
+        selectedBench.removeIf(p -> p == null || !squad.contains(p) || starters.contains(p) || !p.canPlay() || !seen.add(p));
+        while (selectedBench.size() > BENCH_SIZE) selectedBench.remove(selectedBench.size() - 1);
+        List<Player> available = new ArrayList<>(squad);
+        available.sort((a, b) -> Integer.compare(b.getOverall(), a.getOverall()));
+        for (Player player : available) {
+            if (selectedBench.size() >= BENCH_SIZE) break;
+            if (!starters.contains(player) && player.canPlay() && !selectedBench.contains(player)) selectedBench.add(player);
+        }
+        return new ArrayList<>(selectedBench);
+    }
+
+    /** Accept either click order, but only one bench player and one eligible unselected player. */
+    public boolean swapBenchPlayers(Player first, Player second) {
+        if (first == null || second == null || first == second) return false;
+        List<Player> bench = getBenchPlayers();
+        if (bench.contains(first) == bench.contains(second)) return false;
+        Player outgoing = bench.contains(first) ? first : second;
+        Player incoming = outgoing == first ? second : first;
+        if (!squad.contains(incoming) || !incoming.canPlay() || tacticsMap.containsValue(incoming)
+            || (tacticsMap.isEmpty() && startingXI.contains(incoming))) return false;
+        selectedBench.set(selectedBench.indexOf(outgoing), incoming);
+        return true;
+    }
     private List<DraftPick> draftPicks = new ArrayList<>();
+
+    /** Apenas escolhas táticas: não copia condição física, moral nem estatísticas. */
+    public static final class TacticalSetup {
+        private Formation formation;
+        private List<Player> starters, bench;
+        private Map<Integer, Player> slots;
+        private String mentality;
+        private float mentalityValue, tempo, passing, width, pressure;
+        public TacticalSetup() { }
+    }
+
+    public TacticalSetup captureTacticalSetup() {
+        TacticalSetup setup = new TacticalSetup();
+        setup.formation = formation;
+        setup.starters = new ArrayList<>(startingXI);
+        setup.slots = new HashMap<>(tacticsMap);
+        setup.bench = new ArrayList<>(getBenchPlayers());
+        setup.mentality = mentality;
+        setup.mentalityValue = getMentalityValue();
+        setup.tempo = tempo; setup.passing = passing;
+        setup.width = width; setup.pressure = pressure;
+        return setup;
+    }
+
+    public void restoreTacticalSetup(TacticalSetup setup) {
+        if (setup == null) return;
+        formation = setup.formation;
+        startingXI = new ArrayList<>(setup.starters);
+        tacticsMap = new HashMap<>(setup.slots);
+        selectedBench = new ArrayList<>(setup.bench);
+        setMentalityValue(setup.mentalityValue);
+        mentality = setup.mentality;
+        tempo = setup.tempo; passing = setup.passing;
+        width = setup.width; pressure = setup.pressure;
+        removeUnavailablePlayersFromStartingXI();
+    }
     public List<DraftPick> getDraftPicks() {
         return draftPicks;
     }
@@ -54,6 +126,7 @@ public class Club {
 
     // Atributos Táticos
     private String mentality = "Equilibrada";
+    private float mentalityValue = 50f;
     private float tempo = 50f;
     private float passing = 50f;
     private float width = 50f;
@@ -148,11 +221,15 @@ public class Club {
      * @param resultType 1 = Vitória, 0 = Empate, -1 = Derrota
      * @param opponentOverall Overall do time adversário
      */
-    public void updateSquadMorale(int resultType, double opponentOverall) {
+    public void updateSquadMorale(int resultType, double opponentOverall, java.util.Set<Player> participants) {
         // Difference > 0 significa que o seu clube é superior ao adversário
         double overallDiff = this.getOverall() - opponentOverall;
 
         for (Player player : this.squad) {
+            if (!participants.contains(player)) {
+                player.adjustMorale(-2);
+                continue;
+            }
             int currentMorale = player.getMorale();
             int moraleChange = 0;
 
@@ -203,11 +280,11 @@ public class Club {
         this.squad = new ArrayList<>();
         this.startingXI = new ArrayList<>();
         this.tacticsMap = new HashMap<>();
-        staffMembers.put(StaffRole.COACH, new StaffMember(StaffRole.COACH, "Treinador principal", 82, 850_000L, 1971));
-        staffMembers.put(StaffRole.SCOUT, new StaffMember(StaffRole.SCOUT, "Chefe de scouting", 76, 720_000L, 1971));
-        staffMembers.put(StaffRole.FITNESS_COACH, new StaffMember(StaffRole.FITNESS_COACH, "Preparador físico", 84, 810_000L, 1971));
-        staffMembers.put(StaffRole.DOCTOR, new StaffMember(StaffRole.DOCTOR, "Médico do clube", 72, 680_000L, 1971));
-        staffMembers.put(StaffRole.DEVELOPMENT_DIRECTOR, new StaffMember(StaffRole.DEVELOPMENT_DIRECTOR, "Diretor de desenvolvimento", 70, 700_000L, 1971));
+        putInitialStaff(StaffRole.COACH, "Treinador principal", 82, 1971);
+        putInitialStaff(StaffRole.SCOUT, "Chefe de scouting", 76, 1971);
+        putInitialStaff(StaffRole.FITNESS_COACH, "Preparador físico", 84, 1971);
+        putInitialStaff(StaffRole.DOCTOR, "Médico do clube", 72, 1971);
+        putInitialStaff(StaffRole.DEVELOPMENT_DIRECTOR, "Diretor de desenvolvimento", 70, 1971);
     }
 
     public StaffMember getStaffMember(StaffRole role) { return staffMembers.get(role); }
@@ -223,8 +300,10 @@ public class Club {
             role,
             current != null ? current.getName() : role.getLabel(),
             representativeQuality[safeLevel - 1],
-            current != null ? current.getAnnualSalary() : 700_000L,
-            current != null ? current.getContractEndYear() : currentYear + 2
+            current != null ? current.getAnnualSalary() : StaffSalaryScale.annualSalary(role, representativeQuality[safeLevel - 1]),
+            current != null ? current.getContractEndYear() : currentYear + 2,
+            current != null ? current.getNationality() : "Internacional",
+            current != null ? current.getSpecialty() : role.getLabel()
         ));
     }
     public void hireStaff(StaffMember member) { if (member != null) staffMembers.put(member.getRole(), member); }
@@ -234,7 +313,7 @@ public class Club {
         StaffMember current = staffMembers.get(role);
         if (current == null) return;
         staffMembers.put(role, new StaffMember(role, current.getName(), current.getQuality(),
-            current.getAnnualSalary(), currentYear + 2));
+            current.getAnnualSalary(), currentYear + 2, current.getNationality(), current.getSpecialty()));
     }
 
     /** Evita que um clube inicie a temporada sem um profissional em alguma função. */
@@ -242,8 +321,7 @@ public class Club {
         for (StaffRole role : StaffRole.values()) {
             StaffMember current = staffMembers.get(role);
             if (current == null || current.isExpired(currentYear)) {
-                staffMembers.put(role, new StaffMember(role, "Interino " + role.getLabel(), 62,
-                    620_000L, currentYear + 2));
+                staffMembers.put(role, StaffDatabase.getAutomaticReplacement(role, getName(), currentYear));
             }
         }
     }
@@ -258,84 +336,84 @@ public class Club {
          */
         switch (name) {
             case "Santos Atlântico":
-                setInitialStaff("Mário Costa", 91, "Carlos Mendes", 86, "João Nogueira", 90,
-                    "Alberto Lima", 84, "Dr. Renato Azevedo", 88);
+                setInitialStaff("Mário Costa", 96, "Carlos Mendes", 88, "João Nogueira", 94,
+                    "Alberto Lima", 84, "Dr. Renato Azevedo", 86);
                 break;
             case "Rio Imperial":
-                setInitialStaff("Luiz Tavares", 89, "Sérgio Matos", 85, "Paulo Rezende", 86,
-                    "Roberto Diniz", 82, "Dr. Henrique Moura", 84);
+                setInitialStaff("Luiz Tavares", 91, "Sérgio Matos", 86, "Paulo Rezende", 89,
+                    "Roberto Diniz", 83, "Dr. Henrique Moura", 85);
                 break;
             case "Milano Calcio":
-                setInitialStaff("Giovanni Bianchi", 95, "Luca Romano", 78, "Marco Conti", 80,
-                    "Paolo Ricci", 84, "Dr. Franco Gallo", 84);
+                setInitialStaff("Giovanni Bianchi", 97, "Luca Romano", 82, "Marco Conti", 78,
+                    "Paolo Ricci", 92, "Dr. Franco Gallo", 90);
                 break;
             case "Bavaria München":
-                setInitialStaff("Hans Keller", 94, "Dieter Vogel", 88, "Klaus Werner", 87,
-                    "Otto Baumann", 92, "Dr. Friedrich Weiss", 90);
+                setInitialStaff("Hans Keller", 96, "Dieter Vogel", 91, "Klaus Werner", 88,
+                    "Otto Baumann", 95, "Dr. Friedrich Weiss", 93);
                 break;
             case "Manchester Albion":
-                setInitialStaff("Arthur Bennett", 92, "William Carter", 84, "George Whitmore", 86,
-                    "Edward Collins", 90, "Dr. James Foster", 88);
+                setInitialStaff("Arthur Bennett", 92, "William Carter", 84, "George Whitmore", 83,
+                    "Edward Collins", 94, "Dr. James Foster", 89);
                 break;
             case "London Royals":
-                setInitialStaff("Henry Clarke", 87, "Charles Reed", 88, "Alfred Morgan", 84,
-                    "Thomas Hughes", 86, "Dr. Peter Wallace", 85);
+                setInitialStaff("Henry Clarke", 88, "Charles Reed", 87, "Alfred Morgan", 82,
+                    "Thomas Hughes", 86, "Dr. Peter Wallace", 84);
                 break;
             case "Amsterdã Total":
-                setInitialStaff("Johan de Boer", 95, "Pieter Vos", 90, "Willem Smit", 94,
-                    "Henk Dijkstra", 86, "Dr. Bram Meijer", 84);
+                setInitialStaff("Johan de Boer", 98, "Pieter Vos", 93, "Willem Smit", 97,
+                    "Henk Dijkstra", 88, "Dr. Bram Meijer", 84);
                 break;
             case "Madrid Castilla":
-                setInitialStaff("Miguel Navarro", 92, "José Martín", 89, "Carlos Serrano", 87,
-                    "Antonio Vega", 86, "Dr. Javier Ortiz", 88);
+                setInitialStaff("Miguel Navarro", 94, "José Martín", 92, "Carlos Serrano", 86,
+                    "Antonio Vega", 88, "Dr. Javier Ortiz", 91);
                 break;
             case "Barcelona Mediterrâneo":
-                setInitialStaff("Jordi Ferrer", 90, "Miquel Serra", 91, "Oriol Puig", 93,
-                    "Ramón Soler", 84, "Dr. Enric Vidal", 86);
+                setInitialStaff("Jordi Ferrer", 91, "Miquel Serra", 94, "Oriol Puig", 98,
+                    "Ramón Soler", 83, "Dr. Enric Vidal", 87);
                 break;
             case "Budapest Danube":
-                setInitialStaff("László Farkas", 86, "István Nagy", 84, "Béla Kovács", 85,
-                    "András Tóth", 82, "Dr. Miklós Varga", 83);
+                setInitialStaff("László Farkas", 89, "István Nagy", 85, "Béla Kovács", 91,
+                    "András Tóth", 82, "Dr. Miklós Varga", 84);
                 break;
             case "Lisboa Atlântica":
-                setInitialStaff("Manuel Ferreira", 89, "António Ribeiro", 93, "Rui Almeida", 94,
-                    "Joaquim Lopes", 83, "Dr. Miguel Costa", 85);
+                setInitialStaff("Manuel Ferreira", 87, "António Ribeiro", 96, "Rui Almeida", 97,
+                    "Joaquim Lopes", 82, "Dr. Miguel Costa", 84);
                 break;
             case "Buenos Aires Plata":
-                setInitialStaff("Ernesto Salvatierra", 90, "Ricardo Luna", 87, "Osvaldo Ríos", 88,
-                    "Héctor Gálvez", 89, "Dr. Julio Acosta", 84);
+                setInitialStaff("Ernesto Salvatierra", 92, "Ricardo Luna", 88, "Osvaldo Ríos", 90,
+                    "Héctor Gálvez", 91, "Dr. Julio Acosta", 83);
                 break;
             case "Montevideo Oriental":
-                setInitialStaff("Roque Bentancur", 87, "Martín Pereyra", 83, "Gustavo Silva", 85,
-                    "Eduardo Cabrera", 90, "Dr. Andrés Sosa", 86);
+                setInitialStaff("Roque Bentancur", 90, "Martín Pereyra", 81, "Gustavo Silva", 84,
+                    "Eduardo Cabrera", 94, "Dr. Andrés Sosa", 88);
                 break;
             case "Paris Lumière":
-                setInitialStaff("Pierre Laurent", 88, "Jean Moreau", 92, "Luc Bernard", 87,
-                    "Alain Dubois", 83, "Dr. Étienne Garnier", 89);
+                setInitialStaff("Pierre Laurent", 89, "Jean Moreau", 95, "Luc Bernard", 86,
+                    "Alain Dubois", 84, "Dr. Étienne Garnier", 91);
                 break;
             case "Belfast Northern Stars":
-                setInitialStaff("Patrick O'Neill", 82, "Sean McKenna", 78, "Liam Campbell", 76,
-                    "Brian Kelly", 86, "Dr. Colin Murphy", 80);
+                setInitialStaff("Patrick O'Neill", 79, "Sean McKenna", 73, "Liam Campbell", 70,
+                    "Brian Kelly", 90, "Dr. Colin Murphy", 78);
                 break;
             case "Tokyo Rising Sun":
-                setInitialStaff("Hiroshi Tanaka", 76, "Kenji Mori", 94, "Akira Sato", 92,
-                    "Daichi Ito", 76, "Dr. Yuki Kato", 77);
+                setInitialStaff("Hiroshi Tanaka", 78, "Kenji Mori", 98, "Akira Sato", 96,
+                    "Daichi Ito", 80, "Dr. Yuki Kato", 82);
                 break;
             case "Seoul Tigers":
-                setInitialStaff("Park Min-jun", 83, "Kim Tae-ho", 88, "Lee Dong-wook", 90,
-                    "Choi Hyun-soo", 92, "Dr. Han Ji-won", 85);
+                setInitialStaff("Park Min-jun", 84, "Kim Tae-ho", 90, "Lee Dong-wook", 93,
+                    "Choi Hyun-soo", 97, "Dr. Han Ji-won", 87);
                 break;
             case "Tehran Lions":
-                setInitialStaff("Reza Farhadi", 78, "Amir Hosseini", 82, "Darius Karimi", 80,
-                    "Farid Azadi", 84, "Dr. Navid Rahimi", 83);
+                setInitialStaff("Reza Farhadi", 82, "Amir Hosseini", 84, "Darius Karimi", 79,
+                    "Farid Azadi", 87, "Dr. Navid Rahimi", 85);
                 break;
             case "Baghdad Mesopotamia":
-                setInitialStaff("Khalid Al-Samarrai", 76, "Omar Nasser", 80, "Youssef Hamid", 82,
-                    "Tariq Abbas", 83, "Dr. Samir Haddad", 79);
+                setInitialStaff("Khalid Al-Samarrai", 74, "Omar Nasser", 76, "Youssef Hamid", 78,
+                    "Tariq Abbas", 82, "Dr. Samir Haddad", 77);
                 break;
             case "Tel Aviv Stars":
-                setInitialStaff("David Ben-Ami", 84, "Moshe Levi", 86, "Ariel Cohen", 83,
-                    "Eitan Shalev", 85, "Dr. Noam Rosen", 88);
+                setInitialStaff("David Ben-Ami", 86, "Moshe Levi", 89, "Ariel Cohen", 84,
+                    "Eitan Shalev", 86, "Dr. Noam Rosen", 92);
                 break;
             default:
                 break;
@@ -357,8 +435,57 @@ public class Club {
     }
 
     private void putInitialStaff(StaffRole role, String memberName, int quality, int contractEndYear) {
-        long annualSalary = Math.round((420_000L + quality * 7_000L) / 10_000d) * 10_000L;
-        staffMembers.put(role, new StaffMember(role, memberName, quality, annualSalary, contractEndYear));
+        long annualSalary = StaffSalaryScale.annualSalary(role, quality);
+        staffMembers.put(role, new StaffMember(role, memberName, quality, annualSalary, contractEndYear,
+            country != null ? country : "Internacional", initialStaffSpecialty(role)));
+    }
+
+    private String initialStaffSpecialty(StaffRole role) {
+        switch (role) {
+            case COACH: return philosophy != null ? philosophy : "Tática";
+            case SCOUT: return scoutingSpecialty();
+            case DEVELOPMENT_DIRECTOR: return developmentSpecialty();
+            case FITNESS_COACH: return fitnessSpecialty();
+            case DOCTOR: default: return medicalSpecialty();
+        }
+    }
+
+    private String scoutingSpecialty() {
+        if ("Tokyo Rising Sun".equals(name)) return "Tecnologia e mercado asiático";
+        if ("Lisboa Atlântica".equals(name)) return "Rede global de prospecção";
+        if ("Paris Lumière".equals(name) || "Madrid Castilla".equals(name)) return "Talento internacional";
+        if ("Amsterdã Total".equals(name) || "Barcelona Mediterrâneo".equals(name)) return "Academias europeias";
+        if ("Santos Atlântico".equals(name) || "Rio Imperial".equals(name)
+            || "Buenos Aires Plata".equals(name) || "Montevideo Oriental".equals(name)) {
+            return "Talento sul-americano";
+        }
+        return "Mercado regional e jovens";
+    }
+
+    private String developmentSpecialty() {
+        if ("Amsterdã Total".equals(name)) return "Futebol total e inteligência";
+        if ("Barcelona Mediterrâneo".equals(name)) return "Formação técnica e posse";
+        if ("Lisboa Atlântica".equals(name)) return "Lapidação e valorização";
+        if ("Tokyo Rising Sun".equals(name)) return "Planos individuais e tecnologia";
+        if ("Seoul Tigers".equals(name)) return "Evolução física de jovens";
+        if ("Budapest Danube".equals(name)) return "Escola técnica húngara";
+        if ("Santos Atlântico".equals(name) || "Rio Imperial".equals(name)) return "Criatividade e técnica individual";
+        return "Desenvolvimento de potencial";
+    }
+
+    private String fitnessSpecialty() {
+        if ("Bavaria München".equals(name) || "Manchester Albion".equals(name)) return "Pressão e alta intensidade";
+        if ("Seoul Tigers".equals(name)) return "Velocidade e explosão";
+        if ("Montevideo Oriental".equals(name) || "Belfast Northern Stars".equals(name)) return "Resistência e duelos físicos";
+        if ("Milano Calcio".equals(name)) return "Disciplina e controle de carga";
+        return "Condicionamento e recuperação";
+    }
+
+    private String medicalSpecialty() {
+        if ("Bavaria München".equals(name) || "Milano Calcio".equals(name)) return "Prevenção e reabilitação de elite";
+        if ("Madrid Castilla".equals(name) || "Paris Lumière".equals(name)) return "Gestão médica de estrelas";
+        if ("Tel Aviv Stars".equals(name)) return "Diagnóstico e prevenção";
+        return "Medicina esportiva";
     }
 
     /**
@@ -446,7 +573,7 @@ public class Club {
     ) {
 
         this.philosophy = philosophy;
-        this.mentality = mentality;
+        setMentality(mentality);
         this.tempo = tempo;
         this.passing = passing;
         this.width = width;
@@ -456,8 +583,8 @@ public class Club {
     public Club(String name) {
         this();
         this.name = name;
-        applyStaffIdentity();
         applyTacticalIdentity();
+        applyStaffIdentity();
     }
 
     public Club(String name, String country, String confederation, int reputation, double budget, String stadiumName, String logoPath) {
@@ -469,8 +596,8 @@ public class Club {
         this.budget = budget;
         this.stadiumName = stadiumName;
         this.logoPath = logoPath;
-        applyStaffIdentity();
         applyTacticalIdentity();
+        applyStaffIdentity();
     }
 
     public void recordMatchResult(int goalsScored, int goalsConceded) {
@@ -1147,6 +1274,90 @@ public class Club {
     public int getStadiumCapacity() { return stadiumCapacity; }
     public void setStadiumCapacity(int stadiumCapacity) { this.stadiumCapacity = stadiumCapacity; }
 
+    /**
+     * Capacidade realmente liberada em dias de jogo. Uma obra fecha parte das
+     * arquibancadas até a entrega, portanto público e bilheteria usam este
+     * valor enquanto a capacidade patrimonial continua sendo exibida à parte.
+     */
+    public int getOperationalStadiumCapacity() {
+        if (!isStadiumRenovationInProgress()) return stadiumCapacity;
+        if (stadiumRenovationTemporaryCapacity > 0) return stadiumRenovationTemporaryCapacity;
+        int expansion = Math.max(0, stadiumRenovationTargetCapacity - stadiumCapacity);
+        return calculateTemporaryStadiumCapacity(expansion);
+    }
+
+    public int previewTemporaryStadiumCapacity(StadiumRenovationPlan plan) {
+        return plan == null ? stadiumCapacity
+            : calculateTemporaryStadiumCapacity(plan.getAdditionalCapacity());
+    }
+
+    private int calculateTemporaryStadiumCapacity(int additionalCapacity) {
+        /* Obras agora fecham pelo menos 18% do estádio. Projetos de maior
+         * porte também interditam 60% dos novos lugares planejados, o que
+         * faz um novo anel comprometer muito mais setores que uma ampliação
+         * simples. */
+        int closedSeats = Math.max(
+            5_000,
+            Math.max(
+                Math.round(stadiumCapacity * .18f),
+                Math.round(additionalCapacity * .60f)
+            )
+        );
+        return Math.max(5_000, stadiumCapacity - closedSeats);
+    }
+
+    /** Preço médio praticado pelo clube mandante, em WFL$. */
+    public int getAverageTicketPrice() {
+        return averageTicketPrice > 0 ? averageTicketPrice : getSuggestedTicketPrice();
+    }
+
+    public void setAverageTicketPrice(int price) {
+        averageTicketPrice = Math.max(10, Math.min(100, price));
+    }
+
+    /** Referência sustentável baseada no poder de atração histórico do clube. */
+    public int getSuggestedTicketPrice() {
+        return Math.max(18, Math.min(45, Math.round(20f + (getReputation() - 75) * .8f)));
+    }
+
+    public int getStadiumCondition() { return Math.max(0, Math.min(100, stadiumCondition)); }
+    public void setStadiumCondition(int condition) { stadiumCondition = Math.max(0, Math.min(100, condition)); }
+
+    /** O gramado do mandante perde dois pontos a cada partida concluída. */
+    public void recordHomeMatchStadiumWear() { setStadiumCondition(getStadiumCondition() - 2); }
+
+    public long getPitchTreatmentCost() {
+        return Math.max(350_000L, stadiumCapacity * 18L);
+    }
+
+    public long getPitchReplacementCost() {
+        return Math.max(1_200_000L, stadiumCapacity * 52L);
+    }
+
+    /** Tratamento localizado: recuperação parcial de 15 pontos. */
+    public boolean treatStadiumPitch() {
+        if (getStadiumCondition() >= 100 || !getFinance().spend(getPitchTreatmentCost())) return false;
+        setStadiumCondition(getStadiumCondition() + 15);
+        return true;
+    }
+
+    /** Troca integral do gramado: restaura a condição máxima. */
+    public boolean replaceStadiumPitch() {
+        if (getStadiumCondition() >= 100 || !getFinance().spend(getPitchReplacementCost())) return false;
+        setStadiumCondition(100);
+        return true;
+    }
+
+    /** Mantém as franquias da IA sujeitas às mesmas despesas e decisões. */
+    public void autoMaintainStadiumPitch() {
+        if (isUserControlled()) return;
+        if (getStadiumCondition() <= 50 && getFinance().getBalance() >= getPitchReplacementCost()) {
+            replaceStadiumPitch();
+        } else if (getStadiumCondition() <= 72 && getFinance().getBalance() >= getPitchTreatmentCost()) {
+            treatStadiumPitch();
+        }
+    }
+
     public boolean startStadiumRenovation(StadiumRenovationPlan plan) {
         if (plan == null || isStadiumRenovationInProgress()) return false;
         int target = stadiumCapacity + plan.getAdditionalCapacity();
@@ -1158,6 +1369,7 @@ public class Club {
         stadiumRenovationTotalDays = plan.getDurationDays();
         stadiumRenovationDaysRemaining = plan.getDurationDays();
         stadiumRenovationCost = plan.getCost();
+        stadiumRenovationTemporaryCapacity = previewTemporaryStadiumCapacity(plan);
         return true;
     }
 
@@ -1168,6 +1380,7 @@ public class Club {
         if (stadiumRenovationDaysRemaining <= 0) {
             stadiumCapacity = stadiumRenovationTargetCapacity;
             stadiumRenovationDaysRemaining = 0;
+            stadiumRenovationTemporaryCapacity = 0;
             return true;
         }
         return false;
@@ -1179,6 +1392,7 @@ public class Club {
     public int getStadiumRenovationTotalDays() { return stadiumRenovationTotalDays; }
     public int getStadiumRenovationDaysRemaining() { return stadiumRenovationDaysRemaining; }
     public long getStadiumRenovationCost() { return stadiumRenovationCost; }
+    public int getStadiumRenovationTemporaryCapacity() { return getOperationalStadiumCapacity(); }
     public double getStadiumRenovationProgress() {
         if (stadiumRenovationTotalDays <= 0) return 0d;
         return 100d * (stadiumRenovationTotalDays - stadiumRenovationDaysRemaining)
@@ -1216,38 +1430,54 @@ public class Club {
     }
 
     public String getMentality() { return mentality; }
-    public void setMentality(String mentality) { this.mentality = mentality; }
-
-    public float getMentalityValue() {
-        if (mentality == null) return 50f;
-        switch (mentality.toLowerCase()) {
+    public void setMentality(String mentality) {
+        this.mentality = mentality == null ? "Equilibrada" : mentality;
+        switch (this.mentality.toLowerCase()) {
             case "ultra defensiva":
-            case "retranca": return 10f;
-            case "defensiva": return 30f;
-            case "equilibrada": return 50f;
-            case "ofensiva": return 70f;
+            case "retranca": mentalityValue = 10f; break;
+            case "defensiva": mentalityValue = 20f; break;
+            case "cautelosa": mentalityValue = 35f; break;
+            case "equilibrada": mentalityValue = 50f; break;
+            case "positiva": mentalityValue = 65f; break;
+            case "ofensiva": mentalityValue = 82f; break;
             case "ultra ofensiva":
-            case "ataque total": return 90f;
+            case "ataque total": mentalityValue = 100f; break;
             default:
-                try { return Float.parseFloat(mentality); }
-                catch (NumberFormatException e) { return 50f; }
+                try { setMentalityValue(Float.parseFloat(this.mentality)); }
+                catch (NumberFormatException ignored) { mentalityValue = 50f; }
         }
     }
 
+    public void setMentalityValue(float value) {
+        mentalityValue = Math.max(0f, Math.min(100f, value));
+        if (mentalityValue <= 25f) mentality = "Defensiva";
+        else if (mentalityValue <= 40f) mentality = "Cautelosa";
+        else if (mentalityValue <= 59f) mentality = "Equilibrada";
+        else if (mentalityValue <= 74f) mentality = "Positiva";
+        else if (mentalityValue <= 89f) mentality = "Ofensiva";
+        else mentality = "Ultra Ofensiva";
+    }
+
+    public float getMentalityValue() {
+        return Math.max(0f, Math.min(100f, mentalityValue));
+    }
+
     public float getTempo() { return tempo; }
-    public void setTempo(float tempo) { this.tempo = tempo; }
+    public void setTempo(float tempo) { this.tempo = Math.max(0f, Math.min(100f, tempo)); }
 
     public float getPassing() { return passing; }
-    public void setPassing(float passing) { this.passing = passing; }
+    public void setPassing(float passing) { this.passing = Math.max(0f, Math.min(100f, passing)); }
 
     public float getWidth() { return width; }
-    public void setWidth(float width) { this.width = width; }
+    public void setWidth(float width) { this.width = Math.max(0f, Math.min(100f, width)); }
 
     public float getPressure() { return pressure; }
-    public void setPressure(float pressure) { this.pressure = pressure; }
+    public void setPressure(float pressure) { this.pressure = Math.max(0f, Math.min(100f, pressure)); }
 
     public int getCurrentYear() { return currentYear; }
     public void setCurrentYear(int currentYear) { this.currentYear = currentYear; }
+    public void setStartYear(int startYear) { this.startYear = startYear; }
+    public int getStartYear() { return startYear; }
 
     public int getTitlesCount() { return titlesCount; }
     public void setTitlesCount(int titlesCount) { this.titlesCount = titlesCount; }
@@ -1320,7 +1550,9 @@ public class Club {
 
     public void drainSquadFatigue(float amount) {
         for (Player player : getStartingXI()) {
-            player.applyMatchFatigue();
+            player.applyMatchFatigue(
+                StaffImpact.matchFatigueMultiplier(getStaffLevel(StaffRole.FITNESS_COACH))
+            );
         }
     }
 

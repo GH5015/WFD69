@@ -7,6 +7,21 @@ public class DraftPick {
     private Club currentOwner;
     private int projectedPosition = 15; // Valor padrão (ex: meio de tabela / 15º lugar)
     private double projectedPositionConfidence = 0.35;
+    private int picksPerRound;
+    private boolean used;
+
+    public void markUsed() { used = true; }
+
+    /** O Draft do ano seguinte acontece na offseason da temporada atual. */
+    public boolean isAvailableForTrade(int season) {
+        return !used && (season < 0 || year > season);
+    }
+
+    public boolean isAvailableForTrade(League league) {
+        return league != null && isAvailableForTrade(league.getCurrentSeason())
+            && !league.isDraftPickUsed(this)
+            && !(league.isDraftFinalized() && year == league.getCurrentSeason() + 1);
+    }
 
     public DraftPick() {
     }
@@ -60,6 +75,18 @@ public class DraftPick {
         return projectedPosition;
     }
 
+    public int getPicksPerRound() {
+        return picksPerRound > 0 ? picksPerRound : LeagueExpansionService.projectedClubCount(year);
+    }
+    public void setPicksPerRound(int count) { picksPerRound = Math.max(1, count); }
+
+    /** Cada rodada tem uma escolha por franquia participante daquele Draft. */
+    public int getProjectedOverallPosition() {
+        int safeRound = Math.max(1, round);
+        int safePosition = Math.max(1, Math.min(getPicksPerRound(), projectedPosition));
+        return (safeRound - 1) * getPicksPerRound() + safePosition;
+    }
+
     public void setProjectedPosition(int projectedPosition) {
         this.projectedPosition = projectedPosition;
     }
@@ -75,6 +102,6 @@ public class DraftPick {
     @Override
     public String toString() {
         String ownerName = (originalOwner != null) ? originalOwner.getName() : "Desconhecido";
-        return year + " - " + round + "ª Rodada (Proj. #" + projectedPosition + ")";
+        return year + " - " + round + "ª Rodada (Proj. geral #" + getProjectedOverallPosition() + ")";
     }
 }

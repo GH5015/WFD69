@@ -24,6 +24,14 @@ public class TradeRulesValidator {
 
     /** Aplica também as janelas anuais de negociação da WFL. */
     public static ValidationResult validateRules(TradeOffer offer, League league) {
+        if (offer != null && league != null) {
+            for (DraftPick pick : offer.getUserPicks()) {
+                if (pick != null && !pick.isAvailableForTrade(league)) return expiredPick();
+            }
+            for (DraftPick pick : offer.getTargetPicks()) {
+                if (pick != null && !pick.isAvailableForTrade(league)) return expiredPick();
+            }
+        }
         if (offer != null && league != null && offer.getUserClub() != null && offer.getTargetClub() != null) {
             if (!SeasonCalendar.isTradeWindowOpen(league, offer.getUserClub())) {
                 return new ValidationResult(false, SeasonCalendar.getTradeStatus(league, offer.getUserClub()) + ".");
@@ -92,21 +100,21 @@ public class TradeRulesValidator {
             return new ValidationResult(false, "O " + targetClub.getName() + " ficaria abaixo do limite mínimo de " + MIN_ROSTER_SIZE + " jogadores.");
         }
 
-        // --- 2. VALIDAÇÃO DO TETO SALARIAL (SALARY CAP) ---
+        // --- 2. HARD CAP: o Salary Cap é flexível; apenas o teto absoluto bloqueia. ---
         long userPayrollOut = offer.getUserPlayers().stream().mapToLong(Player::getAnnualSalary).sum();
         long userPayrollIn = offer.getTargetPlayers().stream().mapToLong(Player::getAnnualSalary).sum();
         long userProjectedPayroll = userClub.getFinance().getAnnualPayroll() - userPayrollOut + userPayrollIn;
 
-        if (userProjectedPayroll > userClub.getFinance().getSalaryCap()) {
-            return new ValidationResult(false, "A troca ultrapassa o Salary Cap da sua franquia!");
+        if (!userClub.getFinance().isWithinHardCap(userProjectedPayroll)) {
+            return new ValidationResult(false, "A troca ultrapassa o Hard Cap da sua franquia!");
         }
 
         long targetPayrollOut = offer.getTargetPlayers().stream().mapToLong(Player::getAnnualSalary).sum();
         long targetPayrollIn = offer.getUserPlayers().stream().mapToLong(Player::getAnnualSalary).sum();
         long targetProjectedPayroll = targetClub.getFinance().getAnnualPayroll() - targetPayrollOut + targetPayrollIn;
 
-        if (targetProjectedPayroll > targetClub.getFinance().getSalaryCap()) {
-            return new ValidationResult(false, "A troca estoura o Salary Cap do " + targetClub.getName() + ".");
+        if (!targetClub.getFinance().isWithinHardCap(targetProjectedPayroll)) {
+            return new ValidationResult(false, "A troca ultrapassa o Hard Cap do " + targetClub.getName() + ".");
         }
 
         return new ValidationResult(true, "Regras aprovadas.");
@@ -131,11 +139,16 @@ public class TradeRulesValidator {
         }
 
         for (DraftPick pick : picks) {
+            if (pick != null && !pick.isAvailableForTrade(currentSeasonYear)) return expiredPick();
             if (pick == null || pick.getCurrentOwner() != club || !club.getDraftPicks().contains(pick)) {
                 return new ValidationResult(false, "Há uma escolha de draft que não pertence mais ao " + club.getName() + ".");
             }
         }
 
         return new ValidationResult(true, "Ativos válidos.");
+    }
+
+    private static ValidationResult expiredPick() {
+        return new ValidationResult(false, "Esta escolha pertence a um Draft encerrado ou já foi utilizada.");
     }
 }

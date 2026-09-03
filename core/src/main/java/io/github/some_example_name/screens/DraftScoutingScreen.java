@@ -19,6 +19,9 @@ import io.github.some_example_name.model.DraftScoutManager;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.ScoutTarget;
 import io.github.some_example_name.model.SeasonCalendar;
+import io.github.some_example_name.model.StaffImpact;
+import io.github.some_example_name.model.StaffMember;
+import io.github.some_example_name.model.StaffRole;
 import io.github.some_example_name.screens.DraftSelectionDialog;
 import io.github.some_example_name.utils.PlayerReportDialog;
 import io.github.some_example_name.utils.IconTextButton;
@@ -39,9 +42,6 @@ public class DraftScoutingScreen implements Screen {
     private final DraftScoutManager scoutManager;
 
     private final List<Player> draftClass1970;
-
-    private static final int MAX_SLOTS =
-        5;
 
     // =========================================================
     // COLUNAS
@@ -388,9 +388,10 @@ public class DraftScoutingScreen implements Screen {
             .left()
             .padRight(10f);
 
+        StaffMember scoutMember = club.getStaffMember(StaffRole.SCOUT);
         Label name =
             new Label(
-                "Carlos Mendes",
+                scoutMember != null ? scoutMember.getName() : "Scout interino",
                 game.skin,
                 "font-bold"
             );
@@ -437,15 +438,32 @@ public class DraftScoutingScreen implements Screen {
         // SLOTS
         // =====================================================
 
+        int maxSlots = scoutManager != null ? scoutManager.getMaxScoutedPlayers() : 0;
+        Table rate = ScreenUI.createStatusBox(
+            game.skin,
+            "RITMO DIÁRIO",
+            String.format(java.util.Locale.US, "%.1f%%", StaffImpact.scoutingDailyProgress(stars)),
+            StyleFactory.SOFT_YELLOW
+        );
+        panel.add(rate).width(170f).height(42f).padRight(6f);
+
+        Table precision = ScreenUI.createStatusBox(
+            game.skin,
+            "PRECISÃO",
+            stars >= 5 ? "EXCELENTE" : stars >= 4 ? "ALTA" : stars >= 3 ? "MÉDIA" : "BAIXA",
+            stars >= 4 ? ScreenUI.SUCCESS : stars >= 3 ? StyleFactory.SOFT_YELLOW : ScreenUI.WARNING
+        );
+        panel.add(precision).width(170f).height(42f).padRight(6f);
+
         Table slots =
             ScreenUI.createStatusBox(
                 game.skin,
                 "VAGAS OCUPADAS",
                 occupied +
                     "/" +
-                    MAX_SLOTS,
+                    maxSlots,
                 occupied >=
-                    MAX_SLOTS
+                    maxSlots
                     ? ScreenUI.DANGER
                     : ScreenUI.SUCCESS
             );
@@ -516,7 +534,7 @@ public class DraftScoutingScreen implements Screen {
 
         while (
             rowIndex <
-                MAX_SLOTS
+                (scoutManager != null ? scoutManager.getMaxScoutedPlayers() : 0)
         ) {
 
             content
@@ -1077,24 +1095,7 @@ public class DraftScoutingScreen implements Screen {
     private String buildStars(
         int stars
     ) {
-
-        StringBuilder builder =
-            new StringBuilder();
-
-        for (
-            int i = 0;
-            i < 5;
-            i++
-        ) {
-
-            builder.append(
-                i < stars
-                    ? "★"
-                    : "☆"
-            );
-        }
-
-        return builder.toString();
+        return ScreenUI.formatStars(stars);
     }
 
     private void addHeader(

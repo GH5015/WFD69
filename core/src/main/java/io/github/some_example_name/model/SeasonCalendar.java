@@ -13,6 +13,7 @@ public final class SeasonCalendar {
 
     public static boolean isTradeWindowOpen(League league, Club club) {
         if (league == null) return true;
+        if (LeagueExpansionService.isPending(league)) return false;
         if ("OFFSEASON".equals(league.getCurrentStage())) return true;
         // Negociações só reabrem depois da final, evitando movimentação no
         // meio dos playoffs por clubes já eliminados.
@@ -34,6 +35,7 @@ public final class SeasonCalendar {
 
     public static boolean isFreeAgencyOpen(League league) {
         if (league == null || !"OFFSEASON".equals(league.getCurrentStage())) return false;
+        if (LeagueExpansionService.isPending(league)) return false;
         Date date = league.getCurrentDate();
         if (date == null) return false;
         Calendar calendar = Calendar.getInstance();
@@ -63,6 +65,7 @@ public final class SeasonCalendar {
 
     public static boolean isDraftOpen(League league) {
         if (league == null || !"OFFSEASON".equals(league.getCurrentStage())) return false;
+        if (LeagueExpansionService.isPending(league)) return false;
         Date date = league.getCurrentDate();
         if (date == null) return false;
         Calendar calendar = Calendar.getInstance();
@@ -72,6 +75,7 @@ public final class SeasonCalendar {
     }
 
     public static boolean isDraftLotteryOpen(League league) {
+        if (LeagueExpansionService.isPending(league)) return false;
         if (league == null || !"OFFSEASON".equals(league.getCurrentStage()) || league.getCurrentDate() == null) return false;
         Calendar calendar = Calendar.getInstance(); calendar.setTime(league.getCurrentDate());
         return calendar.get(Calendar.MONTH) == Calendar.DECEMBER && calendar.get(Calendar.DAY_OF_MONTH) >= 1;

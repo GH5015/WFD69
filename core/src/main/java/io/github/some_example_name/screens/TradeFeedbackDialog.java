@@ -97,8 +97,8 @@ public class TradeFeedbackDialog extends Dialog {
 
         root.background(
             StyleFactory.createMetallicBoard(
-                650,
-                520,
+                900,
+                620,
                 Color.valueOf(
                     "151A17"
                 )
@@ -106,7 +106,7 @@ public class TradeFeedbackDialog extends Dialog {
         );
 
         root.pad(
-            14f
+            18f
         );
 
         // =====================================================
@@ -189,7 +189,7 @@ public class TradeFeedbackDialog extends Dialog {
         Label sub =
             ScreenUI.createSubtitle(
                 skin,
-                "RESPOSTA À PROPOSTA"
+                "NEGOCIAÇÃO DE TROCA • RESPOSTA À PROPOSTA"
             );
 
         identity
@@ -272,7 +272,7 @@ public class TradeFeedbackDialog extends Dialog {
 
         panel
             .add(quote)
-            .width(530f)
+            .width(760f)
             .center()
             .pad(
                 8f,
@@ -387,7 +387,7 @@ public class TradeFeedbackDialog extends Dialog {
 
         row
             .add(name)
-            .width(135f)
+            .width(175f)
             .left();
 
         row
@@ -421,7 +421,7 @@ public class TradeFeedbackDialog extends Dialog {
 
         row
             .add(valueLabel)
-            .width(70f)
+            .width(95f)
             .right();
 
         return row;

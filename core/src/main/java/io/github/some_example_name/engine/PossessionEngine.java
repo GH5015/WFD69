@@ -16,8 +16,10 @@ public class PossessionEngine {
         double awayBaseMidfield = away.getMidfieldRating();
 
         // Aplica o modificador vindo do TacticalEngine (ex: Passe Curto aumenta posse)
-        double homePower = homeBaseMidfield * homeMods.possessionMultiplier;
-        double awayPower = awayBaseMidfield * awayMods.possessionMultiplier;
+        double homePower = homeBaseMidfield * homeMods.possessionMultiplier
+            * homeMods.passRetentionMultiplier;
+        double awayPower = awayBaseMidfield * awayMods.possessionMultiplier
+            * awayMods.passRetentionMultiplier;
 
         // Fator de aleatoriedade moderado do futebol (±15%)
         double homeRoll = homePower * (0.85 + random.nextDouble() * 0.30);

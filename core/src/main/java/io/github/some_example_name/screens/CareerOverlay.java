@@ -1,5 +1,7 @@
 package io.github.some_example_name.screens;
 
+import io.github.some_example_name.utils.ClubLogoAssets;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -20,9 +22,12 @@ import com.badlogic.gdx.utils.Scaling;
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.AiTradeService;
+import io.github.some_example_name.model.IncomingTradeOfferService;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.StaffRole;
+import io.github.some_example_name.model.StaffImpact;
+import io.github.some_example_name.utils.DayAdvanceTransition;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.utils.ScreenUI;
@@ -180,47 +185,17 @@ public final class CareerOverlay
                     float x,
                     float y
                 ) {
-
-                    /*
-                     * Guardamos a tela anterior.
-                     *
-                     * Se advanceOneDay abrir a PreMatchScreen,
-                     * não chamamos show() de novo na nova tela.
-                     */
-                    Screen screenBefore =
-                        game.getScreen();
-
-                    boolean summaryShown =
-                        advanceOneDayAndShowRoundSummary(
-                            game,
-                            club,
-                            getStage()
-                        );
-
-                    Screen screenAfter =
-                        game.getScreen();
-
-                    if (
-                        !summaryShown &&
-                        screenBefore ==
-                            screenAfter
-                    ) {
-
-                        /*
-                         * Algumas telas constroem os valores
-                         * dinâmicos no show().
-                         */
-                        if (
-                            screenAfter != null
-                        ) {
-
-                            screenAfter.show();
-
-                        } else {
-
-                            refresh();
+                    DayAdvanceTransition.play(
+                        getStage(),
+                        game,
+                        1,
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                advanceFromButton();
+                            }
                         }
-                    }
+                    );
                 }
             }
         );
@@ -232,6 +207,31 @@ public final class CareerOverlay
         updatePositions();
 
         refresh();
+    }
+
+    private void advanceFromButton() {
+        /*
+         * Guardamos a tela anterior. Se o avanço abrir a PreMatchScreen,
+         * não reconstruímos a nova tela por cima dela.
+         */
+        Screen screenBefore = game.getScreen();
+
+        boolean summaryShown =
+            advanceOneDayAndShowRoundSummary(
+                game,
+                club,
+                getStage()
+            );
+
+        Screen screenAfter = game.getScreen();
+
+        if (!summaryShown && screenBefore == screenAfter) {
+            if (screenAfter != null) {
+                screenAfter.show();
+            } else {
+                refresh();
+            }
+        }
     }
 
     // =========================================================
@@ -683,8 +683,8 @@ public final class CareerOverlay
         cell
             .add(logo)
             .size(
-                58f,
-                42f
+                68f,
+                50f
             )
             .center()
             .row();
@@ -700,7 +700,7 @@ public final class CareerOverlay
             );
 
         name.setFontScale(
-            0.54f
+            0.58f
         );
 
         name.setAlignment(
@@ -801,6 +801,10 @@ public final class CareerOverlay
         Club club,
         Stage stage
     ) {
+        if (IncomingTradeOfferDialog.showPending(stage, game, club)) {
+            return true;
+        }
+
         if (
             RoundSummaryDialog.showPending(
                 stage,
@@ -812,6 +816,10 @@ public final class CareerOverlay
         }
 
         if (BoardReviewDialog.showDue(stage, game, club)) {
+            return true;
+        }
+
+        if (WflNewsDialog.showPending(stage, game)) {
             return true;
         }
 
@@ -918,16 +926,21 @@ public final class CareerOverlay
             club
         );
 
+        if (IncomingTradeOfferDialog.showPending(stage, game, club)) {
+            return true;
+        }
+
+        if (FreeAgencyDecisionDialog.showPending(stage, game)) {
+            return true;
+        }
+
         /*
          * Se a última partida da rodada foi simulada agora, a League acabou
          * de enfileirar o resumo. Como este é o clique solicitado pelo
          * jogador, ele deve aparecer imediatamente, sem exigir outro avanço.
          */
-        return RoundSummaryDialog.showPending(
-            stage,
-            game,
-            club
-        );
+        if (RoundSummaryDialog.showPending(stage, game, club)) return true;
+        return WflNewsDialog.showPending(stage, game);
     }
 
     /** A offseason também avança dia a dia para movimentações e scouting. */
@@ -935,6 +948,10 @@ public final class CareerOverlay
         Main game,
         Club club
     ) {
+        if (io.github.some_example_name.model.LeagueExpansionService.isPending(game.league)) {
+            game.setScreen(new OffSeasonScreen(game, club));
+            return;
+        }
         Date previousDate = game.league.getCurrentDate();
         game.league.advanceDateOneDay();
         Date newDate = game.league.getCurrentDate();
@@ -978,9 +995,15 @@ public final class CareerOverlay
         }
         if (changedWeek(previousDate, newDate)) {
             AiTradeService.processWeeklyTrade(game.league, club);
+            IncomingTradeOfferService.processWeeklyOffer(game.league, club);
+            game.league.generateWeeklyNewsIfNeeded();
         }
         if (game.freeAgencyService != null) {
             game.freeAgencyService.processPendingOffers(club, game.league.getCurrentSeason());
+            game.freeAgencyService.processAiFreeAgentSignings(
+                club,
+                game.league.getCurrentSeason()
+            );
         }
     }
 
@@ -1170,16 +1193,17 @@ public final class CareerOverlay
 
                 player.recover(
                     days,
-                    0.78d + (team.getStaffLevel(StaffRole.FITNESS_COACH) * 0.075d)
+                    StaffImpact.fitnessRecoveryMultiplier(team.getStaffLevel(StaffRole.FITNESS_COACH))
                 );
                 player.recoverFromInjury(days);
+                player.advanceRelapseWindowDay();
             }
         }
     }
 
     private static void applyMedicalRecovery(Main game) {
         for (Club team : game.league.getClubs()) {
-            int extraRecovery = Math.max(0, team.getStaffLevel(StaffRole.DOCTOR) - 3);
+            int extraRecovery = StaffImpact.medicalRecoveryBonus(team.getStaffLevel(StaffRole.DOCTOR));
             for (Player player : team.getSquad()) {
                 player.recoverFromInjury(extraRecovery);
             }
@@ -1226,11 +1250,7 @@ public final class CareerOverlay
             ) {
 
                 texture =
-                    new Texture(
-                        Gdx.files.internal(
-                            path
-                        )
-                    );
+                    ClubLogoAssets.load(path);
 
             } else {
 

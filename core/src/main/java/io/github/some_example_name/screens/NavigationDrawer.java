@@ -50,10 +50,10 @@ public final class NavigationDrawer
         -(WIDTH - ScreenUI.NAV_VISIBLE_CLOSED);
 
     private static final float ITEM_WIDTH =
-        94f;
+        104f;
 
     private static final float ICON_SIZE =
-        54f;
+        62f;
 
     private boolean open;
 
@@ -311,8 +311,8 @@ public final class NavigationDrawer
             );
 
         menuButton.setSize(
-            54f,
-            54f
+            60f,
+            60f
         );
 
         /*
@@ -320,8 +320,8 @@ public final class NavigationDrawer
          * visível mesmo com o menu fechado.
          */
         menuButton.setPosition(
-            WIDTH - 58f,
-            getHeight() - 66f
+            WIDTH - 64f,
+            getHeight() - 72f
         );
 
         menuButton.addListener(
@@ -420,7 +420,7 @@ public final class NavigationDrawer
             );
 
         name.setFontScale(
-            0.49f
+            0.52f
         );
 
         name.setColor(
@@ -441,7 +441,7 @@ public final class NavigationDrawer
                 ITEM_WIDTH
             )
             .height(
-                78f
+                84f
             )
             .center()
             .padBottom(4f)
@@ -572,52 +572,44 @@ public final class NavigationDrawer
         ImageButton.ImageButtonStyle style =
             new ImageButton.ImageButtonStyle();
 
-        style.imageUp =
-            new TextureRegionDrawable(
-                texture
-            );
+        TextureRegionDrawable icon = new TextureRegionDrawable(texture);
 
-        style.imageOver =
-            style.imageUp;
-
-        style.imageDown =
-            style.imageUp;
+        /*
+         * Os PNGs originais são pretos. loadIcon os converte para uma
+         * máscara branca, permitindo aplicar cores claras sem perder os
+         * detalhes sobre o fundo verde do menu.
+         */
+        style.imageUp = icon.tint(
+            active ? Color.WHITE : StyleFactory.SOFT_YELLOW
+        );
+        style.imageOver = icon.tint(Color.WHITE);
+        style.imageDown = icon.tint(StyleFactory.YELLOW_TITLE);
 
         Color base =
             active
-                ? new Color(
-                0.22f,
-                0.17f,
-                0.035f,
-                1f
-            )
-                : new Color(
-                0.035f,
-                0.055f,
-                0.050f,
-                0.98f
-            );
+                ? Color.valueOf("5A4510")
+                : Color.valueOf("18251F");
 
         style.up =
             StyleFactory.createModernButton(
-                58,
-                58,
+                64,
+                64,
                 base,
                 StyleFactory.GOLD
             );
 
         style.over =
             StyleFactory.createModernButton(
-                58,
-                58,
+                64,
+                64,
                 StyleFactory.MUSGO_LIGHT,
                 StyleFactory.YELLOW_TITLE
             );
 
         style.down =
             StyleFactory.createModernButton(
-                58,
-                58,
+                64,
+                64,
                 StyleFactory.DARK_GOLD,
                 Color.WHITE
             );
@@ -651,12 +643,7 @@ public final class NavigationDrawer
                         .exists()
             ) {
 
-                texture =
-                    new Texture(
-                        Gdx.files.internal(
-                            path
-                        )
-                    );
+                texture = ScreenUI.loadTintableIcon(path);
 
             } else {
 
@@ -720,9 +707,7 @@ public final class NavigationDrawer
 
         pixmap.fill();
 
-        pixmap.setColor(
-            StyleFactory.GOLD
-        );
+        pixmap.setColor(Color.WHITE);
 
         pixmap.fillCircle(
             size / 2,

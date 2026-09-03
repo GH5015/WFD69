@@ -7,6 +7,32 @@ import java.util.List;
 import java.util.Map;
 
 public class Match {
+    private Club.TacticalSetup homePrematchSetup, awayPrematchSetup;
+    private boolean tacticalSetupCaptured, tacticalSetupRestored;
+    private transient io.github.some_example_name.engine.TacticalPerformanceReport homeFinalReport, awayFinalReport;
+
+    public void capturePrematchTactics() {
+        if (tacticalSetupCaptured || played) return;
+        homePrematchSetup = homeTeam.captureTacticalSetup();
+        awayPrematchSetup = awayTeam.captureTacticalSetup();
+        tacticalSetupCaptured = true;
+    }
+
+    public void restorePrematchTactics() {
+        if (!played || !tacticalSetupCaptured || tacticalSetupRestored) return;
+        // O relatório deve avaliar a tática da partida, não o plano restaurado.
+        homeFinalReport = io.github.some_example_name.engine.TacticalPerformanceReport.analyze(this, homeTeam);
+        awayFinalReport = io.github.some_example_name.engine.TacticalPerformanceReport.analyze(this, awayTeam);
+        homeTeam.restoreTacticalSetup(homePrematchSetup);
+        awayTeam.restoreTacticalSetup(awayPrematchSetup);
+        tacticalSetupRestored = true;
+        homePrematchSetup = null;
+        awayPrematchSetup = null;
+    }
+
+    public io.github.some_example_name.engine.TacticalPerformanceReport getFinalTacticalReport(Club club) {
+        return club == homeTeam ? homeFinalReport : club == awayTeam ? awayFinalReport : null;
+    }
     private Club homeTeam;
     private Club awayTeam;
     private int homeGoals;
@@ -19,10 +45,17 @@ public class Match {
     private final Map<Player, Integer> activeMinuteStarts = new HashMap<>();
     private final Map<Player, Club> playerMatchClubs = new HashMap<>();
     private boolean minuteTrackingInitialized;
+    private boolean moraleProcessed;
     private Date date;
     private String stage = "REGULAR";
     private String playoffSeriesId;
     private int playoffGameNumber;
+    private int attendance;
+    private int attendanceDemand;
+    private boolean attendanceCalculated;
+    private int averageTicketPrice;
+    private long gateRevenue;
+    private boolean gateRevenueRecorded;
 
     private int homeShots, awayShots;
     private int homeShotsOnTarget, awayShotsOnTarget;
@@ -35,6 +68,16 @@ public class Match {
     // Estatísticas de Faltas e Expulsões
     private int homeFouls = 0, awayFouls = 0;
     private int homeRedCards = 0, awayRedCards = 0;
+    private int homeHighRegains = 0, awayHighRegains = 0;
+    private int homeTransitions = 0, awayTransitions = 0;
+    private double homeTempoSum, awayTempoSum;
+    private double homeMentalitySum, awayMentalitySum;
+    private double homePassingSum, awayPassingSum;
+    private double homeWidthSum, awayWidthSum;
+    private double homePressureSum, awayPressureSum;
+    private double homeTacticalFitSum, awayTacticalFitSum;
+    private int homeTacticalSamples, awayTacticalSamples;
+    private int homeIntensityDropMinute = -1, awayIntensityDropMinute = -1;
 
     public Match(Club homeTeam, Club awayTeam) {
         this.homeTeam = homeTeam;
@@ -58,6 +101,12 @@ public class Match {
     public String getStage() { return stage; }
     public String getPlayoffSeriesId() { return playoffSeriesId; }
     public int getPlayoffGameNumber() { return playoffGameNumber; }
+    public int getAttendance() { return attendance; }
+    public int getAttendanceDemand() { return attendanceDemand; }
+    public boolean isAttendanceCalculated() { return attendanceCalculated; }
+    public int getAverageTicketPrice() { return averageTicketPrice; }
+    public long getGateRevenue() { return gateRevenue; }
+    public boolean isGateRevenueRecorded() { return gateRevenueRecorded; }
     public int getHomeShots() { return homeShots; }
     public int getAwayShots() { return awayShots; }
     public int getHomeShotsOnTarget() { return homeShotsOnTarget; }
@@ -78,6 +127,71 @@ public class Match {
     public int getAwayRedCards() { return awayRedCards; }
     public void addHomeRedCard() { this.homeRedCards++; }
     public void addAwayRedCard() { this.awayRedCards++; }
+    public int getHomeHighRegains() { return homeHighRegains; }
+    public int getAwayHighRegains() { return awayHighRegains; }
+    public int getHomeTransitions() { return homeTransitions; }
+    public int getAwayTransitions() { return awayTransitions; }
+    public void addHomeHighRegain() { homeHighRegains++; }
+    public void addAwayHighRegain() { awayHighRegains++; }
+    public void addHomeTransition() { homeTransitions++; }
+    public void addAwayTransition() { awayTransitions++; }
+
+    public void recordTacticalSample(
+        boolean home,
+        Club club,
+        int fitScore,
+        double sustainability,
+        int minute
+    ) {
+        if (club == null) return;
+        if (home) {
+            homeTempoSum += club.getTempo();
+            homeMentalitySum += club.getMentalityValue();
+            homePassingSum += club.getPassing();
+            homeWidthSum += club.getWidth();
+            homePressureSum += club.getPressure();
+            homeTacticalFitSum += fitScore;
+            homeTacticalSamples++;
+            if (homeIntensityDropMinute < 0 && sustainability < .86d) homeIntensityDropMinute = minute;
+        } else {
+            awayTempoSum += club.getTempo();
+            awayMentalitySum += club.getMentalityValue();
+            awayPassingSum += club.getPassing();
+            awayWidthSum += club.getWidth();
+            awayPressureSum += club.getPressure();
+            awayTacticalFitSum += fitScore;
+            awayTacticalSamples++;
+            if (awayIntensityDropMinute < 0 && sustainability < .86d) awayIntensityDropMinute = minute;
+        }
+    }
+
+    private boolean isHomeClub(Club club) { return homeTeam == club; }
+    private double average(double homeSum, double awaySum, Club club, double fallback) {
+        boolean home = isHomeClub(club);
+        int samples = home ? homeTacticalSamples : awayTacticalSamples;
+        return samples == 0 ? fallback : (home ? homeSum : awaySum) / samples;
+    }
+    public float getAverageTacticalTempo(Club club) {
+        return (float) average(homeTempoSum, awayTempoSum, club, club.getTempo());
+    }
+    public float getAverageTacticalMentality(Club club) {
+        return (float) average(homeMentalitySum, awayMentalitySum, club, club.getMentalityValue());
+    }
+    public float getAverageTacticalPassing(Club club) {
+        return (float) average(homePassingSum, awayPassingSum, club, club.getPassing());
+    }
+    public float getAverageTacticalWidth(Club club) {
+        return (float) average(homeWidthSum, awayWidthSum, club, club.getWidth());
+    }
+    public float getAverageTacticalPressure(Club club) {
+        return (float) average(homePressureSum, awayPressureSum, club, club.getPressure());
+    }
+    public int getAverageTacticalFit(Club club, int fallback) {
+        return (int) Math.round(average(homeTacticalFitSum, awayTacticalFitSum, club, fallback));
+    }
+    public int getIntensityDropMinute(Club club) {
+        return isHomeClub(club) ? homeIntensityDropMinute : awayIntensityDropMinute;
+    }
 
     // Setters
     public void setPlayed(boolean played) { this.played = played; }
@@ -97,6 +211,26 @@ public class Match {
     public void setStage(String stage) { this.stage = stage; }
     public void setPlayoffSeriesId(String playoffSeriesId) { this.playoffSeriesId = playoffSeriesId; }
     public void setPlayoffGameNumber(int playoffGameNumber) { this.playoffGameNumber = playoffGameNumber; }
+    public void setAttendance(int attendance, int demand) {
+        setAttendance(attendance, demand, homeTeam != null ? homeTeam.getAverageTicketPrice() : 0);
+    }
+    public void setAttendance(int attendance, int demand, int ticketPrice) {
+        this.attendance = Math.max(0, attendance);
+        this.attendanceDemand = Math.max(this.attendance, demand);
+        this.averageTicketPrice = Math.max(0, ticketPrice);
+        this.attendanceCalculated = true;
+    }
+    public void recordGateRevenue(long revenue) {
+        gateRevenue = Math.max(0L, revenue);
+        gateRevenueRecorded = true;
+    }
+    public void resetAttendanceProjection() {
+        if (played || gateRevenueRecorded) return;
+        attendance = 0;
+        attendanceDemand = 0;
+        averageTicketPrice = 0;
+        attendanceCalculated = false;
+    }
     public void setResult(int h, int a) { this.homeGoals = h; this.awayGoals = a; this.played = true; }
     public void addGoalScorer(Player p) { this.goalScorers.add(p); }
     public void addAssister(Player p) { this.assisters.add(p); }
@@ -143,6 +277,25 @@ public class Match {
         for (Player player : new ArrayList<>(activeMinuteStarts.keySet())) {
             registerPlayerExit(player, 90);
         }
+    }
+
+    /** Includes all entrants, even a substitution at 90' recorded as zero whole minutes. */
+    public java.util.Set<Player> getParticipantsForClub(Club club) {
+        java.util.Set<Player> participants = new java.util.HashSet<>();
+        for (Map.Entry<Player, Club> entry : playerMatchClubs.entrySet()) {
+            if (entry.getValue() == club) participants.add(entry.getKey());
+        }
+        return participants;
+    }
+
+    /** Apply once, based on actual match participation, not the final lineup or bench. */
+    public void applyPostMatchMorale() {
+        if (!played || moraleProcessed) return;
+        double homeOverall = homeTeam.getOverall(), awayOverall = awayTeam.getOverall();
+        int result = Integer.compare(homeGoals, awayGoals);
+        homeTeam.updateSquadMorale(result, awayOverall, getParticipantsForClub(homeTeam));
+        awayTeam.updateSquadMorale(-result, homeOverall, getParticipantsForClub(awayTeam));
+        moraleProcessed = true;
     }
 
     public Map<Player, Integer> getPlayerMinutesForClub(Club club) {

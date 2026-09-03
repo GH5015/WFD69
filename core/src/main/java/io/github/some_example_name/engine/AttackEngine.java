@@ -14,10 +14,16 @@ public class AttackEngine {
 
         // 1. Aplica o modificador principal de ataque (Ritmo + Mentalidade + Amplitude)
         double totalPower = baseAttack * mods.attackMultiplier;
+        double creationFit = mods.centralCreationMultiplier * .55d
+            + mods.flankThreatMultiplier * .45d;
+        totalPower *= creationFit / Math.max(1d, mods.spacingPenaltyMultiplier);
 
         // 2. Bônus por Contra-Ataque (se a jogada nasceu de um roubo rápido)
         if (isCounterAttack) {
-            totalPower *= mods.counterAttackMultiplier;
+            // Velocidade gera mais transições e chegada antes da recomposição,
+            // sem converter todo ataque acelerado em uma chance de altíssimo xG.
+            double transitionQuality = 1d + (mods.transitionSpeedMultiplier - 1d) * .45d;
+            totalPower *= mods.counterAttackMultiplier * transitionQuality;
         }
 
         // 3. Variação momentânea da jogada

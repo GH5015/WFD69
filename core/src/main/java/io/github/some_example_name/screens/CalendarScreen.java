@@ -15,6 +15,7 @@ import io.github.some_example_name.utils.ResponsiveViewport;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
+import io.github.some_example_name.model.AttendanceService;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.ScreenUI;
@@ -35,6 +36,9 @@ public class CalendarScreen implements Screen {
     private Texture calendarBackground;
 
     private boolean filterOnlyMyClub =
+        false;
+
+    private boolean annualCalendarCollapsed =
         false;
 
     private final SimpleDateFormat dateFormat =
@@ -223,7 +227,7 @@ public class CalendarScreen implements Screen {
                 createAnnualLeagueCalendar()
             )
             .growX()
-            .height(320f)
+            .height(annualCalendarCollapsed ? 62f : 320f)
             .padBottom(10f)
             .row();
 
@@ -297,8 +301,24 @@ public class CalendarScreen implements Screen {
         heading.add(ScreenUI.createSectionTitle(game.skin, "CALENDÁRIO ANUAL DA WFL")).left().expandX();
         Label deadline = ScreenUI.createSubtitle(game.skin, "TRADE DEADLINE • 15 DE SETEMBRO");
         deadline.setColor(ScreenUI.WARNING);
-        heading.add(deadline).right();
+        heading.add(deadline).right().padRight(10f);
+        TextButton toggle = ScreenUI.createInteractiveButton(
+            annualCalendarCollapsed ? "EXPANDIR  ▼" : "RECOLHER  ▲",
+            game.skin
+        );
+        toggle.getLabel().setFontScale(0.42f);
+        toggle.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                annualCalendarCollapsed = !annualCalendarCollapsed;
+                refreshUI();
+            }
+        });
+        heading.add(toggle).width(128f).height(30f).right();
         panel.add(heading).growX().padBottom(5f).row();
+
+        if (annualCalendarCollapsed) {
+            return panel;
+        }
 
         Table table = new Table();
         Table header = ScreenUI.createTableHeaderRow();
@@ -325,6 +345,11 @@ public class CalendarScreen implements Screen {
             { "NOVEMBRO", "OFFSEASON", "ABERTAS", "PRÓPRIOS FA", "ABERTA", "SCOUTING" },
             { "DEZEMBRO", "DRAFT / OFFSEASON", "ABERTAS", "ABERTAS", "ABERTA", "DRAFT + SCOUTING" }
         };
+
+        if (io.github.some_example_name.model.LeagueExpansionService.isExpansionYear(game.league.getCurrentSeason() + 1)) {
+            rows[11][1] = "WFL EXPANSION • 1 NOV";
+            rows[11][5] = "EXPANSION + SCOUTING";
+        }
 
         for (int index = 0; index < rows.length; index++) {
             Table row = ScreenUI.createRow(index);
@@ -957,6 +982,19 @@ public class CalendarScreen implements Screen {
             .expandX()
             .left();
 
+        if (match.isPlayed()) {
+            AttendanceService.ensureAttendance(game.league, match);
+        }
+
+        Label attendance = ScreenUI.createBoldValue(
+            game.skin,
+            match.isPlayed() ? "PÚBLICO  " + formatAttendance(match.getAttendance()) : "",
+            ScreenUI.MUTED_TEXT,
+            Align.center
+        );
+        attendance.setFontScale(.42f);
+        row.add(attendance).width(145f).center();
+
         // =====================================================
         // STATUS
         // =====================================================
@@ -1015,6 +1053,10 @@ public class CalendarScreen implements Screen {
             .padRight(12f);
 
         return row;
+    }
+
+    private String formatAttendance(int value) {
+        return String.format(Locale.ROOT, "%,d", Math.max(0, value)).replace(',', '.');
     }
 
     // =========================================================

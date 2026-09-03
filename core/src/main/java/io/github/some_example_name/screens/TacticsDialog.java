@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 
 import io.github.some_example_name.Main;
+import io.github.some_example_name.engine.TacticalPreset;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.Formation;
 import io.github.some_example_name.model.Player;
@@ -44,6 +45,15 @@ public class TacticsDialog extends Dialog {
     private Texture pitchTexture;
 
     private Table contentTable;
+
+    @Override
+    public Dialog show(com.badlogic.gdx.scenes.scene2d.Stage stage) {
+        super.show(stage);
+        setSize(stage.getWidth() * .96f, stage.getHeight() * .96f);
+        setPosition((stage.getWidth() - getWidth()) / 2f, (stage.getHeight() - getHeight()) / 2f);
+        invalidateHierarchy();
+        return this;
+    }
 
     private Label substitutionCounterLabel;
     private Label selectedInfoLabel;
@@ -214,6 +224,13 @@ public class TacticsDialog extends Dialog {
             .padBottom(8f)
             .row();
 
+        root
+            .add(createQuickPresetsBar())
+            .growX()
+            .height(60f)
+            .padBottom(8f)
+            .row();
+
         // =====================================================
         // CONTENT
         // =====================================================
@@ -221,10 +238,15 @@ public class TacticsDialog extends Dialog {
         contentTable =
             new Table();
 
+        contentTable.setName("match-tactics-content");
+        ScrollPane bodyScroll = new ScrollPane(contentTable, game.skin);
+        bodyScroll.setScrollingDisabled(true, false);
+        bodyScroll.setFadeScrollBars(false);
+        bodyScroll.setOverscroll(false, false);
         root
-            .add(contentTable)
-            .width(1160f)
-            .height(565f)
+            .add(bodyScroll)
+            .grow()
+            .minSize(0, 0)
             .row();
 
         refreshContent();
@@ -437,6 +459,39 @@ public class TacticsDialog extends Dialog {
         return header;
     }
 
+    private Table createQuickPresetsBar() {
+        Table bar = ScreenUI.createSubtlePanel();
+        bar.setName("match-tactics-presets");
+        populateQuickPresets(bar);
+        return bar;
+    }
+
+    private void populateQuickPresets(Table bar) {
+        bar.clear();
+        Label title = ScreenUI.createSectionTitle(game.skin, "PRESETS");
+        title.setFontScale(.42f);
+        bar.add(title).left().padRight(7f);
+
+        for (TacticalPreset preset : TacticalPreset.values()) {
+            boolean active = preset.matches(club);
+            TextButton button = ScreenUI.createInteractiveButton(preset.getLabel(), game.skin);
+            button.getLabel().setFontScale(.44f);
+            button.getLabel().setWrap(true);
+            button.getLabel().setAlignment(Align.center);
+            button.setColor(active ? StyleFactory.GOLD : StyleFactory.METAL_DARK);
+            button.getLabel().setColor(active ? Color.BLACK : StyleFactory.CREME_AGED);
+            button.addListener(new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    preset.applyTo(club);
+                    if (onTacticsChangedListener != null) onTacticsChangedListener.run();
+                    Gdx.app.postRunnable(() -> populateQuickPresets(bar));
+                }
+            });
+            bar.add(button).growX().minWidth(0).height(44f).pad(2f);
+        }
+    }
+
     // =========================================================
     // CONTENT
     // =========================================================
@@ -485,6 +540,7 @@ public class TacticsDialog extends Dialog {
         contentTable
             .add(left)
             .grow()
+            .minHeight(680f)
             .padRight(10f);
 
         // =====================================================
@@ -1775,38 +1831,8 @@ public class TacticsDialog extends Dialog {
     }
 
     private void initializeMatchBench() {
-
-        List<Player> starters =
-            new ArrayList<>(
-                club.getTacticsMap()
-                    .values()
-            );
-
-        for (
-            Player player :
-            club.getSquad()
-        ) {
-
-            if (
-                !starters.contains(
-                    player
-                ) &&
-                    player.canPlay()
-            ) {
-
-                matchBenchPlayers.add(
-                    player
-                );
-
-                if (
-                    matchBenchPlayers.size() ==
-                        MAX_BENCH_PLAYERS
-                ) {
-
-                    return;
-                }
-            }
-        }
+        matchBenchPlayers.clear();
+        if (club != null) matchBenchPlayers.addAll(club.getBenchPlayers());
     }
 
     // =========================================================

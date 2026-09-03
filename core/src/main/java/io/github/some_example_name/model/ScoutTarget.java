@@ -3,14 +3,26 @@ package io.github.some_example_name.model;
 public class ScoutTarget {
     private final Player player;
     private double scoutingKnowledge; // 0.0 a 100.0
+    private int scoutStars = 3;
 
     public ScoutTarget(Player player) {
+        this(player, 3);
+    }
+
+    public ScoutTarget(Player player, int scoutStars) {
         this.player = player;
         this.scoutingKnowledge = 0.0; // Inicia zerado
+        setScoutStars(scoutStars);
     }
 
     public Player getPlayer() { return player; }
     public double getKnowledgePercentage() { return scoutingKnowledge; }
+    public int getScoutStars() { return scoutStars; }
+    public void setScoutStars(int stars) { scoutStars = Math.max(1, Math.min(5, stars)); }
+
+    private double errorMultiplier() {
+        return StaffImpact.scoutingErrorMultiplier(scoutStars);
+    }
 
     public void advanceKnowledge(double dailyProgress) {
         this.scoutingKnowledge = Math.min(100.0, this.scoutingKnowledge + dailyProgress);
@@ -28,24 +40,12 @@ public class ScoutTarget {
         
         // Aplica margem de imprecisão dependendo do nível de conhecimento
         if (addMarginError && scoutingKnowledge < 80.0) {
-            int maxOffset = (int) ((100.0 - scoutingKnowledge) / 10.0);
+            int maxOffset = Math.max(1, (int) Math.ceil(((100.0 - scoutingKnowledge) / 10.0) * errorMultiplier()));
             int offset = (int) (Math.random() * (maxOffset * 2 + 1)) - maxOffset;
             evaluated = Math.max(1, Math.min(99, evaluated + offset));
         }
 
-        if (evaluated >= 90) return "A+";
-        if (evaluated >= 85) return "A";
-        if (evaluated >= 80) return "A-";
-        if (evaluated >= 77) return "B+";
-        if (evaluated >= 73) return "B";
-        if (evaluated >= 70) return "B-";
-        if (evaluated >= 67) return "C+";
-        if (evaluated >= 63) return "C";
-        if (evaluated >= 60) return "C-";
-        if (evaluated >= 57) return "D+";
-        if (evaluated >= 53) return "D";
-        if (evaluated >= 50) return "D-";
-        return "F";
+        return PlayerPotentialDisplay.grade(evaluated);
     }
 
     /**
@@ -60,7 +60,7 @@ public class ScoutTarget {
             return getLetterGrade(ovr, true);
         } else if (scoutingKnowledge < 100.0) {
             // Exibe intervalo de variação ex: "78-82"
-            int margin = (int) ((100.0 - scoutingKnowledge) / 5.0) + 1;
+            int margin = Math.max(1, (int) Math.ceil(((100.0 - scoutingKnowledge) / 5.0) * errorMultiplier()));
             int min = Math.max(1, ovr - margin);
             int max = Math.min(99, ovr + margin);
             return min + "-" + max;
@@ -70,22 +70,15 @@ public class ScoutTarget {
     }
 
     /**
-     * Potencial (Mais difícil de revelar e com maior imprecisão)
+     * Potencial permanece em grades, inclusive após completar o scouting.
      */
     public String getDisplayPotential() {
         int pot = player.getPotential();
 
         if (scoutingKnowledge < 30.0) { // Exige mais conhecimento que o OVR
             return "?";
-        } else if (scoutingKnowledge < 70.0) {
-            return getLetterGrade(pot, true);
-        } else if (scoutingKnowledge < 100.0) {
-            int margin = (int) ((100.0 - scoutingKnowledge) / 4.0) + 1;
-            int min = Math.max(1, pot - margin);
-            int max = Math.min(99, pot + margin);
-            return min + "-" + max;
         } else {
-            return String.valueOf(pot); // 100% Relatório Exato
+            return getLetterGrade(pot, scoutingKnowledge < 70.0);
         }
     }
 

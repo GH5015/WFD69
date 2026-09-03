@@ -65,8 +65,8 @@ public class PlayerDevelopmentDialog extends Dialog {
         tab.getLabel().setFontScale(0.52f);
         boolean active = showHistory == historyTab;
         tab.setChecked(active);
-        tab.setColor(active ? StyleFactory.GOLD : StyleFactory.METAL_DARK);
-        tab.getLabel().setColor(active ? Color.BLACK : Color.WHITE);
+        tab.setColor(Color.WHITE);
+        tab.getLabel().setColor(active ? StyleFactory.SOFT_YELLOW : StyleFactory.TEXT_PRIMARY);
         tab.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 showHistory = historyTab;
@@ -83,6 +83,7 @@ public class PlayerDevelopmentDialog extends Dialog {
         } else {
             body.add(createDevelopmentPanel()).grow();
         }
+        ScreenUI.animateTabContent(body);
     }
 
     private Table createDevelopmentPanel() {
@@ -183,8 +184,8 @@ public class PlayerDevelopmentDialog extends Dialog {
         button.getLabel().setFontScale(0.50f);
         boolean selected = player.getDevelopmentFocus() == focus;
         button.setChecked(selected);
-        button.setColor(selected ? StyleFactory.GOLD : StyleFactory.METAL_DARK);
-        button.getLabel().setColor(selected ? Color.BLACK : Color.WHITE);
+        button.setColor(Color.WHITE);
+        button.getLabel().setColor(selected ? StyleFactory.SOFT_YELLOW : StyleFactory.TEXT_PRIMARY);
         button.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 player.setDevelopmentFocus(focus);

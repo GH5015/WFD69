@@ -1,5 +1,7 @@
 package io.github.some_example_name.screens;
 
+import io.github.some_example_name.utils.ClubLogoAssets;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -153,7 +155,7 @@ public class ClubDetailsScreen implements Screen {
                 createClubHeader()
             )
             .growX()
-            .height(114f)
+            .height(132f)
             .padBottom(10f)
             .row();
 
@@ -245,8 +247,8 @@ public class ClubDetailsScreen implements Screen {
 
             panel
                 .add(logo)
-                .width(145f)
-                .height(82f)
+                .width(165f)
+                .height(96f)
                 .padRight(18f);
         }
 
@@ -264,7 +266,7 @@ public class ClubDetailsScreen implements Screen {
             );
 
         clubName.setFontScale(
-            0.84f
+            0.92f
         );
 
         clubName.setColor(
@@ -1209,11 +1211,7 @@ public class ClubDetailsScreen implements Screen {
                     .exists()
             ) {
 
-                return new Texture(
-                    Gdx.files.internal(
-                        club.getLogoPath()
-                    )
-                );
+                return ClubLogoAssets.load(club.getLogoPath());
             }
 
         } catch (

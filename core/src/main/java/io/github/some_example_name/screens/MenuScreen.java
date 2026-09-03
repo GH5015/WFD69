@@ -52,10 +52,10 @@ public class MenuScreen implements Screen {
 
         ImageTextButton startButton = IconTextButton.create(
                 "INICIAR CARREIRA", game.skin, "Icons8/icons8-ligar-50.png");
-        startButton.getLabel().setFontScale(1.2f);
+        startButton.getLabel().setFontScale(0.68f);
         startButton.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new ClubSelectionScreen(game));
+                game.setScreen(new CareerIntroScreen(game, () -> new ClubSelectionScreen(game)));
             }
         });
 
@@ -67,8 +67,8 @@ public class MenuScreen implements Screen {
         });
 
         Table actions = new Table();
-        actions.add(startButton).width(390).height(76).padRight(16);
-        actions.add(exitButton).width(160).height(60);
+        actions.add(startButton).width(370).height(68).padRight(16);
+        actions.add(exitButton).width(148).height(54);
         uiTable.add(actions);
     }
 

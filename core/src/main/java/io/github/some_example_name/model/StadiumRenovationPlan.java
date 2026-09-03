@@ -2,11 +2,11 @@ package io.github.some_example_name.model;
 
 /** Pacotes de expansão disponíveis para os estádios da WFL. */
 public enum StadiumRenovationPlan {
-    STANDS("AMPLIAR ARQUIBANCADAS", 5_000, 45, 6_000_000L,
+    STANDS("AMPLIAR ARQUIBANCADAS", 5_000, 120, 6_000_000L,
         "Nova arquibancada e melhoria dos acessos."),
-    STRUCTURE("MODERNIZAÇÃO ESTRUTURAL", 12_000, 90, 15_000_000L,
+    STRUCTURE("MODERNIZAÇÃO ESTRUTURAL", 12_000, 240, 15_000_000L,
         "Ampliação completa, cobertura parcial e novas áreas internas."),
-    NEW_RING("CONSTRUIR NOVO ANEL", 25_000, 150, 32_500_000L,
+    NEW_RING("CONSTRUIR NOVO ANEL", 25_000, 420, 32_500_000L,
         "Grande expansão com um novo anel de arquibancadas.");
 
     public static final int MAX_CAPACITY = 100_000;

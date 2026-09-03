@@ -1,6 +1,9 @@
 package io.github.some_example_name.utils;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
@@ -16,18 +19,79 @@ import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.Scaling;
 
 public final class ScreenUI {
 
     /** Escala base legível, com ajuste automático caso o botão seja estreito. */
-    private static final float DEFAULT_BUTTON_FONT_SCALE = 0.52f;
+    private static final float DEFAULT_BUTTON_FONT_SCALE = 0.50f;
 
     private static final Color HOVER_TINT =
         Color.valueOf("FFF4C9");
 
     private ScreenUI() {
+    }
+
+    /**
+     * Converte ícones monocromáticos pretos em uma máscara branca. Assim a
+     * tonalização do Scene2D distingue estados dourados, parciais e vazios.
+     */
+    public static Texture loadTintableIcon(String internalPath) {
+        Pixmap source = new Pixmap(Gdx.files.internal(internalPath));
+        Pixmap mask = new Pixmap(source.getWidth(), source.getHeight(), Pixmap.Format.RGBA8888);
+        for (int y = 0; y < source.getHeight(); y++) {
+            for (int x = 0; x < source.getWidth(); x++) {
+                int alpha = source.getPixel(x, y) & 0xFF;
+                mask.drawPixel(x, y, 0xFFFFFF00 | alpha);
+            }
+        }
+        Texture texture = new Texture(mask);
+        texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        source.dispose();
+        mask.dispose();
+        return texture;
+    }
+
+    /** Componente único de avaliação, com suporte a passos de meia estrela. */
+    public static Table createStarRating(Texture texture, float rating, float size) {
+        Table stars = new Table();
+        float safeRating = Math.max(0f, Math.min(5f, Math.round(rating * 2f) / 2f));
+        if (texture == null) return stars;
+        for (int index = 0; index < 5; index++) {
+            Image star = new Image(new TextureRegionDrawable(texture));
+            star.setScaling(Scaling.fit);
+            if (index + 1 <= safeRating) {
+                star.setColor(StyleFactory.GOLD);
+            } else if (index < safeRating) {
+                // A estrela intermediária recebe bronze para ser inequivocamente parcial.
+                star.setColor(Color.valueOf("A9822E"));
+            } else {
+                star.setColor(Color.valueOf("4D5750"));
+            }
+            stars.add(star).size(size).padRight(Math.max(1f, size * .12f));
+        }
+        return stars;
+    }
+
+    /** Fallback textual compartilhado para tabelas compactas e relatórios. */
+    public static String formatStars(float rating) {
+        float safeRating = Math.max(0f, Math.min(5f, Math.round(rating * 2f) / 2f));
+        StringBuilder output = new StringBuilder();
+        int full = (int) safeRating;
+        for (int index = 0; index < full; index++) output.append('★');
+        if (safeRating - full >= .5f) output.append('½');
+        for (int index = (int) Math.ceil(safeRating); index < 5; index++) output.append('☆');
+        return output.toString();
+    }
+
+    /** Prioridades usam somente as estrelas ativas, sem completar uma escala de cinco. */
+    public static String formatActiveStars(int count) {
+        StringBuilder output = new StringBuilder();
+        for (int index = 0; index < Math.max(0, count); index++) output.append('★');
+        return output.toString();
     }
 
     // =========================================================
@@ -158,7 +222,25 @@ public final class ScreenUI {
             PAGE_RIGHT
         );
 
+        animateTabContent(page);
+
         return page;
+    }
+
+    /** Fade curto usado por páginas e conteúdos reconstruídos ao trocar abas. */
+    public static void animateTabContent(Actor actor) {
+        if (actor == null) {
+            return;
+        }
+
+        actor.clearActions();
+        actor.getColor().a = 0f;
+        actor.addAction(
+            Actions.fadeIn(
+                0.20f,
+                Interpolation.fade
+            )
+        );
     }
 
     // =========================================================
@@ -726,7 +808,7 @@ public final class ScreenUI {
             );
 
         label.setFontScale(
-            0.54f
+            0.56f
         );
 
         /*
@@ -784,7 +866,7 @@ public final class ScreenUI {
             );
 
         titleLabel.setFontScale(
-            0.48f
+            0.50f
         );
 
         titleLabel.setColor(
@@ -808,7 +890,7 @@ public final class ScreenUI {
             );
 
         valueLabel.setFontScale(
-            0.64f
+            0.67f
         );
 
         valueLabel.setColor(
@@ -917,7 +999,7 @@ public final class ScreenUI {
 
         button.getLabel().setFontScale(DEFAULT_BUTTON_FONT_SCALE);
 
-        addHoverAnimation(button, 1.025f);
+        addHoverAnimation(button, 1.035f);
 
         return button;
     }
@@ -1006,7 +1088,7 @@ public final class ScreenUI {
 
         button.getLabel().setFontScale(DEFAULT_BUTTON_FONT_SCALE);
 
-        addHoverAnimation(button, 1.02f);
+        addHoverAnimation(button, 1.03f);
 
         return button;
     }
@@ -1020,7 +1102,7 @@ public final class ScreenUI {
         prepare(skin);
         TextButton button = new AdaptiveTextButton(text, skin);
         button.getLabel().setFontScale(DEFAULT_BUTTON_FONT_SCALE);
-        addHoverAnimation(button, 1.025f);
+        addHoverAnimation(button, 1.03f);
         return button;
     }
 
@@ -1034,7 +1116,7 @@ public final class ScreenUI {
         prepare(skin);
         TextButton button = new AdaptiveTextButton(text, skin, styleName);
         button.getLabel().setFontScale(DEFAULT_BUTTON_FONT_SCALE);
-        addHoverAnimation(button, 1.025f);
+        addHoverAnimation(button, 1.03f);
         return button;
     }
 

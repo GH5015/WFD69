@@ -40,15 +40,29 @@ public class EconomicPower {
         return 1;
     }
 
+    public static float getDisplayStarRating(Club club) {
+        long valuation = calculateClubValuation(club);
+        if (valuation >= 800_000_000L) return 5f;
+        if (valuation >= 675_000_000L) return 4.5f;
+        if (valuation >= 550_000_000L) return 4f;
+        if (valuation >= 450_000_000L) return 3.5f;
+        if (valuation >= 350_000_000L) return 3f;
+        if (valuation >= 275_000_000L) return 2.5f;
+        if (valuation >= 200_000_000L) return 2f;
+        if (valuation >= 125_000_000L) return 1.5f;
+        return 1f;
+    }
+
     /**
      * Retorna a string visual formatada em estrelas (fallback para logs/debug).
      */
     public static String getFormattedStars(Club club) {
-        int stars = getStarRating(club);
+        float rating = getDisplayStarRating(club);
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 5; i++) {
-            sb.append(i < stars ? "★" : "☆");
-        }
+        int full = (int) rating;
+        for (int index = 0; index < full; index++) sb.append('★');
+        if (rating - full >= .5f) sb.append('½');
+        for (int index = (int) Math.ceil(rating); index < 5; index++) sb.append('☆');
         return sb.toString();
     }
 }

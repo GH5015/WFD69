@@ -91,16 +91,16 @@ public class StyleFactory {
      * herdado do Skin.
      */
     public static final Color TEXT_PRIMARY =
-        Color.valueOf("F4F0EA");
+        Color.valueOf("FFFDF7");
 
     public static final Color TEXT_SECONDARY =
-        Color.valueOf("D6D9D3");
+        Color.valueOf("E7EBE6");
 
     public static final Color TEXT_MUTED =
-        Color.valueOf("AAB2AA");
+        Color.valueOf("BBC5BD");
 
     public static final Color TEXT_DISABLED =
-        Color.valueOf("727A73");
+        Color.valueOf("8B958D");
 
     public static final Color TEXT_ON_GOLD =
         Color.valueOf("102018");
@@ -696,15 +696,21 @@ public class StyleFactory {
 
         int radius =
             Math.max(
-                6,
+                8,
                 Math.min(
-                    12,
+                    16,
                     Math.min(
                         width,
                         height
                     ) /
-                        4
+                        3
                 )
+            );
+
+        int inset =
+            Math.max(
+                2,
+                Math.min(3, height / 16)
             );
 
         fillRounded(
@@ -719,13 +725,13 @@ public class StyleFactory {
 
         fillRounded(
             pixmap,
-            2,
-            2,
-            width - 4,
-            height - 4,
+            inset,
+            inset,
+            width - inset * 2,
+            height - inset * 2,
             Math.max(
-                3,
-                radius - 2
+                4,
+                radius - inset
             ),
             baseColor
         );
@@ -735,19 +741,51 @@ public class StyleFactory {
                 1f,
                 1f,
                 1f,
-                0.07f
+                0.10f
             )
         );
 
         pixmap.fillRectangle(
-            3,
+            inset + radius / 2,
             height / 2,
-            width - 6,
+            Math.max(1, width - (inset + radius / 2) * 2),
             Math.max(
                 1,
                 height / 2 -
-                    3
+                    inset
             )
+        );
+
+        pixmap.setColor(
+            new Color(
+                0f,
+                0f,
+                0f,
+                0.18f
+            )
+        );
+
+        pixmap.fillRectangle(
+            inset + radius / 2,
+            inset,
+            Math.max(1, width - (inset + radius / 2) * 2),
+            Math.max(2, height / 8)
+        );
+
+        pixmap.setColor(
+            new Color(
+                borderColor.r,
+                borderColor.g,
+                borderColor.b,
+                0.42f
+            )
+        );
+
+        pixmap.fillRectangle(
+            inset + radius,
+            height - inset - 2,
+            Math.max(1, width - (inset + radius) * 2),
+            1
         );
 
         Texture texture =
@@ -761,13 +799,22 @@ public class StyleFactory {
             texture
         );
 
+        int patch =
+            Math.max(
+                6,
+                Math.min(
+                    radius + 2,
+                    Math.min(width, height) / 2 - 1
+                )
+            );
+
         return new NinePatchDrawable(
             new NinePatch(
                 texture,
-                6,
-                6,
-                6,
-                6
+                patch,
+                patch,
+                patch,
+                patch
             )
         );
     }

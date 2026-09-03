@@ -1,5 +1,7 @@
 package io.github.some_example_name.screens;
 
+import io.github.some_example_name.utils.ClubLogoAssets;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -18,6 +20,8 @@ import io.github.some_example_name.Main;
 import io.github.some_example_name.engine.TacticalEngine;
 import io.github.some_example_name.engine.TacticalModifiers;
 import io.github.some_example_name.model.Club;
+import io.github.some_example_name.model.ClubProfile;
+import io.github.some_example_name.model.AttendanceService;
 import io.github.some_example_name.model.Formation;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
@@ -122,6 +126,7 @@ public class PreMatchScreen implements Screen {
          * campo. Antes, a recomposição da IA ocorria apenas na MatchScreen e
          * esta tela ainda mostrava os buracos deixados por indisponíveis. */
         game.matchEngine.prepareLineupsForPreview(match);
+        AttendanceService.ensureAttendance(game.league, match);
 
         buildUI();
     }
@@ -247,7 +252,7 @@ public class PreMatchScreen implements Screen {
                 createMatchHero()
             )
             .growX()
-            .height(195f)
+            .height(260f)
             .padBottom(10f)
             .row();
 
@@ -375,6 +380,7 @@ public class PreMatchScreen implements Screen {
                     .toUpperCase();
         }
 
+        int rivalry = getRivalryLevel();
         return ScreenUI.createHeader(
             game.skin,
             "WFL • RODADA " +
@@ -383,7 +389,7 @@ public class PreMatchScreen implements Screen {
                         ? game.league
                         .getCurrentRound()
                         : 1
-                ),
+                ) + (rivalry > 0 ? " • CLÁSSICO" : ""),
             date
         );
     }
@@ -409,6 +415,8 @@ public class PreMatchScreen implements Screen {
                 away
             );
 
+        panel.add().expandX();
+
         panel
             .add(
                 createTeamHero(
@@ -417,7 +425,7 @@ public class PreMatchScreen implements Screen {
                     true
                 )
             )
-            .width(320f)
+            .width(350f)
             .growY();
 
         panel
@@ -426,7 +434,9 @@ public class PreMatchScreen implements Screen {
                     odds
                 )
             )
-            .expandX()
+            .width(350f)
+            .padLeft(45f)
+            .padRight(45f)
             .center();
 
         panel
@@ -437,8 +447,10 @@ public class PreMatchScreen implements Screen {
                     false
                 )
             )
-            .width(320f)
+            .width(350f)
             .growY();
+
+        panel.add().expandX();
 
         return panel;
     }
@@ -479,8 +491,8 @@ public class PreMatchScreen implements Screen {
 
             box
                 .add(image)
-                .width(135f)
-                .height(78f)
+                .width(155f)
+                .height(92f)
                 .center()
                 .padBottom(4f)
                 .row();
@@ -499,7 +511,7 @@ public class PreMatchScreen implements Screen {
             );
 
         name.setFontScale(
-            0.64f
+            0.70f
         );
 
         name.setAlignment(
@@ -586,6 +598,17 @@ public class PreMatchScreen implements Screen {
         Table center =
             new Table();
 
+        int rivalryLevel = getRivalryLevel();
+        if (rivalryLevel > 0) {
+            center
+                .add(createRivalryPresentation(rivalryLevel))
+                .width(315f)
+                .height(52f)
+                .center()
+                .padBottom(5f)
+                .row();
+        }
+
         Label vs =
             new Label(
                 "VS",
@@ -658,9 +681,102 @@ public class PreMatchScreen implements Screen {
 
         center
             .add(values)
-            .center();
+            .center()
+            .row();
+
+        center
+            .add(createAttendancePreview())
+            .width(315f)
+            .height(44f)
+            .center()
+            .padTop(7f);
 
         return center;
+    }
+
+    private Table createAttendancePreview() {
+        Table box = ScreenUI.createSubtlePanel();
+        box.pad(5f, 10f, 5f, 10f);
+
+        int capacity = match.getHomeTeam().getOperationalStadiumCapacity();
+        int attendance = match.getAttendance();
+        boolean soldOut = capacity > 0 && attendance >= capacity;
+
+        Label title = ScreenUI.createSubtitle(game.skin, "PÚBLICO PREVISTO");
+        title.setAlignment(Align.center);
+        box.add(title).growX().center().row();
+
+        String valueText = formatAttendance(attendance) + " / " + formatAttendance(capacity)
+            + (soldOut ? "  •  LOTADO" : "");
+        Label value = ScreenUI.createBoldValue(
+            game.skin,
+            valueText,
+            soldOut ? ScreenUI.SUCCESS : StyleFactory.SOFT_YELLOW,
+            Align.center
+        );
+        value.setFontScale(.48f);
+        box.add(value).growX().center().row();
+
+        return box;
+    }
+
+    private String formatAttendance(int value) {
+        return String.format(Locale.ROOT, "%,d", Math.max(0, value)).replace(',', '.');
+    }
+
+    private Table createRivalryPresentation(int level) {
+        Table banner = new Table();
+        banner.background(
+            StyleFactory.createRoundedPanel(
+                Color.valueOf("351B17"),
+                level >= 5 ? Color.valueOf("EF5B43") : StyleFactory.GOLD
+            )
+        );
+        banner.pad(5f, 10f, 5f, 10f);
+
+        Label title = new Label(
+            ClubProfile.rivalryLabel(playerClub, getPlayerOpponent()),
+            game.skin,
+            "font-bold"
+        );
+        title.setFontScale(.48f);
+        title.setColor(level >= 5 ? Color.valueOf("FF806A") : StyleFactory.SOFT_YELLOW);
+        title.setAlignment(Align.center);
+        banner.add(title).colspan(2).growX().center().row();
+
+        Club opponent = getPlayerOpponent();
+        Label pairing = new Label(
+            getShortName(playerClub) + "  ×  " + getShortName(opponent),
+            game.skin,
+            "font-bold"
+        );
+        pairing.setFontScale(.34f);
+        pairing.setColor(StyleFactory.CREME_AGED);
+        pairing.setAlignment(Align.left);
+        banner.add(pairing).growX().left().padTop(3f);
+        banner.add(createRivalryMeter(level)).right().padTop(3f);
+        return banner;
+    }
+
+    private Table createRivalryMeter(int level) {
+        Table meter = new Table();
+        for (int index = 0; index < 5; index++) {
+            Color color = index < level
+                ? (level >= 5 ? Color.valueOf("EF5B43") : StyleFactory.GOLD)
+                : Color.valueOf("503A32");
+            meter.add(new Image(StyleFactory.createSolid(color)))
+                .width(13f).height(7f).padLeft(2f);
+        }
+        return meter;
+    }
+
+    private int getRivalryLevel() {
+        return ClubProfile.rivalryLevel(playerClub, getPlayerOpponent());
+    }
+
+    private Club getPlayerOpponent() {
+        if (match == null || playerClub == null) return null;
+        return match.getHomeTeam() == playerClub ? match.getAwayTeam() : match.getHomeTeam();
     }
 
     // =========================================================
@@ -2568,11 +2684,7 @@ public class PreMatchScreen implements Screen {
             ) {
 
                 Texture texture =
-                    new Texture(
-                        Gdx.files.internal(
-                            club.getLogoPath()
-                        )
-                    );
+                    ClubLogoAssets.load(club.getLogoPath());
 
                 texture.setFilter(
                     Texture.TextureFilter.Linear,

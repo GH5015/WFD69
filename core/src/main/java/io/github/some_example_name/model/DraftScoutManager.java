@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class DraftScoutManager {
-    private static final double DAILY_PROGRESS_RATE = 1.5;
     private final List<ScoutTarget> activeTargets;
     private final List<ScoutTarget> completedTargets;
     private int scoutStars = 3;
@@ -19,9 +18,9 @@ public class DraftScoutManager {
         this.scoutStars = Math.max(1, Math.min(5, scoutStars));
     }
 
-    /** Cada jogador observado avança exatamente 1,5% por dia. */
+    /** Ritmo diário definido pela qualidade do scout: 1,0% a 2,1%. */
     public double getDailyProgressRate() {
-        return DAILY_PROGRESS_RATE;
+        return StaffImpact.scoutingDailyProgress(scoutStars);
     }
 
     public void advanceDay() {
@@ -40,7 +39,7 @@ public class DraftScoutManager {
     public boolean addTarget(Player player) {
         if (isFull()) return false;
         if (containsPlayer(player)) return false;
-        activeTargets.add(new ScoutTarget(player));
+        activeTargets.add(new ScoutTarget(player, scoutStars));
         return true;
     }
 
@@ -75,7 +74,11 @@ public class DraftScoutManager {
         return false;
     }
     public int getScoutStars() { return scoutStars; }
-    public void setScoutStars(int stars) { scoutStars = Math.max(1, Math.min(5, stars)); }
+    public void setScoutStars(int stars) {
+        scoutStars = Math.max(1, Math.min(5, stars));
+        for (ScoutTarget target : activeTargets) target.setScoutStars(scoutStars);
+        for (ScoutTarget target : completedTargets) target.setScoutStars(scoutStars);
+    }
     public int getMaxScoutedPlayers() { return 2 + scoutStars; }
     public boolean isFavorite(Player player) { return player != null && favoritePlayerIds.contains(player.getId()); }
     public void toggleFavorite(Player player) { if (player == null) return; if (!favoritePlayerIds.add(player.getId())) favoritePlayerIds.remove(player.getId()); }

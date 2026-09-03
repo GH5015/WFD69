@@ -71,6 +71,21 @@ public class TradeScreen implements Screen {
         Club targetClub
     ) {
 
+        this(game, userClub, targetClub, null);
+    }
+
+    /**
+     * Abre a central já direcionada a um atleta encontrado na busca global.
+     * O jogador entra no lado "você recebe", sem preencher automaticamente a
+     * contrapartida do usuário.
+     */
+    public TradeScreen(
+        Main game,
+        Club userClub,
+        Club targetClub,
+        Player requestedPlayer
+    ) {
+
         this.game =
             game;
 
@@ -106,6 +121,35 @@ public class TradeScreen implements Screen {
                     userClub,
                     this.targetClub
                 );
+
+            if (
+                requestedPlayer != null &&
+                    requestedPlayer.getCurrentClub() == this.targetClub &&
+                    this.targetClub.getSquad().contains(requestedPlayer)
+            ) {
+                this.currentOffer.addPlayerToReceive(requestedPlayer);
+            }
+        }
+    }
+
+    /** Abre uma sugestão completa produzida pelo Trade Finder. */
+    public TradeScreen(
+        Main game,
+        Club userClub,
+        TradeOffer presetOffer
+    ) {
+        this(
+            game,
+            userClub,
+            presetOffer != null ? presetOffer.getTargetClub() : null,
+            null
+        );
+        if (
+            presetOffer != null &&
+                presetOffer.getUserClub() == userClub &&
+                presetOffer.getTargetClub() == this.targetClub
+        ) {
+            this.currentOffer = presetOffer;
         }
     }
 
@@ -1286,8 +1330,8 @@ public class TradeScreen implements Screen {
             .add(
                 ScreenUI.createSubtitle(
                     game.skin,
-                        "Projeção #" +
-                        pick.getProjectedPosition() +
+                        "Projeção geral #" +
+                        pick.getProjectedOverallPosition() +
                         "  •  TV " +
                         DraftPickEvaluator.getPerceivedPickValue(
                             receivingClub,
@@ -1595,7 +1639,7 @@ public class TradeScreen implements Screen {
 
         for (
             DraftPick pick :
-            club.getDraftPicks()
+            club.getDraftPicks().stream().filter(p -> p != null && p.isAvailableForTrade(game.league)).collect(java.util.stream.Collectors.toList())
         ) {
 
             boolean selected =
@@ -1826,8 +1870,8 @@ public class TradeScreen implements Screen {
             .add(
                 ScreenUI.createSubtitle(
                     game.skin,
-                        "Proj. #" +
-                        pick.getProjectedPosition() +
+                        "Geral #" +
+                        pick.getProjectedOverallPosition() +
                         "  •  TV " +
                         DraftPickEvaluator.getPerceivedPickValue(
                             receivingClub,
@@ -2071,18 +2115,7 @@ public class TradeScreen implements Screen {
                 .append(TradeRosterImpactEvaluator.getLineupImpactLabel(club, player))
                 .append(" • Nec.: ");
 
-            for (
-                int i = 0;
-                i < 5;
-                i++
-            ) {
-
-                urgencyText.append(
-                    i < urgency
-                        ? "★"
-                        : "☆"
-                );
-            }
+            urgencyText.append(ScreenUI.formatStars(urgency));
 
             Label need =
                 new Label(
@@ -2216,7 +2249,7 @@ public class TradeScreen implements Screen {
             .row();
 
         if (
-            club.getDraftPicks()
+            club.getDraftPicks().stream().filter(p -> p != null && p.isAvailableForTrade(game.league)).collect(java.util.stream.Collectors.toList())
                 .isEmpty()
         ) {
 
@@ -2239,7 +2272,7 @@ public class TradeScreen implements Screen {
 
             for (
                 DraftPick pick :
-                club.getDraftPicks()
+                club.getDraftPicks().stream().filter(p -> p != null && p.isAvailableForTrade(game.league)).collect(java.util.stream.Collectors.toList())
             ) {
 
                 boolean selected =
@@ -2303,8 +2336,8 @@ public class TradeScreen implements Screen {
 
                 Label projection =
                     new Label(
-                        "Proj. #" +
-                            pick.getProjectedPosition(),
+                        "Geral #" +
+                            pick.getProjectedOverallPosition(),
                         game.skin
                     );
 
@@ -2737,6 +2770,9 @@ public class TradeScreen implements Screen {
             club.getFinance()
                 .getSalaryCap();
 
+        long luxuryTaxLine = club.getFinance().getLuxuryTaxThreshold();
+        long hardCap = club.getFinance().getHardCap();
+
         long projectedPayroll =
             currentPayroll -
                 salaryOut +
@@ -2766,10 +2802,9 @@ public class TradeScreen implements Screen {
 
         long valueDelta = valueReceived - valueSent;
 
-        Color capColor =
-            projectedSpace >= 0
-                ? ScreenUI.SUCCESS
-                : ScreenUI.DANGER;
+        Color capColor = projectedPayroll > hardCap ? ScreenUI.DANGER
+            : projectedPayroll > luxuryTaxLine ? ScreenUI.WARNING
+            : projectedPayroll > salaryCap ? StyleFactory.SOFT_YELLOW : ScreenUI.SUCCESS;
 
         Table card =
             new Table();
@@ -2858,11 +2893,9 @@ public class TradeScreen implements Screen {
             .add(
                 ScreenUI.createSubtitle(
                     game.skin,
-                    "Cap " +
-                        formatMoney(
-                            salaryCap
-                        ) +
-                        " • espaço após:"
+                    "Soft " + formatMoney(salaryCap) +
+                        " • Tax " + formatMoney(luxuryTaxLine) +
+                        " • Hard " + formatMoney(hardCap)
                 )
             )
             .left()
@@ -2873,9 +2906,7 @@ public class TradeScreen implements Screen {
             .add(
                 ScreenUI.createBoldValue(
                     game.skin,
-                    formatMoney(
-                        projectedSpace
-                    ),
+                    club.getFinance().getPayrollStatus(projectedPayroll),
                     capColor,
                     Align.right
                 )
@@ -2888,24 +2919,7 @@ public class TradeScreen implements Screen {
     private String formatNeedStars(
         int need
     ) {
-
-        StringBuilder stars =
-            new StringBuilder();
-
-        for (
-            int index = 0;
-            index < 5;
-            index++
-        ) {
-
-            stars.append(
-                index < need
-                    ? "★"
-                    : "☆"
-            );
-        }
-
-        return stars.toString();
+        return ScreenUI.formatStars(need);
     }
 
     private String formatMoney(

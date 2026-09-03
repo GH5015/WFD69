@@ -47,17 +47,24 @@ public class TradeNegotiator {
 
         double requiredRatio = requiredAcceptanceRatio(targetClub, outgoingCornerstone);
 
-        // Checagem de Salary Cap
+        // O soft cap pode ser ultrapassado. O Hard Cap é absoluto e a
+        // Luxury Tax aumenta o preço exigido pela IA.
         long newPayroll = targetClub.getFinance().getAnnualPayroll()
             - offer.getTargetPlayers().stream().mapToLong(Player::getAnnualSalary).sum()
             + offer.getUserPlayers().stream().mapToLong(Player::getAnnualSalary).sum();
 
-        if (newPayroll > targetClub.getFinance().getSalaryCap()) {
+        if (!targetClub.getFinance().isWithinHardCap(newPayroll)) {
             return new TradeDecision(
                 TradeDecision.Status.REJECTED,
-                "Não podemos aceitar este negócio. A transação ultrapassaria o nosso teto salarial (Salary Cap).",
+                "Não podemos aceitar este negócio. A transação ultrapassaria o nosso Hard Cap.",
                 valueTargetReceives, valueTargetGivesUp, null
             );
+        }
+
+        if (newPayroll > targetClub.getFinance().getLuxuryTaxThreshold()) {
+            ClubNeedEvaluator.TeamPhase phase = ClubNeedEvaluator.getTeamPhase(targetClub);
+            requiredRatio += phase == ClubNeedEvaluator.TeamPhase.CONTENDER ? 0.04d
+                : phase == ClubNeedEvaluator.TeamPhase.BUYER ? 0.08d : 0.14d;
         }
 
         // 2. Aceite Direto
@@ -142,7 +149,7 @@ public class TradeNegotiator {
         // Busca Pick do usuário
         List<DraftPick> availablePicks = userClub.getDraftPicks();
         for (DraftPick pick : availablePicks) {
-            if (!counter.getUserPicks().contains(pick)) {
+            if (pick != null && pick.isAvailableForTrade(currentSeasonYear) && !counter.getUserPicks().contains(pick)) {
                 long pickVal = DraftPickEvaluator.getPerceivedPickValue(originalOffer.getTargetClub(), pick, currentSeasonYear);
                 if (pickVal >= marginNeeded) {
                     counter.addPickToGive(pick);

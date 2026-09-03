@@ -6,6 +6,7 @@ import io.github.some_example_name.model.DevelopmentFocus;
 import io.github.some_example_name.model.League;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.StaffRole;
+import io.github.some_example_name.model.StaffImpact;
 
 import java.util.Random;
 
@@ -43,7 +44,7 @@ public class DevelopmentEngine {
             growth *= performanceFactor(player);
             growth *= fatigueFactor(player);
             growth *= curveFactor(player.getDevelopmentCurve(), player.getAge());
-            growth *= 0.90d + ((coachStars + developmentDirectorStars) * 0.025d);
+            growth *= StaffImpact.developmentMultiplier(coachStars, developmentDirectorStars);
             growth *= 0.88d + (random.nextDouble() * 0.24d);
             if (player.isInjured()) growth *= 0.35d;
             if (gap == 0 || player.getAge() > 33) growth = 0d;

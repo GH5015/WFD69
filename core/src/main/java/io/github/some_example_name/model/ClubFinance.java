@@ -1,11 +1,34 @@
 package io.github.some_example_name.model;
 
 public class ClubFinance {
+    public static final double CLUB_GATE_REVENUE_SHARE = 0.25d;
+    public static final long BASE_SALARY_CAP = 14_500_000L;
+    public static final long LUXURY_TAX_OFFSET = 1_500_000L;
+    public static final long HARD_CAP_OFFSET = 3_000_000L;
+    public static final double LUXURY_TAX_RATE = 2.5d;
     private final Club club;
     private long balance = 48_250_000L;
+    private int consecutiveNegativeSeasons;
+    private int lastSolvencyReviewYear;
+
+    public int getConsecutiveNegativeSeasons() { return consecutiveNegativeSeasons; }
+
+    /** Uma avaliação por temporada; a sanção reinicia o ciclo de três anos. */
+    public boolean closeSeasonSolvency(int year) {
+        if (year <= lastSolvencyReviewYear) return false;
+        if (lastSolvencyReviewYear != year - 1) consecutiveNegativeSeasons = 0;
+        lastSolvencyReviewYear = year;
+        consecutiveNegativeSeasons = balance < 0 ? consecutiveNegativeSeasons + 1 : 0;
+        if (consecutiveNegativeSeasons < 3) return false;
+        consecutiveNegativeSeasons = 0;
+        return true;
+    }
 
     // Acumulador de premiações conquistadas no ano esportivo
     private long seasonPrizeEarnings = 0;
+    private long currentMonthTicketRevenue;
+    private long previousMonthTicketRevenue;
+    private long seasonTicketRevenue;
 
     public ClubFinance(Club club) {
         this.club = club;
@@ -34,30 +57,9 @@ public class ClubFinance {
      * CALCULA O SALARY CAP ANUAL PROPORCIONAL À RECEITA DA LIGA.
      * Travado para ficar firme em torno de WFL$ 45.000.000.
      */
-    /**
-     * CALCULA O SALARY CAP ANUAL (REGULAMENTO WFL 1969)
-     *
-     * Índice Esportivo = (OVR do Clube x 70%) + (OVR Médio do XI titular x 30%)
-     * Salary Cap = 1.450.000 + (Índice Esportivo - 80) x 15.000
-     * Arredondado para os WFL$ 10.000 mais próximos.
-     */
+    /** Teto-base igual para todas as franquias; qualidade do elenco não concede vantagem financeira. */
     public long getSalaryCap() {
-        double clubOvr = club.getOverall();
-        double best11Ovr = club.getSquad().stream()
-            .mapToInt(Player::getOverall)
-            .boxed()
-            .sorted((a, b) -> Integer.compare(b, a))
-            .limit(11)
-            .mapToInt(Integer::intValue)
-            .average()
-            .orElse(clubOvr);
-
-        double sportsIndex = (clubOvr * 0.70) + (best11Ovr * 0.30);
-
-        long rawCap = 1_450_000L *10 + Math.round((sportsIndex - 80.0) * 15_000.0);
-
-        // Arredonda para os WFL$ 10.000 mais próximos
-        return Math.round(rawCap / 10_000.0) * 10_000L;
+        return BASE_SALARY_CAP;
     }
 
     // --- PREMIAÇÕES ESPORTIVAS (em WFL$) ---
@@ -76,7 +78,23 @@ public class ClubFinance {
 
     // --- RECEITAS MENSAIS (WFL$) ---
     public long getTicketRevenue() {
-        return (long) (club.getStadiumCapacity() * 46.6667);
+        return currentMonthTicketRevenue;
+    }
+
+    public long getPreviousMonthTicketRevenue() { return previousMonthTicketRevenue; }
+    public long getSeasonTicketRevenue() { return seasonTicketRevenue; }
+
+    /** Receita líquida do clube: 25% da arrecadação bruta da partida. */
+    public void recordGateRevenue(long amount) {
+        if (amount <= 0L) return;
+        currentMonthTicketRevenue += amount;
+        seasonTicketRevenue += amount;
+    }
+
+    public void resetSeasonTicketRevenue() {
+        currentMonthTicketRevenue = 0L;
+        previousMonthTicketRevenue = 0L;
+        seasonTicketRevenue = 0L;
     }
 
     /**
@@ -112,7 +130,8 @@ public class ClubFinance {
     }
 
     public long getTotalAnnualRevenue() {
-        return getTotalMonthlyRevenue() * 12;
+        return seasonTicketRevenue
+            + (getTvRevenue() + getShirtSalesRevenue() + getPrizeMoneyRevenue()) * 12;
     }
 
     // --- DESPESAS (WFL$) ---
@@ -138,17 +157,38 @@ public class ClubFinance {
         return 250_000L;
     }
 
-    public long getStaffExpense() {
+    /**
+     * Estádios maiores custam mais. O multiplicador chega a 3x quando a
+     * condição cai de 100% para 0%, representando reparos emergenciais.
+     */
+    public long getStadiumMaintenanceExpense() {
+        long base = club.getStadiumCapacity() * 6L;
+        double conditionMultiplier = 1d + (100 - club.getStadiumCondition()) / 50d;
+        return Math.round(base * conditionMultiplier);
+    }
+
+    /** Folha anual real dos profissionais atualmente vinculados ao clube. */
+    public long getAnnualStaffPayroll() {
         long annual = 0L;
         for (StaffRole role : StaffRole.values()) {
             StaffMember member = club.getStaffMember(role);
             if (member != null) annual += member.getAnnualSalary();
         }
-        return annual / 12L;
+        return annual;
     }
 
+    public int getStaffMemberCount() {
+        int count = 0;
+        for (StaffRole role : StaffRole.values()) if (club.getStaffMember(role) != null) count++;
+        return count;
+    }
+
+    public long getStaffExpense() { return getAnnualStaffPayroll() / 12L; }
+
     public long getTotalMonthlyExpenses() {
-        return getPlayerSalariesExpense() + getInfrastructureExpense() + getMedicalExpense() + getScoutingExpense() + getStaffExpense();
+        return getPlayerSalariesExpense() + getInfrastructureExpense() + getMedicalExpense()
+            + getScoutingExpense() + getStaffExpense() + getStadiumMaintenanceExpense()
+            + getMonthlyLuxuryTaxExpense();
     }
 
     public long getMonthlyNetResult() {
@@ -160,8 +200,29 @@ public class ClubFinance {
         return getSalaryCap() - getAnnualPayroll();
     }
 
+    public long getLuxuryTaxThreshold() { return getSalaryCap() + LUXURY_TAX_OFFSET; }
+    public long getHardCap() { return getSalaryCap() + HARD_CAP_OFFSET; }
+    public long getAvailableHardCapSpace() { return getHardCap() - getAnnualPayroll(); }
+    public boolean isWithinHardCap(long projectedPayroll) { return projectedPayroll <= getHardCap(); }
+
     public boolean canAffordSalary(long additionalAnnualSalary) {
-        return (getAnnualPayroll() + additionalAnnualSalary) <= getSalaryCap();
+        return isWithinHardCap(getAnnualPayroll() + additionalAnnualSalary);
+    }
+
+    /** Taxa anual pesada: 250% de tudo que exceder o limite de Luxury Tax. */
+    public long getLuxuryTaxAmount(long projectedPayroll) {
+        long taxable = Math.max(0L, projectedPayroll - getLuxuryTaxThreshold());
+        return Math.round(taxable * LUXURY_TAX_RATE);
+    }
+
+    public long getAnnualLuxuryTax() { return getLuxuryTaxAmount(getAnnualPayroll()); }
+    public long getMonthlyLuxuryTaxExpense() { return getAnnualLuxuryTax() / 12L; }
+
+    public String getPayrollStatus(long projectedPayroll) {
+        if (projectedPayroll > getHardCap()) return "HARD CAP EXCEDIDO";
+        if (projectedPayroll > getLuxuryTaxThreshold()) return "LUXURY TAX";
+        if (projectedPayroll > getSalaryCap()) return "ACIMA DO SOFT CAP";
+        return "DENTRO DO SALARY CAP";
     }
 
     // --- SAÚDE FINANCEIRA ---
@@ -191,7 +252,12 @@ public class ClubFinance {
     // --- SALDO E CAIXA ---
     public long getBalance() { return balance; }
     public void setBalance(long balance) { this.balance = balance; }
-    public void applyMonthlyBalance() { this.balance += getMonthlyNetResult(); }
+    public void applyMonthlyBalance() {
+        club.autoMaintainStadiumPitch();
+        this.balance += getMonthlyNetResult();
+        previousMonthTicketRevenue = currentMonthTicketRevenue;
+        currentMonthTicketRevenue = 0L;
+    }
 
     /** Débito único para investimentos do clube, sem permitir caixa negativo. */
     public boolean spend(long amount) {

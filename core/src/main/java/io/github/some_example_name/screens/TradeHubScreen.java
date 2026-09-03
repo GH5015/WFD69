@@ -51,6 +51,7 @@ public class TradeHubScreen implements Screen {
     public void show() {
         Gdx.input.setInputProcessor(stage);
         refreshUI();
+        IncomingTradeOfferDialog.showPending(stage, game, userClub);
     }
 
     private void refreshUI() {
@@ -100,14 +101,24 @@ public class TradeHubScreen implements Screen {
                 game.setScreen(new TradeScreen(game, userClub));
             }
         });
+
+        TextButton searchPlayers = ScreenUI.createInteractiveButton("BUSCAR JOGADORES", game.skin);
+        searchPlayers.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                game.setScreen(new TradePlayerSearchScreen(game, userClub));
+            }
+        });
+
+        Table actions = new Table();
         if ("OFFSEASON".equals(game.league.getCurrentStage())) {
-            Table actions = new Table();
             TextButton back = ScreenUI.createInteractiveButton("← VOLTAR À OFF SEASON", game.skin);
             back.addListener(new ClickListener(){ @Override public void clicked(InputEvent e,float x,float y){ game.setScreen(new OffSeasonScreen(game, userClub)); }});
             actions.add(back).width(240f).height(48f).padRight(8f);
-            actions.add(openTradeCenter).width(310f).height(52f);
-            page.add(actions).center();
-        } else page.add(openTradeCenter).width(310f).height(52f).center();
+        }
+        actions.add(searchPlayers).width(260f).height(50f).padRight(8f);
+        actions.add(openTradeCenter).width(310f).height(52f);
+        page.add(actions).center();
 
         root.add(page);
         if (!"OFFSEASON".equals(game.league.getCurrentStage())) NavigationDrawer.attach(stage, game, userClub, "TROCAS", true);

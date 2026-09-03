@@ -7,12 +7,12 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 
-import io.github.some_example_name.database.DraftClass1970;
-import io.github.some_example_name.database.DraftClass1971;
-import io.github.some_example_name.database.DraftClassGenerator;
+import io.github.some_example_name.database.DraftClassRepository;
 import io.github.some_example_name.database.GameDatabase;
 import io.github.some_example_name.engine.MatchEngine;
 import io.github.some_example_name.engine.DevelopmentEngine;
@@ -36,6 +36,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Main extends Game {
+
+    private static final float SCREEN_TRANSITION_DURATION = 0.26f;
+    private ShapeRenderer transitionRenderer;
+    private final Matrix4 transitionProjection = new Matrix4();
+    private float screenTransitionAlpha;
 
     public Skin skin;
 
@@ -98,14 +103,10 @@ public class Main extends Game {
     /** Seleciona uma única classe persistente para cada ano de Draft. */
     public void loadDraftClassForYear(int year) {
         if (draftClass != null && draftClassYear == year) {
-            draftClass = DraftClassGenerator.ensureMinimumProspects(draftClass);
             return;
         }
 
-        List<Player> loadedClass = year == 1971
-            ? DraftClass1971.getPlayers()
-            : DraftClass1970.getPlayers();
-        draftClass = DraftClassGenerator.ensureMinimumProspects(loadedClass);
+        draftClass = DraftClassRepository.getClassForYear(year);
         draftClassYear = year;
         draftScoutManager = new DraftScoutManager(3);
     }
@@ -140,6 +141,7 @@ public class Main extends Game {
 
         background = StyleFactory.createCheckerboard();
         setupSkin();
+        transitionRenderer = new ShapeRenderer();
 
         // ==============================
         // DATABASE
@@ -169,7 +171,7 @@ public class Main extends Game {
         // MOTORES
         // ==============================
 
-        matchEngine = new MatchEngine();
+        matchEngine = new MatchEngine(league);
 
         developmentEngine = new DevelopmentEngine();
 
@@ -234,19 +236,25 @@ public class Main extends Game {
         BitmapFont fontRegular =
             generateFont(
                 "Roboto/static/Roboto-Regular.ttf",
-                26
+                28
             );
 
         BitmapFont fontBold =
             generateFont(
                 "Roboto/static/Roboto-Bold.ttf",
-                29
+                31
             );
 
         BitmapFont fontBlack =
             generateFont(
                 "Roboto/static/Roboto-Black.ttf",
-                56
+                60
+            );
+
+        BitmapFont fontControl =
+            generateFont(
+                "Roboto/static/Roboto-Regular.ttf",
+                22
             );
 
         skin.add(
@@ -267,6 +275,11 @@ public class Main extends Game {
         skin.add(
             "font-label",
             fontRegular
+        );
+
+        skin.add(
+            "font-control",
+            fontControl
         );
 
         // ==============================
@@ -476,7 +489,7 @@ public class Main extends Game {
             new SelectBox.SelectBoxStyle();
 
         selectBoxStyle.font =
-            fontRegular;
+            fontControl;
 
         selectBoxStyle.fontColor =
             Color.WHITE;
@@ -512,7 +525,7 @@ public class Main extends Game {
             new com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle();
 
         listStyle.font =
-            fontRegular;
+            fontControl;
 
         listStyle.fontColorSelected =
             Color.WHITE;
@@ -548,7 +561,7 @@ public class Main extends Game {
             new TextField.TextFieldStyle();
 
         textFieldStyle.font =
-            fontRegular;
+            fontControl;
 
         textFieldStyle.fontColor =
             Color.WHITE;
@@ -626,6 +639,15 @@ public class Main extends Game {
         parameter.magFilter =
             Texture.TextureFilter.Linear;
 
+        // Mantém nomes e valores legíveis sobre painéis translúcidos e fundos
+        // com textura sem transformar a tipografia em um contorno pesado.
+        parameter.borderWidth = 0.55f;
+        parameter.borderColor = new Color(0.015f, 0.04f, 0.025f, 0.82f);
+        parameter.shadowOffsetX = 1;
+        parameter.shadowOffsetY = 1;
+        parameter.shadowColor = new Color(0f, 0f, 0f, 0.58f);
+        parameter.spaceY = 2;
+
         BitmapFont font =
             generator.generateFont(parameter);
 
@@ -645,6 +667,7 @@ public class Main extends Game {
             getScreen();
 
         super.setScreen(screen);
+        screenTransitionAlpha = screen != null ? 0.72f : 0f;
 
         if (
             previous != null &&
@@ -655,6 +678,38 @@ public class Main extends Game {
     }
 
     @Override
+    public void render() {
+        super.render();
+
+        if (transitionRenderer == null || screenTransitionAlpha <= 0f) {
+            return;
+        }
+
+        screenTransitionAlpha = Math.max(
+            0f,
+            screenTransitionAlpha - Gdx.graphics.getDeltaTime() / SCREEN_TRANSITION_DURATION
+        );
+
+        Gdx.gl.glEnable(com.badlogic.gdx.graphics.GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(
+            com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+            com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA
+        );
+        transitionProjection.setToOrtho2D(
+            0f,
+            0f,
+            Gdx.graphics.getWidth(),
+            Gdx.graphics.getHeight()
+        );
+        transitionRenderer.setProjectionMatrix(transitionProjection);
+        transitionRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        transitionRenderer.setColor(0.015f, 0.07f, 0.045f, screenTransitionAlpha);
+        transitionRenderer.rect(0f, 0f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        transitionRenderer.end();
+        Gdx.gl.glDisable(com.badlogic.gdx.graphics.GL20.GL_BLEND);
+    }
+
+    @Override
     public void dispose() {
 
         super.dispose();
@@ -662,6 +717,10 @@ public class Main extends Game {
         NavigationDrawer.disposeIcons();
         CareerOverlay.disposeAssets();
         IconTextButton.dispose();
+
+        if (transitionRenderer != null) {
+            transitionRenderer.dispose();
+        }
 
         if (skin != null) {
             skin.dispose();

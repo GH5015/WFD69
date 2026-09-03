@@ -19,10 +19,12 @@ import com.badlogic.gdx.utils.Align;
 
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
+import io.github.some_example_name.model.LeagueExpansionService;
 import io.github.some_example_name.model.ClubFinance;
 import io.github.some_example_name.model.PlayoffSeries;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.SeasonCalendar;
+import io.github.some_example_name.utils.DayAdvanceTransition;
 import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
@@ -35,6 +37,7 @@ import java.util.Locale;
 /** Painel exclusivo da intertemporada, sem HUD de partidas ou menu regular. */
 public class OffSeasonScreen implements Screen {
     private enum OffseasonPhase {
+        EXPANSION("1 NOV", "WFL EXPANSION", "Proteja seu elenco antes da entrada das novas franquias."),
         STAFF("1–5 NOV", "STAFF", "Contrate, renove ou substitua membros da comissão técnica."),
         SCOUTING("6–30 NOV", "SCOUTING", "Acompanhe a classe e construa seu Big Board."),
         LOTTERY("1 DEZ", "LOTERIA DO DRAFT", "Acompanhe a revelação da ordem oficial das escolhas."),
@@ -60,8 +63,12 @@ public class OffSeasonScreen implements Screen {
 
     @Override
     public void show() {
+        if (LeagueExpansionService.isPending(game.league)) {
+            LeagueExpansionService.prepare(game.league, game.league.getCurrentSeason() + 1);
+        }
         Gdx.input.setInputProcessor(stage);
         refreshUI();
+        IncomingTradeOfferDialog.showPending(stage, game, club);
     }
 
     private void refreshUI() {
@@ -79,8 +86,7 @@ public class OffSeasonScreen implements Screen {
                 game.skin,
                 "OFF SEASON — " + (game.league.getCurrentSeason() + 1),
                 club.getName().toUpperCase() + " • " + currentMonthLabel()
-            ))
-            .growX().height(70f).padBottom(7f).row();
+            )).growX().height(70f).padBottom(7f).row();
         OffseasonPhase phase = currentPhase();
         page.add(createPhaseTimeline(phase)).growX().height(104f).padBottom(8f).row();
         Table body = new Table();
@@ -97,6 +103,7 @@ public class OffSeasonScreen implements Screen {
     private Table createPhaseTimeline(OffseasonPhase active) {
         Table panel = ScreenUI.createPanel(); panel.pad(8f, 12f, 8f, 12f);
         for (OffseasonPhase phase : OffseasonPhase.values()) {
+            if (phase == OffseasonPhase.EXPANSION && !LeagueExpansionService.isExpansionYear(game.league.getCurrentSeason() + 1)) continue;
             boolean current = phase == active;
             boolean complete = phase.ordinal() < active.ordinal();
             Table item = new Table();
@@ -115,7 +122,10 @@ public class OffSeasonScreen implements Screen {
         Table panel = ScreenUI.createPanel(); panel.top();
         panel.add(ScreenUI.createSectionTitle(game.skin, "FASE ATUAL")).left().row();
         panel.add(ScreenUI.createBoldValue(game.skin, phase.title + " (" + phase.date + ")", StyleFactory.CREME_AGED, Align.left)).left().padTop(7f).row();
-        Label description = ScreenUI.createSubtitle(game.skin, phase.description); description.setWrap(true);
+        Label description = ScreenUI.createSubtitle(game.skin,
+            phase == OffseasonPhase.EXPANSION && club.getStartYear() == game.league.getCurrentSeason() + 1
+                ? "Monte o primeiro elenco da sua franquia antes da estreia na WFL." : phase.description);
+        description.setWrap(true);
         panel.add(description).width(410f).left().padTop(8f).row();
         Label rules = ScreenUI.createSubtitle(game.skin, phaseRules(phase)); rules.setWrap(true);
         panel.add(rules).width(410f).left().expandY().top().padTop(12f).row();
@@ -139,8 +149,9 @@ public class OffSeasonScreen implements Screen {
 
     private Table createPhaseAgenda(OffseasonPhase active) {
         Table panel = ScreenUI.createPanel(); panel.top();
-        panel.add(ScreenUI.createSectionTitle(game.skin, "AGENDA DA OFF SEASON")).colspan(7).left().padBottom(6f).row();
+        panel.add(ScreenUI.createSectionTitle(game.skin, "AGENDA DA OFF SEASON")).colspan(LeagueExpansionService.isExpansionYear(game.league.getCurrentSeason() + 1) ? 9 : 8).left().padBottom(6f).row();
         for (OffseasonPhase phase : OffseasonPhase.values()) {
+            if (phase == OffseasonPhase.EXPANSION && !LeagueExpansionService.isExpansionYear(game.league.getCurrentSeason() + 1)) continue;
             Table card = new Table(); boolean current=phase==active, complete=phase.ordinal()<active.ordinal();
             card.background(StyleFactory.createRoundedPanel(Color.valueOf("18201C"), current?ScreenUI.SUCCESS:Color.valueOf("3C4A43"))); card.pad(7f);
             card.add(ScreenUI.createSubtitle(game.skin, phase.date)).center().row();
@@ -348,6 +359,11 @@ public class OffSeasonScreen implements Screen {
         addSituationRow(panel, "ELENCO", club.getSquad().size() + " / 26", StyleFactory.CREME_AGED);
         addSituationRow(panel, "CONTRATOS", String.valueOf(expiring), expiring > 0 ? ScreenUI.WARNING : ScreenUI.SUCCESS);
         addSituationRow(panel, "STAFF", String.valueOf(expiredStaff.size()), expiredStaff.isEmpty() ? ScreenUI.SUCCESS : ScreenUI.WARNING);
+        if (club.getStartYear() == game.league.getCurrentSeason() + 1 && !game.league.isDraftLotteryCompleted()) {
+            long firstRound = club.getDraftPicks().stream().filter(p -> p.getYear() == club.getStartYear() && p.getRound() == 1).count();
+            long secondRound = club.getDraftPicks().stream().filter(p -> p.getYear() == club.getStartYear() && p.getRound() == 2).count();
+            picks = "R1: " + firstRound + " / R2: " + secondRound;
+        }
         addSituationRow(panel, "PICKS", picks, Color.valueOf("9DC8F0"));
         addSituationRow(panel, "SCOUTING", game.draftScoutManager.getActiveTargets().size() + " / " + game.draftScoutManager.getMaxScoutedPlayers(), StyleFactory.SOFT_YELLOW);
         addSituationRow(panel, "REPUTAÇÃO", String.valueOf(club.getReputation()), StyleFactory.SOFT_YELLOW);
@@ -410,18 +426,27 @@ public class OffSeasonScreen implements Screen {
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                CareerOverlay.advanceOneDay(game, club);
-                if ("OFFSEASON".equals(game.league.getCurrentStage())) {
-                    refreshUI();
-                } else {
-                    game.setScreen(new ClubManagementScreen(game, club));
-                }
+                DayAdvanceTransition.play(stage, game, 1, new Runnable() {
+                    @Override public void run() {
+                        CareerOverlay.advanceOneDay(game, club);
+                        if ("OFFSEASON".equals(game.league.getCurrentStage())) {
+                            refreshUI();
+                            if (!IncomingTradeOfferDialog.showPending(stage, game, club)
+                                && !FreeAgencyDecisionDialog.showPending(stage, game)) {
+                                WflNewsDialog.showPending(stage, game);
+                            }
+                        } else {
+                            game.setScreen(new ClubManagementScreen(game, club));
+                        }
+                    }
+                });
             }
         });
         return button;
     }
 
     private OffseasonPhase currentPhase() {
+        if (LeagueExpansionService.isPending(game.league)) return OffseasonPhase.EXPANSION;
         Date date = game.league.getCurrentDate();
         if (date == null) return OffseasonPhase.STAFF;
         Calendar c = Calendar.getInstance(); c.setTime(date); int month=c.get(Calendar.MONTH), day=c.get(Calendar.DAY_OF_MONTH);
@@ -437,6 +462,8 @@ public class OffSeasonScreen implements Screen {
 
     private String actionLabel(OffseasonPhase phase) {
         switch (phase) {
+            case EXPANSION: return club.getStartYear() == game.league.getCurrentSeason() + 1
+                ? "FORMAR ELENCO / EXPANSION DRAFT" : "PROTEGER ELENCO / EXPANSION DRAFT";
             case STAFF: return "IR PARA STAFF";
             case TRADES: return "IR PARA TROCAS";
             case FREE_AGENCY: return "IR PARA FREE AGENCY";
@@ -450,6 +477,10 @@ public class OffSeasonScreen implements Screen {
 
     private String phaseRules(OffseasonPhase phase) {
         switch (phase) {
+            case EXPANSION: return (club.getStartYear() == game.league.getCurrentSeason() + 1
+                ? "• Escolha os 20 jogadores desprotegidos da sua franquia."
+                : "• Até 15 proteções, deixando 3 desprotegidos; no máximo 3 saídas por clube.")
+                + "\n• As novas franquias formam elencos de 20 veteranos.\n• Cada uma recebe uma pick por rodada do Draft regular.\n• As vagas restantes são preenchidas na Free Agency e no Draft.";
             case STAFF: return "• Alterações de staff são exclusivas desta fase.\n• Revise contratos vencidos antes de avançar.";
             case TRADES: return "• Trocas pós-Draft de jogadores e picks estão abertas.\n• Use a Central para avaliar o interesse dos clubes.";
             case FREE_AGENCY: return "• Mercado geral de agentes livres aberto após o Draft.\n• Propostas são avaliadas diariamente.";
@@ -469,6 +500,7 @@ public class OffSeasonScreen implements Screen {
 
     private void openPhase(OffseasonPhase phase) {
         switch (phase) {
+            case EXPANSION: ExpansionDraftDialog.show(stage, game, club, this::refreshUI); break;
             case STAFF: game.setScreen(new StaffScreen(game, club)); break;
             case TRADES: game.setScreen(new TradeHubScreen(game, club)); break;
             case FREE_AGENCY: game.setScreen(new FreeAgencyScreen(game, club)); break;
@@ -482,6 +514,10 @@ public class OffSeasonScreen implements Screen {
 
     /** Avanço por marco: aplica todas as atividades diárias até o início da próxima fase. */
     private void advanceToNextPhase(OffseasonPhase phase) {
+        if (LeagueExpansionService.isPending(game.league)) {
+            openPhase(OffseasonPhase.EXPANSION);
+            return;
+        }
         if (phase == OffseasonPhase.LOTTERY && !game.league.isDraftLotteryCompleted()) {
             Dialog dialog = new Dialog("LOTERIA OBRIGATÓRIA", game.skin) {
                 @Override protected void result(Object object) {
@@ -508,7 +544,15 @@ public class OffSeasonScreen implements Screen {
         while ("OFFSEASON".equals(game.league.getCurrentStage()) && game.league.getCurrentDate() != null && game.league.getCurrentDate().before(target.getTime())) {
             CareerOverlay.advanceOneDay(game, club);
         }
-        if ("OFFSEASON".equals(game.league.getCurrentStage())) refreshUI(); else game.setScreen(new ClubManagementScreen(game, club));
+        if ("OFFSEASON".equals(game.league.getCurrentStage())) {
+            refreshUI();
+            if (!IncomingTradeOfferDialog.showPending(stage, game, club)
+                && !FreeAgencyDecisionDialog.showPending(stage, game)) {
+                WflNewsDialog.showPending(stage, game);
+            }
+        } else {
+            game.setScreen(new ClubManagementScreen(game, club));
+        }
     }
 
     private void showFinalSummary() {

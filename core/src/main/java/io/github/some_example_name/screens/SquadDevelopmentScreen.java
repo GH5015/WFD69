@@ -109,8 +109,8 @@ public class SquadDevelopmentScreen implements Screen {
         button.getLabel().setFontScale(0.47f);
         boolean selected = showingInjuredPlayers == injuredTab;
         button.setChecked(selected);
-        button.setColor(selected ? StyleFactory.GOLD : StyleFactory.METAL_DARK);
-        button.getLabel().setColor(selected ? Color.BLACK : Color.WHITE);
+        button.setColor(Color.WHITE);
+        button.getLabel().setColor(selected ? StyleFactory.SOFT_YELLOW : StyleFactory.TEXT_PRIMARY);
         button.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 showingInjuredPlayers = injuredTab;
@@ -304,8 +304,8 @@ public class SquadDevelopmentScreen implements Screen {
         button.getLabel().setFontScale(0.46f);
         boolean selected = option.equals(filter);
         button.setChecked(selected);
-        button.setColor(selected ? StyleFactory.GOLD : StyleFactory.METAL_DARK);
-        button.getLabel().setColor(selected ? Color.BLACK : Color.WHITE);
+        button.setColor(Color.WHITE);
+        button.getLabel().setColor(selected ? StyleFactory.SOFT_YELLOW : StyleFactory.TEXT_PRIMARY);
         button.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 filter = option;

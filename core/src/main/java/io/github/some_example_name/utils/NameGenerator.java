@@ -22,10 +22,21 @@ public class NameGenerator {
     private static final Random RANDOM = new Random();
 
     public static String generateName() {
-        return FIRST_NAMES[RANDOM.nextInt(FIRST_NAMES.length)] + " " + LAST_NAMES[RANDOM.nextInt(LAST_NAMES.length)];
+        return generateName(RANDOM);
     }
 
     public static String generateNationality() {
-        return NATIONALITIES[RANDOM.nextInt(NATIONALITIES.length)];
+        return generateNationality(RANDOM);
+    }
+
+    public static String generateName(Random random) {
+        Random source = random != null ? random : RANDOM;
+        return FIRST_NAMES[source.nextInt(FIRST_NAMES.length)] + " "
+            + LAST_NAMES[source.nextInt(LAST_NAMES.length)];
+    }
+
+    public static String generateNationality(Random random) {
+        Random source = random != null ? random : RANDOM;
+        return NATIONALITIES[source.nextInt(NATIONALITIES.length)];
     }
 }

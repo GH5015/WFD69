@@ -34,6 +34,7 @@ dependencies {
   implementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
   implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
   implementation "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop" // Adicionado para Roboto Real
+  implementation "com.badlogicgames.gdx-video:gdx-video-lwjgl3:1.3.4"
   implementation project(':core')
   implementation("com.badlogicgames.gdx:gdx-tools:$gdxVersion"){exclude group: 'com.badlogicgames.gdx', module: 'gdx-backend-lwjgl'}
 
@@ -194,6 +195,85 @@ distributions {
 
 startScripts.dependsOn(':lwjgl3:jar')
 startScripts.classpath = project.tasks.jar.outputs.files
+
+tasks.register('newsLayoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.NewsLayoutRegression'
+  workingDir = rootProject.file('assets')
+  args rootProject.file('build/reports/news-layout').absolutePath
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('logoLayoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.LogoLayoutRegression'
+  workingDir = rootProject.file('assets')
+  args rootProject.file('build/reports/logo-layout.png').absolutePath
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('expansionSelectionLayoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.ExpansionSelectionLayoutRegression'
+  workingDir = rootProject.file('assets')
+  args rootProject.file('build/reports/expansion-selection.png').absolutePath
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('expansionCareerFlowRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.ExpansionCareerFlowRegression'
+  workingDir = rootProject.file('assets')
+  args rootProject.file('build/reports/expansion-offseason.png').absolutePath
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('expansionRosterLayoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.ExpansionRosterLayoutRegression'
+  workingDir = rootProject.file('assets')
+  args rootProject.file('build/reports/expansion-roster.png').absolutePath
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('staffMarketLayoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.StaffMarketLayoutRegression'
+  workingDir = rootProject.file('assets')
+  args rootProject.file('build/reports/staff').absolutePath
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('draftLotteryLayoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.DraftLotteryLayoutRegression'
+  workingDir = rootProject.file('assets')
+  args rootProject.file('build/reports/draft-lottery').absolutePath
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('benchSelectionLayoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.BenchSelectionLayoutRegression'
+  workingDir = rootProject.file('assets')
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('matchTacticsLayoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.MatchTacticsLayoutRegression'
+  workingDir = rootProject.file('assets')
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
 
 // Helps if debugging on Linux with an Nvidia GPU.
 // This means StartupHelper won't try to restart the JVM, which can prevent debugging.

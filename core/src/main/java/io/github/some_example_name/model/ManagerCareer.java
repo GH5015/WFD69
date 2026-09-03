@@ -39,6 +39,17 @@ public final class ManagerCareer {
         if (reputation >= 30) return 2;
         return 1;
     }
+    public float getReputationDisplayRating() {
+        if (reputation >= 90) return 5f;
+        if (reputation >= 80) return 4.5f;
+        if (reputation >= 70) return 4f;
+        if (reputation >= 60) return 3.5f;
+        if (reputation >= 50) return 3f;
+        if (reputation >= 40) return 2.5f;
+        if (reputation >= 30) return 2f;
+        if (reputation >= 20) return 1.5f;
+        return 1f;
+    }
     public String getReputationLabel() {
         if (reputation >= 85) return "MUNDIAL";
         if (reputation >= 70) return "CONSAGRADO";
@@ -160,6 +171,9 @@ public final class ManagerCareer {
 
     public void advanceUnemployedTime(League league, int days) {
         if (!isUnemployed() || league == null) return;
+        if (LeagueExpansionService.isPending(league)) {
+            LeagueExpansionService.runDraft(league, null, null);
+        }
         int safeDays = Math.max(1, days);
         unemployedDays += safeDays;
         if (league.getCurrentDate() != null) {

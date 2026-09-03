@@ -61,7 +61,7 @@ public final class BoardReviewDialog {
         String checkpoint,
         BoardObjectiveService.Evaluation evaluation
     ) {
-        final Texture stars = new Texture(Gdx.files.internal("Icons8/icons8-estrela-48.png"));
+        final Texture stars = ScreenUI.loadTintableIcon("Icons8/icons8-estrela-48.png");
         Dialog dialog = new Dialog("", game.skin) {
             private boolean textureDisposed;
             @Override public void hide() {

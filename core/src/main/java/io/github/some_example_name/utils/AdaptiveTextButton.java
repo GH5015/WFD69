@@ -13,6 +13,7 @@ public class AdaptiveTextButton extends TextButton {
     private static final float HORIZONTAL_PADDING = 20f;
     private static final float VERTICAL_PADDING = 10f;
     private static final float MIN_FONT_SCALE = 0.34f;
+    private static final float MAX_FONT_SCALE = 0.72f;
 
     public AdaptiveTextButton(String text, TextButtonStyle style) {
         super(text, style);
@@ -48,6 +49,15 @@ public class AdaptiveTextButton extends TextButton {
     ) {
         if (label == null || width <= 0f || height <= 0f) {
             return;
+        }
+
+        // Alguns botões legados aplicavam escalas muito altas diretamente na
+        // Label. O teto mantém a hierarquia tipográfica e evita que uma ação
+        // pareça maior do que o próprio container antes mesmo do ajuste fino.
+        float cappedScaleX = Math.min(MAX_FONT_SCALE, label.getFontScaleX());
+        float cappedScaleY = Math.min(MAX_FONT_SCALE, label.getFontScaleY());
+        if (cappedScaleX != label.getFontScaleX() || cappedScaleY != label.getFontScaleY()) {
+            label.setFontScale(cappedScaleX, cappedScaleY);
         }
 
         float availableWidth = Math.max(1f, width - horizontalPadding);

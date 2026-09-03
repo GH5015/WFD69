@@ -38,7 +38,7 @@ public class BoardFinalEvaluationScreen implements Screen {
         this.game = game;
         this.club = club;
         this.stage = new Stage(new ResponsiveViewport());
-        this.starTexture = new Texture(Gdx.files.internal("Icons8/icons8-estrela-48.png"));
+        this.starTexture = ScreenUI.loadTintableIcon("Icons8/icons8-estrela-48.png");
         this.season = game.league.getCurrentSeason();
         this.evaluation = BoardObjectiveService.evaluate(game.league, club);
         this.historyBonus = game.managerCareer.calculateHistoryConfidenceBonus(club, season);
@@ -249,15 +249,10 @@ public class BoardFinalEvaluationScreen implements Screen {
     }
 
     private Table finalStars(int score) {
-        int active = score >= 80 ? 5 : score >= 65 ? 4 : score >= 50 ? 3 : score >= 35 ? 2 : 1;
-        Table stars = new Table();
-        for (int i = 0; i < 5; i++) {
-            Image star = new Image(new TextureRegionDrawable(starTexture));
-            star.setScaling(Scaling.fit);
-            star.setColor(i < active ? StyleFactory.GOLD : Color.valueOf("414A43"));
-            stars.add(star).size(16f).padRight(2f);
-        }
-        return stars;
+        float rating = score >= 80 ? 5f : score >= 72 ? 4.5f : score >= 65 ? 4f
+            : score >= 58 ? 3.5f : score >= 50 ? 3f : score >= 43 ? 2.5f
+            : score >= 35 ? 2f : score >= 20 ? 1.5f : 1f;
+        return ScreenUI.createStarRating(starTexture, rating, 16f);
     }
 
     private String finalExplanation(int score) {

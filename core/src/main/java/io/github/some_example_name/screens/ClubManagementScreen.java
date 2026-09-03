@@ -1,5 +1,7 @@
 package io.github.some_example_name.screens;
 
+import io.github.some_example_name.utils.ClubLogoAssets;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
@@ -57,6 +59,9 @@ public class ClubManagementScreen implements Screen {
     private String positionFilter =
         "TODOS";
 
+    private boolean boardObjectivesCollapsed =
+        false;
+
     public ClubManagementScreen(
         Main game,
         Club club
@@ -87,12 +92,7 @@ public class ClubManagementScreen implements Screen {
                 )
             );
 
-        boardStarTexture =
-            new Texture(
-                Gdx.files.internal(
-                    "Icons8/icons8-estrela-48.png"
-                )
-            );
+        boardStarTexture = ScreenUI.loadTintableIcon("Icons8/icons8-estrela-48.png");
 
         clubLogoTexture =
             loadLogo(
@@ -304,7 +304,7 @@ public class ClubManagementScreen implements Screen {
                 createHeader()
             )
             .growX()
-            .height(78f)
+            .height(88f)
             .padBottom(10f)
             .row();
 
@@ -330,7 +330,7 @@ public class ClubManagementScreen implements Screen {
                 createBoardPanel()
             )
             .growX()
-            .height(158f)
+            .height(boardObjectivesCollapsed ? 76f : 158f)
             .padBottom(10f)
             .row();
 
@@ -420,8 +420,8 @@ public class ClubManagementScreen implements Screen {
 
             header
                 .add(logo)
-                .width(92f)
-                .height(54f)
+                .width(108f)
+                .height(64f)
                 .padRight(14f);
         }
 
@@ -456,7 +456,7 @@ public class ClubManagementScreen implements Screen {
             );
 
         subtitle.setFontScale(
-            0.58f
+            0.64f
         );
 
         subtitle.setColor(
@@ -471,6 +471,38 @@ public class ClubManagementScreen implements Screen {
             .add(titleArea)
             .left()
             .expandX();
+
+        ImageTextButton rulesButton =
+            IconTextButton.create(
+                "REGRAS WFL",
+                game.skin,
+                "Icons8/icons8-informações-50.png"
+            );
+
+        rulesButton
+            .getLabel()
+            .setFontScale(
+                0.54f
+            );
+
+        rulesButton.addListener(
+            new ClickListener() {
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+                    LeagueRulesDialog.show(stage, game);
+                }
+            }
+        );
+
+        header
+            .add(rulesButton)
+            .width(165f)
+            .height(42f)
+            .padRight(8f);
 
         ImageTextButton playoffTestButton =
             IconTextButton.create(
@@ -732,6 +764,17 @@ public class ClubManagementScreen implements Screen {
         );
         panel.pad(10f);
 
+        if (boardObjectivesCollapsed) {
+            panel.add(createCollapsedBoardSummary(
+                evaluation,
+                game.managerCareer.calculateHistoryConfidenceBonus(
+                    club,
+                    game.league.getCurrentSeason()
+                )
+            )).grow();
+            return panel;
+        }
+
         panel
             .add(createBoardConfidence(
                 evaluation,
@@ -758,6 +801,42 @@ public class ClubManagementScreen implements Screen {
 
         panel.add(objectives).grow();
         return panel;
+    }
+
+    private Table createCollapsedBoardSummary(
+        BoardObjectiveService.Evaluation evaluation,
+        int historyBonus
+    ) {
+        int confidence = Math.min(100, evaluation.getConfidence() + historyBonus);
+        Color statusColor = boardStatusColor(confidence);
+        Table summary = new Table();
+        summary.background(StyleFactory.createRoundedPanel(Color.valueOf("111F17"), statusColor));
+        summary.pad(7f, 13f, 7f, 13f);
+
+        Label title = new Label("DIRETORIA", game.skin, "font-bold");
+        title.setFontScale(0.48f);
+        title.setColor(StyleFactory.SOFT_YELLOW);
+        summary.add(title).width(105f).left().padRight(10f);
+
+        Label status = new Label(boardStatusLabel(confidence), game.skin, "font-bold");
+        status.setFontScale(0.58f);
+        status.setColor(statusColor);
+        summary.add(status).width(150f).left().padRight(12f);
+
+        summary.add(createSegmentedProgress(confidence, statusColor, 18))
+            .growX().height(10f).padRight(10f);
+
+        Label percentage = new Label(confidence + "%", game.skin, "font-bold");
+        percentage.setFontScale(0.45f);
+        percentage.setColor(statusColor);
+        summary.add(percentage).width(48f).right().padRight(14f);
+
+        Label hint = new Label("OBJETIVOS RECOLHIDOS", game.skin, "font-bold");
+        hint.setFontScale(0.40f);
+        hint.setColor(ScreenUI.MUTED_TEXT);
+        summary.add(hint).width(175f).right().padRight(10f);
+        summary.add(createBoardToggle("EXPANDIR  ▼")).width(132f).height(30f);
+        return summary;
     }
 
     private Table createBoardConfidence(
@@ -803,27 +882,39 @@ public class ClubManagementScreen implements Screen {
 
         Table heading = new Table();
         heading.add(title).growX().left();
-        for (int index = 0; index < 5; index++) {
-            Image star = new Image(new TextureRegionDrawable(boardStarTexture));
-            star.setScaling(Scaling.fit);
-            star.setColor(index < game.managerCareer.getReputationStars()
-                ? StyleFactory.GOLD : Color.valueOf("414A43"));
-            heading.add(star).size(12f).padLeft(1f);
-        }
+        heading.add(createBoardToggle("▲")).width(30f).height(25f).padLeft(6f);
 
         status.setText(boardStatusLabel(effectiveConfidence));
         description.setText(
             "Histórico: +" + historyBonus + " • Prestígio "
-                + game.managerCareer.getReputationStars() + "/5\n"
+                + String.format(Locale.US, "%.1f", game.managerCareer.getReputationDisplayRating()) + "/5\n"
                 + boardStatusDescription(effectiveConfidence)
         );
 
         box.add(heading).growX().left().row();
         box.add(status).left().padTop(2f).row();
-        box.add(createSegmentedProgress(effectiveConfidence, statusColor, 14))
-            .growX().height(8f).padTop(5f).padBottom(5f).row();
+        Table confidenceProgress = new Table();
+        confidenceProgress.add(createSegmentedProgress(effectiveConfidence, statusColor, 18))
+            .growX().height(9f).padRight(6f);
+        Label confidencePercentage = new Label(effectiveConfidence + "%", game.skin, "font-bold");
+        confidencePercentage.setFontScale(0.40f);
+        confidencePercentage.setColor(statusColor);
+        confidenceProgress.add(confidencePercentage).width(36f).right();
+        box.add(confidenceProgress).growX().padTop(5f).padBottom(5f).row();
         box.add(description).growX().left();
         return box;
+    }
+
+    private TextButton createBoardToggle(String text) {
+        TextButton toggle = ScreenUI.createInteractiveButton(text, game.skin);
+        toggle.getLabel().setFontScale(0.40f);
+        toggle.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                boardObjectivesCollapsed = !boardObjectivesCollapsed;
+                refreshUI();
+            }
+        });
+        return toggle;
     }
 
     private Table createObjectiveCard(
@@ -910,9 +1001,9 @@ public class ClubManagementScreen implements Screen {
             createSegmentedProgress(
                 percentage,
                 objectiveProgressColor(percentage),
-                10
+                12
             )
-        ).growX().height(7f).padRight(5f);
+        ).growX().height(9f).padRight(7f);
         progressLine.add(percentageLabel).right();
 
         card.add(top).growX().row();
@@ -929,16 +1020,17 @@ public class ClubManagementScreen implements Screen {
     ) {
         Table bar = new Table();
         int active = Math.round(segments * Math.max(0, Math.min(100, percentage)) / 100f);
+        Color inactiveColor = Color.valueOf("2C3932");
 
         for (int i = 0; i < segments; i++) {
-            Table segment = new Table();
-            segment.background(
-                StyleFactory.createRoundedPanel(
-                    i < active ? activeColor : Color.valueOf("344039"),
-                    i < active ? activeColor : Color.valueOf("344039")
-                )
+            Image segment = new Image(
+                StyleFactory.createSolid(i < active ? activeColor : inactiveColor)
             );
-            bar.add(segment).growX().uniformX().padRight(i < segments - 1 ? 2f : 0f);
+            bar.add(segment)
+                .growX()
+                .uniformX()
+                .height(8f)
+                .padRight(i < segments - 1 ? 3f : 0f);
         }
         return bar;
     }
@@ -2298,11 +2390,7 @@ public class ClubManagementScreen implements Screen {
                         .exists()
             ) {
 
-                return new Texture(
-                    Gdx.files.internal(
-                        target.getLogoPath()
-                    )
-                );
+                return ClubLogoAssets.load(target.getLogoPath());
             }
 
         } catch (

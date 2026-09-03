@@ -1,8 +1,15 @@
 package io.github.some_example_name.model;
 
 import java.util.UUID;
+import java.util.Map;
 
 public class Player {
+    private Map<String, PlayerNegotiation.Session> negotiationSessions = new java.util.HashMap<>();
+    public PlayerNegotiation.Session negotiationSession(Club club, int year, String type) {
+        if (negotiationSessions == null) negotiationSessions = new java.util.HashMap<>();
+        String key = year + ":" + type + ":" + club.getName();
+        return negotiationSessions.computeIfAbsent(key, unused -> new PlayerNegotiation.Session());
+    }
     private int morale = 75; // Moral inicial padrão (0 a 100)
     private String id;
     private String name;
@@ -47,6 +54,7 @@ public class Player {
     private int injuredMatches = 0;
     private String injuryType = null;
     private boolean injuredInCurrentMatch = false;
+    private int relapseRiskDays = 0;
 
     // --- SISTEMA DE MORAL ---
     public int getMorale() {
@@ -77,6 +85,15 @@ public class Player {
             );
         }
 
+        return calculateMarketMonthlySalary(true);
+    }
+
+    /** Valor para novas propostas, independente do salário fixado no contrato. */
+    public long getMarketAnnualSalary() {
+        return calculateMarketMonthlySalary(false) * 12L;
+    }
+
+    private long calculateMarketMonthlySalary(boolean includeContractReference) {
         int marketValue =
             TradeValueCalculator.calculateTradeValue(
                 this
@@ -125,7 +142,7 @@ public class Player {
          * discrepância antiga de salários entre atletas semelhantes.
          */
         if (
-            this.salary > 0
+            includeContractReference && this.salary > 0
         ) {
 
             double contractWeight =
@@ -294,6 +311,15 @@ public class Player {
         return currentClub == null || contractEndYear <= currentYear;
     }
 
+    /**
+     * O ano final representa a primeira temporada sem vínculo. Portanto, um
+     * contrato 1969–1970 ainda é válido durante 1969, mas deve ser encerrado
+     * assim que começa a Off Season que antecede a temporada de 1970.
+     */
+    public boolean isContractExpiringAtSeasonEnd(int currentSeason) {
+        return currentClub != null && contractEndYear <= currentSeason + 1;
+    }
+
     public int getRemainingContractYears(int currentYear) {
         return Math.max(0, contractEndYear - currentYear);
     }
@@ -393,8 +419,13 @@ public class Player {
     }
 
     public void applyMatchFatigue() {
+        applyMatchFatigue(1d);
+    }
+
+    public void applyMatchFatigue(double multiplier) {
         int loss = 25 + (int) (Math.random() * 20);
         if (primaryPosition.isGoalkeeper()) loss = 10;
+        loss = Math.max(1, (int) Math.round(loss * Math.max(0.15d, multiplier)));
         this.fatigue = Math.max(0, this.fatigue - loss);
     }
 
@@ -456,6 +487,7 @@ public class Player {
         this.injuredMatches = Math.max(0, days);
         this.injuryType = type;
         this.injuredInCurrentMatch = this.injuredMatches > 0;
+        if (this.injuredMatches > 0) this.relapseRiskDays = 0;
     }
 
     public void setInjuryDays(int days) {
@@ -468,9 +500,16 @@ public class Player {
 
     public void recoverFromInjury(int days) {
         if (days <= 0 || injuredMatches <= 0) return;
+        int previous = this.injuredMatches;
         this.injuredMatches = Math.max(0, this.injuredMatches - days);
-        if (this.injuredMatches == 0) this.injuryType = null;
+        if (previous > 0 && this.injuredMatches == 0) {
+            this.injuryType = null;
+            this.relapseRiskDays = 14;
+        }
     }
+
+    public void advanceRelapseWindowDay() { if (!isInjured() && relapseRiskDays > 0) relapseRiskDays--; }
+    public int getRelapseRiskDays() { return relapseRiskDays; }
 
     public void advanceInjuryRecoveryDay() {
         recoverFromInjury(1);
@@ -605,6 +644,7 @@ public class Player {
         this.suspendedMatches = 0;
         this.injuredMatches = 0;
         this.injuryType = null;
+        this.relapseRiskDays = 0;
         this.fatigue = 100;
     }
     public int getMatchRedCards() {

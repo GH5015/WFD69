@@ -68,12 +68,7 @@ public class FinancesScreen implements Screen {
                     .exists()
             ) {
 
-                starTexture =
-                    new Texture(
-                        Gdx.files.internal(
-                            "Icons8/icons8-estrela-48.png"
-                        )
-                    );
+                starTexture = ScreenUI.loadTintableIcon("Icons8/icons8-estrela-48.png");
             }
 
         } catch (
@@ -563,8 +558,15 @@ public class FinancesScreen implements Screen {
 
         addFinanceLine(
             panel,
-            "Salários",
+            "Folha salarial do elenco",
             finance.getPlayerSalariesExpense(),
+            ScreenUI.DANGER
+        );
+
+        addFinanceLine(
+            panel,
+            "Equipe técnica (" + finance.getStaffMemberCount() + " profissionais)",
+            finance.getStaffExpense(),
             ScreenUI.DANGER
         );
 
@@ -577,17 +579,33 @@ public class FinancesScreen implements Screen {
 
         addFinanceLine(
             panel,
-            "Departamento médico",
+            "Manutenção do estádio (" + club.getStadiumCondition() + "%)",
+            finance.getStadiumMaintenanceExpense(),
+            club.getStadiumCondition() < 55 ? ScreenUI.WARNING : ScreenUI.DANGER
+        );
+
+        addFinanceLine(
+            panel,
+            "Operação do departamento médico",
             finance.getMedicalExpense(),
             ScreenUI.DANGER
         );
 
         addFinanceLine(
             panel,
-            "Scouting",
+            "Operação de scouting",
             finance.getScoutingExpense(),
             ScreenUI.DANGER
         );
+
+        if (finance.getMonthlyLuxuryTaxExpense() > 0L) {
+            addFinanceLine(
+                panel,
+                "Luxury Tax",
+                finance.getMonthlyLuxuryTaxExpense(),
+                ScreenUI.WARNING
+            );
+        }
 
         panel
             .add(
@@ -642,14 +660,14 @@ public class FinancesScreen implements Screen {
             finance.getAnnualPayroll();
 
         long available =
-            finance.getAvailableCapSpace();
+            finance.getAvailableHardCapSpace();
 
         double percentage =
-            cap > 0
+            finance.getHardCap() > 0
                 ? (
                 payroll *
                     100.0 /
-                    cap
+                    finance.getHardCap()
             )
                 : 0.0;
 
@@ -680,6 +698,9 @@ public class FinancesScreen implements Screen {
             .right()
             .row();
 
+        addFinanceLine(capNumbers, "LUXURY TAX", finance.getLuxuryTaxThreshold(), ScreenUI.WARNING);
+        addFinanceLine(capNumbers, "HARD CAP", finance.getHardCap(), ScreenUI.DANGER);
+
         capNumbers
             .add(
                 ScreenUI.createSubtitle(
@@ -706,6 +727,9 @@ public class FinancesScreen implements Screen {
             .padTop(5f)
             .row();
 
+        addFinanceLine(capNumbers, "TAX ANUAL", finance.getAnnualLuxuryTax(),
+            finance.getAnnualLuxuryTax() > 0 ? ScreenUI.DANGER : ScreenUI.SUCCESS);
+
         panel
             .add(capNumbers)
             .growX()
@@ -729,14 +753,11 @@ public class FinancesScreen implements Screen {
             0.60f
         );
 
-        Color usageColor =
-            percentage >=
-                100
-                ? ScreenUI.DANGER
-                : percentage >=
-                90
-                ? ScreenUI.WARNING
-                : ScreenUI.SUCCESS;
+        Color usageColor = payroll > finance.getHardCap()
+            ? ScreenUI.DANGER
+            : payroll > finance.getLuxuryTaxThreshold()
+            ? ScreenUI.WARNING
+            : payroll > cap ? StyleFactory.SOFT_YELLOW : ScreenUI.SUCCESS;
 
         used.setColor(
             usageColor
@@ -767,7 +788,7 @@ public class FinancesScreen implements Screen {
         Table space =
             ScreenUI.createStatusBox(
                 game.skin,
-                "ESPAÇO DISPONÍVEL",
+                "ESPAÇO ATÉ O HARD CAP",
                 formatWFL(
                     available
                 ),
@@ -1064,77 +1085,11 @@ public class FinancesScreen implements Screen {
     // =========================================================
 
     private Table createStarsWidget() {
-
-        Table stars =
-            new Table();
-
-        int rating =
-            EconomicPower
-                .getStarRating(
-                    club
-                );
-
-        for (
-            int i = 0;
-            i < 5;
-            i++
-        ) {
-
-            if (
-                starTexture != null
-            ) {
-
-                Image star =
-                    new Image(
-                        new TextureRegionDrawable(
-                            starTexture
-                        )
-                    );
-
-                star.setScaling(
-                    Scaling.fit
-                );
-
-                star.setColor(
-                    i < rating
-                        ? StyleFactory.GOLD
-                        : new Color(
-                        1f,
-                        1f,
-                        1f,
-                        0.18f
-                    )
-                );
-
-                stars
-                    .add(star)
-                    .size(24f)
-                    .padRight(4f);
-
-            } else {
-
-                Label star =
-                    new Label(
-                        i < rating
-                            ? "★"
-                            : "☆",
-                        game.skin,
-                        "font-bold"
-                    );
-
-                star.setColor(
-                    i < rating
-                        ? StyleFactory.GOLD
-                        : Color.DARK_GRAY
-                );
-
-                stars
-                    .add(star)
-                    .padRight(3f);
-            }
-        }
-
-        return stars;
+        return ScreenUI.createStarRating(
+            starTexture,
+            EconomicPower.getDisplayStarRating(club),
+            24f
+        );
     }
 
     // =========================================================

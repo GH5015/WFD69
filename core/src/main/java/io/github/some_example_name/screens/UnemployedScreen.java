@@ -24,6 +24,7 @@ import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.ClubNeedEvaluator;
 import io.github.some_example_name.model.ManagerCareer;
 import io.github.some_example_name.model.ManagerSeasonRecord;
+import io.github.some_example_name.utils.DayAdvanceTransition;
 import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
@@ -41,7 +42,7 @@ public class UnemployedScreen implements Screen {
     public UnemployedScreen(Main game) {
         this.game = game;
         this.stage = new Stage(new ResponsiveViewport());
-        this.starTexture = new Texture(Gdx.files.internal("Icons8/icons8-estrela-48.png"));
+        this.starTexture = ScreenUI.loadTintableIcon("Icons8/icons8-estrela-48.png");
     }
 
     @Override public void show() {
@@ -90,7 +91,7 @@ public class UnemployedScreen implements Screen {
         reputation.pad(14f);
         reputation.add(ScreenUI.createSubtitle(game.skin, "REPUTAÇÃO DO TREINADOR"))
             .growX().left().row();
-        reputation.add(stars(career.getReputationStars(), 25f)).left().padTop(9f).row();
+        reputation.add(stars(career.getReputationDisplayRating(), 25f)).left().padTop(9f).row();
         Label rep = ScreenUI.createBoldValue(
             game.skin,
             career.getReputationLabel() + " • " + career.getReputation() + "/100",
@@ -203,7 +204,7 @@ public class UnemployedScreen implements Screen {
             BoardObjective goal = goals.get(goalIndex);
             objectives.add(ScreenUI.createSubtitle(
                 game.skin,
-                goal.getPriority().getStars() + "★  " + goal.getTitle()
+                ScreenUI.formatActiveStars(goal.getPriority().getStars()) + "  " + goal.getTitle()
             )).growX().left().padTop(4f).row();
         }
         card.add(objectives).grow().left().padRight(15f);
@@ -246,23 +247,22 @@ public class UnemployedScreen implements Screen {
         TextButton advance = ScreenUI.createPrimaryButton(game.skin, "AVANÇAR 7 DIAS  ›");
         advance.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
-                game.managerCareer.advanceUnemployedTime(game.league, 7);
-                refresh();
+                DayAdvanceTransition.play(stage, game, 7, new Runnable() {
+                    @Override public void run() {
+                        game.managerCareer.advanceUnemployedTime(game.league, 7);
+                        game.league.generateWeeklyNewsIfNeeded();
+                        refresh();
+                        WflNewsDialog.showPending(stage, game);
+                    }
+                });
             }
         });
         footer.add(advance).width(330f).height(50f).right();
         return footer;
     }
 
-    private Table stars(int active, float size) {
-        Table stars = new Table();
-        for (int index = 0; index < 5; index++) {
-            Image star = new Image(new TextureRegionDrawable(starTexture));
-            star.setScaling(Scaling.fit);
-            star.setColor(index < active ? StyleFactory.GOLD : Color.valueOf("414A43"));
-            stars.add(star).size(size).padRight(4f);
-        }
-        return stars;
+    private Table stars(float active, float size) {
+        return ScreenUI.createStarRating(starTexture, active, size);
     }
 
     private String phaseLabel(ClubNeedEvaluator.TeamPhase phase) {

@@ -21,7 +21,7 @@ public class ConsoleSimulator {
             league.addClub(club);
         }
 
-        MatchEngine engine = new MatchEngine();
+        MatchEngine engine = new MatchEngine(league);
         SeasonSimulator simulator = new SeasonSimulator();
         // Passando League no construtor
         PlayoffSimulator playoffSimulator = new PlayoffSimulator(engine, league);

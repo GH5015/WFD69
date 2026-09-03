@@ -3,13 +3,18 @@ package io.github.some_example_name.model;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
-/** Mantém as 40 escolhas do draft e recalcula sua projeção pela tabela atual. */
+/** Duas escolhas por franquia, com numeração ajustada às expansões. */
 public final class DraftOrderService {
-    public static final int PICKS_PER_ROUND = 20;
     public static final int TOTAL_ROUNDS = 2;
 
     private DraftOrderService() { }
+
+    public static int picksPerRound(League league, int year) {
+        return Math.max(league.getClubs().size(), LeagueExpansionService.projectedClubCount(year));
+    }
 
     public static void initializeDraftPicks(League league, int draftYear) {
         for (Club club : league.getClubs()) {
@@ -23,14 +28,17 @@ public final class DraftOrderService {
 
     public static List<DraftPick> getCurrentDraftOrder(League league, int draftYear) {
         List<Club> orderByStanding = new ArrayList<>();
-        if (league.isDraftLotteryCompleted()) {
+        boolean upcomingDraft = draftYear == league.getCurrentSeason() + 1;
+        if (upcomingDraft && league.isDraftLotteryCompleted()) {
             orderByStanding.addAll(league.getDraftLotteryOrder());
         } else {
-            orderByStanding.addAll(league.getDraftLotteryParticipants());
+            if (upcomingDraft) orderByStanding.addAll(league.getDraftLotteryParticipants());
             List<StandingsRow> standings = getStandingsForDraftOrder(league, true);
             for (StandingsRow row : standings) if (!orderByStanding.contains(row.club)) orderByStanding.add(row.club);
         }
 
+        // Saves antigos e clubes adicionados depois de uma loteria também precisam de posição única.
+        for (Club club : league.getClubs()) if (!orderByStanding.contains(club)) orderByStanding.add(club);
         List<DraftPick> picks = new ArrayList<>();
         for (Club club : league.getClubs()) {
             for (DraftPick pick : club.getDraftPicks()) {
@@ -43,7 +51,8 @@ public final class DraftOrderService {
         double confidence = calculateProjectionConfidence(league);
         for (DraftPick pick : picks) {
             int position = orderByStanding.indexOf(pick.getOriginalOwner()) + 1;
-            pick.setProjectedPosition(position <= 0 ? PICKS_PER_ROUND : position);
+            pick.setPicksPerRound(picksPerRound(league, draftYear));
+            pick.setProjectedPosition(position <= 0 ? pick.getPicksPerRound() : position);
             pick.setProjectedPositionConfidence(confidence);
         }
 
@@ -51,6 +60,20 @@ public final class DraftOrderService {
             .comparingInt(DraftPick::getRound)
             .thenComparingInt(DraftPick::getProjectedPosition));
         return picks;
+    }
+
+    /** Atualiza todas as picks negociáveis, inclusive anos futuros já adquiridos em trocas. */
+    public static void refreshAllPickProjections(League league) {
+        if (league == null) return;
+        Set<Integer> years = new TreeSet<>();
+        for (Club club : league.getClubs()) {
+            if (club == null) continue;
+            for (DraftPick pick : club.getDraftPicks()) {
+                if (pick != null && pick.getYear() >= league.getCurrentSeason() + 1) years.add(pick.getYear());
+            }
+        }
+        if (years.isEmpty()) years.add(league.getCurrentSeason() + 1);
+        for (Integer year : years) getCurrentDraftOrder(league, year);
     }
 
     private static double calculateProjectionConfidence(League league) {

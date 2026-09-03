@@ -33,6 +33,8 @@ public final class IconTextButton {
         style.imageDown = style.imageUp;
         ImageTextButton button = new AdaptiveImageTextButton(text, style);
         button.getLabel().setFontScale(0.52f);
+        button.padLeft(14f);
+        button.padRight(18f);
         return button;
     }
 

@@ -67,26 +67,30 @@ public class GameDatabase {
          * forte suporte corporativo, enquanto Belfast e Baghdad iniciam a
          * carreira tentando reverter um déficit.
          */
-        addClub("Santos Atlântico", "Brasil", "Ocidental", 95, "santos.png", 52_500_000L);
-        addClub("Rio Imperial", "Brasil", "Ocidental", 92, "rio.png", 46_000_000L);
-        addClub("Milano Calcio", "Itália", "Ocidental", 93, "milano.png", 55_000_000L);
-        addClub("Bavaria München", "Alemanha", "Ocidental", 94, "bavaria.png", 58_500_000L);
-        addClub("Manchester Albion", "Inglaterra", "Ocidental", 93, "manchester.png", 49_500_000L);
-        addClub("London Royals", "Inglaterra", "Ocidental", 91, "london.png", 31_000_000L);
-        addClub("Amsterdã Total", "Holanda", "Ocidental", 93, "amsterdam_total.png", 36_500_000L);
-        addClub("Madrid Castilla", "Espanha", "Ocidental", 92, "madrid.png", 68_000_000L);
-        addClub("Barcelona Mediterrâneo", "Espanha", "Ocidental", 91, "barcelona.png", 41_500_000L);
-        addClub("Budapest Danube", "Hungria", "Ocidental", 90, "budapest.png", 13_500_000L);
-        addClub("Lisboa Atlântica", "Portugal", "Ocidental", 93, "lisboa.png", 27_500_000L);
-        addClub("Buenos Aires Plata", "Argentina", "Ocidental", 91, "buenosaires.png", 22_000_000L);
-        addClub("Montevideo Oriental", "Uruguai", "Ocidental", 91, "montevideo.png", 9_500_000L);
-        addClub("Paris Lumière", "França", "Ocidental", 90, "paris.png", 44_500_000L);
-        addClub("Belfast Northern Stars", "Irlanda do Norte", "Ocidental", 88, "belfast.png", -1_800_000L);
-        addClub("Tokyo Rising Sun", "Japão", "Oriental", 85, "tokyo.png", 63_000_000L);
-        addClub("Seoul Tigers", "Coreia do Sul", "Oriental", 85, "seoul.png", 17_500_000L);
-        addClub("Tehran Lions", "Irã", "Oriental", 80, "tehran.png", 5_000_000L);
-        addClub("Baghdad Mesopotamia", "Iraque", "Oriental", 80, "baghdad.png", -4_600_000L);
-        addClub("Tel Aviv Stars", "Israel", "Oriental", 85, "telaviv.png", 19_500_000L);
+        /* Capacidades inspiradas nas arenas e mercados que cada franquia
+         * representa no início de 1969. Clubes de enorme tradição podem ter
+         * casas compactas, enquanto grandes estádios nacionais chegam perto
+         * do limite de 100 mil lugares estabelecido pela WFL. */
+        addClub("Santos Atlântico", "Brasil", "Ocidental", 95, "santos.png", 52_500_000L, 32_000, 84);
+        addClub("Rio Imperial", "Brasil", "Ocidental", 92, "rio.png", 46_000_000L, 100_000, 78);
+        addClub("Milano Calcio", "Itália", "Ocidental", 93, "milano.png", 55_000_000L, 85_000, 88);
+        addClub("Bavaria München", "Alemanha", "Ocidental", 94, "bavaria.png", 58_500_000L, 44_000, 72);
+        addClub("Manchester Albion", "Inglaterra", "Ocidental", 93, "manchester.png", 49_500_000L, 63_000, 86);
+        addClub("London Royals", "Inglaterra", "Ocidental", 91, "london.png", 31_000_000L, 60_000, 80);
+        addClub("Amsterdã Total", "Holanda", "Ocidental", 93, "amsterdam_total.png", 36_500_000L, 29_500, 74);
+        addClub("Madrid Castilla", "Espanha", "Ocidental", 92, "madrid.png", 68_000_000L, 100_000, 90);
+        addClub("Barcelona Mediterrâneo", "Espanha", "Ocidental", 91, "barcelona.png", 41_500_000L, 93_000, 87);
+        addClub("Budapest Danube", "Hungria", "Ocidental", 90, "budapest.png", 13_500_000L, 100_000, 76);
+        addClub("Lisboa Atlântica", "Portugal", "Ocidental", 93, "lisboa.png", 27_500_000L, 70_000, 83);
+        addClub("Buenos Aires Plata", "Argentina", "Ocidental", 91, "buenosaires.png", 22_000_000L, 70_000, 79);
+        addClub("Montevideo Oriental", "Uruguai", "Ocidental", 91, "montevideo.png", 9_500_000L, 65_000, 68);
+        addClub("Paris Lumière", "França", "Ocidental", 90, "paris.png", 44_500_000L, 40_000, 81);
+        addClub("Belfast Northern Stars", "Irlanda do Norte", "Ocidental", 88, "belfast.png", -1_800_000L, 60_000, 65);
+        addClub("Tokyo Rising Sun", "Japão", "Oriental", 85, "tokyo.png", 63_000_000L, 48_000, 92);
+        addClub("Seoul Tigers", "Coreia do Sul", "Oriental", 85, "seoul.png", 17_500_000L, 30_000, 73);
+        addClub("Tehran Lions", "Irã", "Oriental", 80, "tehran.png", 5_000_000L, 30_000, 82);
+        addClub("Baghdad Mesopotamia", "Iraque", "Oriental", 80, "baghdad.png", -4_600_000L, 34_000, 70);
+        addClub("Tel Aviv Stars", "Israel", "Oriental", 85, "telaviv.png", 19_500_000L, 41_000, 77);
     }
 
     private void addClub(
@@ -95,7 +99,9 @@ public class GameDatabase {
         String conf,
         int rep,
         String logo,
-        long initialBalance
+        long initialBalance,
+        int stadiumCapacity,
+        int stadiumCondition
     ) {
         Club club = new Club(
             name,
@@ -106,6 +112,8 @@ public class GameDatabase {
             name + " Arena",
             logo
         );
+        club.setStadiumCapacity(stadiumCapacity);
+        club.setStadiumCondition(stadiumCondition);
         club.getFinance().setBalance(initialBalance);
         clubs.add(club);
     }
