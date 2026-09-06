@@ -22,6 +22,7 @@ import com.badlogic.gdx.utils.Scaling;
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.AiTradeService;
+import io.github.some_example_name.model.AiStadiumRenovationService;
 import io.github.some_example_name.model.IncomingTradeOfferService;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
@@ -243,6 +244,15 @@ public final class CareerOverlay
         Main game,
         Club club
     ) {
+        return attach(stage, game, club, true);
+    }
+
+    public static CareerOverlay attach(
+        Stage stage,
+        Main game,
+        Club club,
+        boolean showNextMatchCard
+    ) {
 
         // A Off Season possui uma interface própria, sem próximos jogos,
         // escalação ou botões de simulação da temporada regular.
@@ -256,6 +266,8 @@ public final class CareerOverlay
                 game,
                 club
             );
+
+        overlay.matchCard.setVisible(showNextMatchCard);
 
         stage.addActor(
             overlay
@@ -547,23 +559,20 @@ public final class CareerOverlay
         // CLUBES
         // =====================================================
 
-        Club opponent =
-            next.getHomeTeam() == club
-                ? next.getAwayTeam()
-                : next.getHomeTeam();
-
-        Table userCell =
+        Table homeCell =
             createTeamCell(
-                club
+                next.getHomeTeam(),
+                "CASA"
             );
 
-        Table opponentCell =
+        Table awayCell =
             createTeamCell(
-                opponent
+                next.getAwayTeam(),
+                "FORA"
             );
 
         matchCard
-            .add(userCell)
+            .add(homeCell)
             .width(150f)
             .center();
 
@@ -632,7 +641,7 @@ public final class CareerOverlay
             .center();
 
         matchCard
-            .add(opponentCell)
+            .add(awayCell)
             .width(150f)
             .center();
 
@@ -661,7 +670,8 @@ public final class CareerOverlay
     // =========================================================
 
     private Table createTeamCell(
-        Club team
+        Club team,
+        String venue
     ) {
 
         Table cell =
@@ -715,7 +725,14 @@ public final class CareerOverlay
             .add(name)
             .width(145f)
             .center()
-            .padTop(3f);
+            .padTop(3f)
+            .row();
+
+        Label venueLabel = new Label(venue, game.skin, "font-bold");
+        venueLabel.setFontScale(.38f);
+        venueLabel.setColor(ScreenUI.MUTED_TEXT);
+        venueLabel.setAlignment(Align.center);
+        cell.add(venueLabel).width(145f).center().padTop(1f);
 
         return cell;
     }
@@ -979,6 +996,7 @@ public final class CareerOverlay
     ) {
         if (changedMonth(previousDate, newDate)) {
             processMonthlyFinances(game);
+            AiStadiumRenovationService.processMonthly(game.league);
         }
         if (game.draftScoutManager != null) {
             game.draftScoutManager.setScoutStars(club.getStaffLevel(StaffRole.SCOUT));

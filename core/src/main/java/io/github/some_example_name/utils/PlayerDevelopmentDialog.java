@@ -201,7 +201,7 @@ public class PlayerDevelopmentDialog extends Dialog {
         panel.add(ScreenUI.createSectionTitle(skin, "PROJEÇÃO")).left().padBottom(7f).row();
         int potential = player.getPotential();
         addProjection(panel, "POTENCIAL ESTIMADO", String.valueOf(potential));
-        addProjection(panel, "FAIXA PROVÁVEL DE PICO", Math.max(player.getOverall(), potential - 3) + "–" + potential);
+        addProjection(panel, "FAIXA PROVÁVEL DE PICO", Math.max(player.getOverall(), potential - 3) + " ATÉ " + potential);
         addProjection(panel, "IDADE PROVÁVEL DO AUGE", peakAgeRange());
         addProjection(panel, "SITUAÇÃO", projectionStatus());
         return panel;
@@ -247,9 +247,9 @@ public class PlayerDevelopmentDialog extends Dialog {
 
     private String peakAgeRange() {
         switch (player.getDevelopmentCurve()) {
-            case EARLY: return "21–25";
-            case LATE: return "25–29";
-            default: return "23–28";
+            case EARLY: return "21 ATÉ 25 ANOS";
+            case LATE: return "25 ATÉ 29 ANOS";
+            default: return "23 ATÉ 28 ANOS";
         }
     }
 

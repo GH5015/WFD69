@@ -10,9 +10,9 @@ import java.util.Random;
 
 /** Gera propostas espontâneas da IA pelo avanço semanal da carreira. */
 public final class IncomingTradeOfferService {
-    private static final double WEEKLY_OFFER_CHANCE = .26d;
-    private static final int PLAYER_ATTEMPTS = 2;
-    private static final int PICK_ATTEMPTS = 1;
+    private static final double WEEKLY_OFFER_CHANCE = .48d;
+    private static final int PLAYER_ATTEMPTS = 3;
+    private static final int PICK_ATTEMPTS = 2;
 
     private IncomingTradeOfferService() { }
 
@@ -57,6 +57,35 @@ public final class IncomingTradeOfferService {
 
         if (possibilities.isEmpty()) return false;
         possibilities.sort(Comparator.comparingDouble(TradeFinderService.Result::getScore).reversed());
+        TradeFinderService.Result selected = possibilities.get(
+            random.nextInt(Math.min(3, possibilities.size()))
+        );
+        return league.queueIncomingTradeOffer(selected.getOffer());
+    }
+
+    /** Gera uma proposta específica pela escolha do usuário quando ela entra no relógio. */
+    public static boolean processDraftPickOffer(League league, Club userClub, DraftPick currentPick) {
+        if (league == null || userClub == null || currentPick == null
+            || league.getPendingIncomingTradeOffer() != null
+            || !"OFFSEASON".equals(league.getCurrentStage())
+            || !SeasonCalendar.isDraftOpen(league)
+            || league.isDraftFinalized()
+            || league.hasGeneratedDraftTradeOffer(currentPick)
+            || currentPick.getCurrentOwner() != userClub
+            || !currentPick.isAvailableForTrade(league)) {
+            return false;
+        }
+
+        List<TradeFinderService.Result> possibilities =
+            TradeFinderService.findForPick(league, userClub, currentPick);
+        if (possibilities.isEmpty()) {
+            league.markDraftTradeOfferGenerated(currentPick);
+            return false;
+        }
+        if (!league.markDraftTradeOfferGenerated(currentPick)) return false;
+
+        Random random = new Random(buildWeeklySeed(league, userClub)
+            + currentPick.getProjectedOverallPosition() * 997L);
         TradeFinderService.Result selected = possibilities.get(
             random.nextInt(Math.min(3, possibilities.size()))
         );

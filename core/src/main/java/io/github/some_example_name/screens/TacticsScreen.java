@@ -103,6 +103,7 @@ public class TacticsScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
 
         stage.clear();
 
@@ -189,6 +190,7 @@ public class TacticsScreen implements Screen {
             .add(left)
             .grow()
             .minWidth(0f)
+            .minHeight(0f)
             .padRight(10f);
 
         body
@@ -196,11 +198,13 @@ public class TacticsScreen implements Screen {
                 createRightPanel()
             )
             .width(showTacticsTab ? 600f : 365f)
-            .growY();
+            .growY()
+            .minHeight(0f);
 
         page
             .add(body)
             .grow()
+            .minHeight(0f)
             .row();
 
         root.add(
@@ -215,6 +219,7 @@ public class TacticsScreen implements Screen {
             true
         );
 
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     // =========================================================
@@ -1404,7 +1409,9 @@ public class TacticsScreen implements Screen {
                 .add(
                     createTacticsControls()
                 )
-                .grow();
+                .grow()
+                .minWidth(0f)
+                .minHeight(0f);
 
         } else {
 
@@ -1412,7 +1419,9 @@ public class TacticsScreen implements Screen {
                 .add(
                     createSquadList()
                 )
-                .grow();
+                .grow()
+                .minWidth(0f)
+                .minHeight(0f);
         }
 
         return panel;
@@ -1547,9 +1556,15 @@ public class TacticsScreen implements Screen {
             false
         );
 
+        scroll.setScrollingDisabled(true, false);
+        scroll.setFlickScroll(true);
+        scroll.setName("tactics-squad-scroll");
+
         root
             .add(scroll)
-            .grow();
+            .grow()
+            .minWidth(0f)
+            .minHeight(0f);
 
         return root;
     }
@@ -2023,10 +2038,14 @@ public class TacticsScreen implements Screen {
 
         // Os cards acompanham a largura disponível; apenas a rolagem vertical é necessária.
         scroll.setScrollingDisabled(true, false);
+        scroll.setFlickScroll(true);
+        scroll.setName("tactics-instructions-scroll");
 
         root
             .add(scroll)
-            .grow().minWidth(0f);
+            .grow()
+            .minWidth(0f)
+            .minHeight(0f);
 
         return root;
     }
@@ -3140,7 +3159,7 @@ public class TacticsScreen implements Screen {
 
     @Override public void pause() {}
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

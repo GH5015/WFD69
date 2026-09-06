@@ -51,6 +51,7 @@ public class UnemployedScreen implements Screen {
     }
 
     private void refresh() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
         Stack root = new Stack();
         root.setFillParent(true);
@@ -73,6 +74,7 @@ public class UnemployedScreen implements Screen {
         page.add(body).grow().padBottom(12f).row();
         page.add(footer()).growX().height(68f);
         root.add(page);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table profilePanel() {
@@ -291,6 +293,6 @@ public class UnemployedScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
     @Override public void dispose() { stage.dispose(); starTexture.dispose(); }
 }

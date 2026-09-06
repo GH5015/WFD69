@@ -2,7 +2,8 @@ package io.github.some_example_name.model;
 
 import java.util.Map;
 
-public class TechnicalAttributes {
+public class TechnicalAttributes implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private int ataque;
     private int passe;
     private int defesa;

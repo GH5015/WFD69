@@ -1,7 +1,8 @@
 package io.github.some_example_name.model;
 
 /** Registro compacto do histórico profissional do treinador do usuário. */
-public final class ManagerSeasonRecord {
+public final class ManagerSeasonRecord implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final int season;
     private final String clubName;
     private final boolean champion;

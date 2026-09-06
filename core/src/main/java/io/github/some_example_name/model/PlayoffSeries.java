@@ -1,7 +1,8 @@
 package io.github.some_example_name.model;
 
 /** Estado de uma série eliminatória da pós-temporada. */
-public class PlayoffSeries {
+public class PlayoffSeries implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final String id;
     private final String round;
     private final Club firstSeed;

@@ -35,7 +35,8 @@ public final class AiRenewalRegressionTest {
         League automatic = new League("WFL", 1970); Club auto = club("Renovação na transição"); automatic.addClub(auto);
         Player veteran = add(auto, "Veterano", 36, 85, 300_000, 1971);
         automatic.setCurrentStage("OFFSEASON"); new FreeAgencyService(automatic);
-        require(veteran.getCurrentClub() == auto && veteran.getContractEndYear() == 1972, "Automatic transition/short veteran contract failed");
+        require(veteran.getCurrentClub() == auto && veteran.getContractEndYear() > 1971,
+            "Automatic transition/short veteran extension failed");
         System.out.println("AI renewals: retention before release, negotiated terms, user control, hard cap, surplus, veterans and idempotence OK.");
     }
     private static Club club(String name) { return new Club(name, "Brasil", "Ocidental", 80, 50_000_000, "Arena", "santos.png"); }

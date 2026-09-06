@@ -1,6 +1,7 @@
 package io.github.some_example_name.model;
 
-public class ClubFinance {
+public class ClubFinance implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     public static final double CLUB_GATE_REVENUE_SHARE = 0.25d;
     public static final long BASE_SALARY_CAP = 14_500_000L;
     public static final long LUXURY_TAX_OFFSET = 1_500_000L;

@@ -678,7 +678,10 @@ public final class ScreenUI {
          * de adicionar a lista ao Stage. */
         selectBox.getList().setTouchable(Touchable.disabled);
         selectBox.getList().setAlignment(Align.left);
-        selectBox.setScrollingDisabled(true);
+        // Listas extensas, como o catálogo de formações, precisam manter a
+        // rolagem vertical ativa. O primeiro parâmetro interno permanece
+        // horizontalmente bloqueado; este controla somente a lista suspensa.
+        selectBox.setScrollingDisabled(false);
 
         selectBox.addListener(
             new ChangeListener() {

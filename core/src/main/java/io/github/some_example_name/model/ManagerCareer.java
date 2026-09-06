@@ -7,9 +7,11 @@ import java.util.Comparator;
 import java.util.List;
 
 /** Estado persistente da carreira do treinador controlado pelo usuário. */
-public final class ManagerCareer {
+public final class ManagerCareer implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
 
-    public static final class JobOffer {
+    public static final class JobOffer implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private final Club club;
         private final int contractYears;
 

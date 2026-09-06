@@ -98,7 +98,7 @@ public final class SeasonCalendar {
 
     public static String getFreeAgencyStatus(League league) {
         if (isFreeAgencyOpen(league)) return "FREE AGENCY ABERTA";
-        if (isExclusiveOwnFreeAgentRenewalPeriod(league)) return "PERÍODO DE RETENÇÃO • 1–5 NOV";
+        if (isExclusiveOwnFreeAgentRenewalPeriod(league)) return "PERÍODO DE RETENÇÃO • 1 - 5 NOV";
         if (isFreeAgentSigningOpen(league)) return "AGENTES LIVRES DISPONÍVEIS";
         return "MERCADO PRINCIPAL ENCERRADO";
     }

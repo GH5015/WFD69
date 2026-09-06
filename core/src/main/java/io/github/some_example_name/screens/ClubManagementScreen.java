@@ -50,6 +50,7 @@ public class ClubManagementScreen implements Screen {
 
     private Texture clubLogoTexture;
 
+    private String playerSearch = "";
     private String sortType =
         "OVR";
 
@@ -60,7 +61,7 @@ public class ClubManagementScreen implements Screen {
         "TODOS";
 
     private boolean boardObjectivesCollapsed =
-        false;
+        true;
 
     public ClubManagementScreen(
         Main game,
@@ -261,143 +262,62 @@ public class ClubManagementScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
-
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
-
-        Stack root =
-            new Stack();
-
-        root.setFillParent(
-            true
-        );
-
-        stage.addActor(
-            root
-        );
-
-        Image background =
-            new Image(
-                new TextureRegionDrawable(
-                    pranchetaTexture
-                )
-            );
-
-        background.setFillParent(
-            true
-        );
-
-        root.add(
-            background
-        );
-
-        Table page =
-            ScreenUI.createPage(
-                true
-            );
-
-        // =====================================================
-        // HEADER
-        // =====================================================
-
-        page
-            .add(
-                createHeader()
-            )
-            .growX()
-            .height(88f)
-            .padBottom(10f)
-            .row();
-
-        // =====================================================
-        // STATUS RÁPIDO
-        // =====================================================
-
-        page
-            .add(
-                createStatusBar()
-            )
-            .growX()
-            .height(60f)
-            .padBottom(10f)
-            .row();
-
-        // =====================================================
-        // DIRETORIA E OBJETIVOS DA TEMPORADA
-        // =====================================================
-
-        page
-            .add(
-                createBoardPanel()
-            )
-            .growX()
-            .height(boardObjectivesCollapsed ? 76f : 158f)
-            .padBottom(10f)
-            .row();
-
-        // =====================================================
-        // CORPO
-        // =====================================================
-
-        Table body =
-            new Table();
-
-        float usableWidth =
-            Math.max(
-                850f,
-                stage.getWidth() -
-                    ScreenUI.PAGE_LEFT_OPEN -
-                    ScreenUI.PAGE_RIGHT
-            );
-
-        body
-            .add(
-                createRosterPanel()
-            )
-            .width(
-                usableWidth *
-                    0.62f
-            )
-            .growY()
-            .padRight(10f);
-
-        body
-            .add(
-                createFieldPreview()
-            )
-            .width(
-                usableWidth *
-                    0.35f
-            )
-            .growY();
-
-        page
-            .add(body)
-            .grow()
-            .row();
-
-        root.add(
-            page
-        );
-
-        NavigationDrawer.attach(
-            stage,
-            game,
-            club,
-            "ELENCO",
-            true
-        );
-
-        CareerOverlay.attach(
-            stage,
-            game,
-            club
-        );
+        Table page = ScreenUI.createPage(true);
+        page.padBottom(88f);
+        page.setFillParent(true);
+        page.background(StyleFactory.createRoundedPanel(Color.valueOf("06140F"), StyleFactory.DARK_GOLD));
+        stage.addActor(page);
+        page.add(createHeader()).growX().height(110f).padBottom(12f).row();
+        page.add(createStatusBar()).growX().height(94f).padBottom(14f).row();
+        float usable = stage.getWidth() - ScreenUI.PAGE_LEFT_OPEN - ScreenUI.PAGE_RIGHT;
+        Table body = new Table();
+        Table left = new Table();
+        left.add(createBoardPanel()).growX().minWidth(0).height(boardObjectivesCollapsed ? 76f : 172f).padBottom(12f).row();
+        left.add(createRosterPanel()).grow();
+        Table right = new Table();
+        right.add(createFieldPreview()).growX().padBottom(10f).row();
+        right.add(createSquadSummary()).grow();
+        body.add(left).width(usable - 482f).growY().padRight(12f);
+        body.add(right).width(470f).growY();
+        page.add(body).grow();
+        NavigationDrawer.attach(stage, game, club, "ELENCO", true);
+        // A tela de elenco também mostra o cartão da próxima partida.
+        // O card identifica explicitamente mandante e visitante pelo Match.
+        CareerOverlay.attach(stage, game, club, true);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
-    // =========================================================
-    // HEADER
-    // =========================================================
+    private Table createSquadSummary() {
+        Table panel = ScreenUI.createPanel();
+        panel.top().left();
+        panel.add(ScreenUI.createSectionTitle(game.skin, "LÍDERES E RESUMO DO PLANTEL")).growX().left().padBottom(10).row();
+        Player scorer = club.getSquad().stream().max(Comparator.comparingInt(Player::getSeasonGoals)).orElse(null);
+        Player assister = club.getSquad().stream().max(Comparator.comparingInt(Player::getSeasonAssists)).orElse(null);
+        if (scorer != null) {
+            summaryLine(panel, "GOLS", scorer.getName() + "  •  " + scorer.getSeasonGoals());
+            summaryLine(panel, "ASSISTÊNCIAS", assister.getName() + "  •  " + assister.getSeasonAssists());
+        }
+        double age = club.getSquad().stream().mapToInt(Player::getAge).average().orElse(0);
+        long foreigners = club.getSquad().stream().filter(p -> !club.getCountry().equals(p.getNationality())).count();
+        summaryLine(panel, "IDADE MÉDIA", String.format(Locale.US, "%.1f", age));
+        summaryLine(panel, "ESTRANGEIROS", String.valueOf(foreigners));
+        summaryLine(panel, "FOLHA ANUAL", formatAnnualSalary(club.getFinance().getAnnualPayroll()));
+        summaryLine(panel, "SALARY CAP", formatAnnualSalary(club.getFinance().getSalaryCap()));
+        return panel;
+    }
 
+    private void summaryLine(Table panel, String key, String detail) {
+        Table row = new Table();
+        Label label = ScreenUI.createSubtitle(game.skin, key);
+        label.setFontScale(.44f);
+        row.add(label).left().padRight(8f);
+        Label value = ScreenUI.createSubtitle(game.skin, detail);
+        value.setFontScale(.48f); value.setEllipsis(true);
+        row.add(value).growX().right();
+        panel.add(row).growX().height(27f).row();
+    }
     private Table createHeader() {
 
         Table header =
@@ -471,116 +391,6 @@ public class ClubManagementScreen implements Screen {
             .add(titleArea)
             .left()
             .expandX();
-
-        ImageTextButton rulesButton =
-            IconTextButton.create(
-                "REGRAS WFL",
-                game.skin,
-                "Icons8/icons8-informações-50.png"
-            );
-
-        rulesButton
-            .getLabel()
-            .setFontScale(
-                0.54f
-            );
-
-        rulesButton.addListener(
-            new ClickListener() {
-                @Override
-                public void clicked(
-                    InputEvent event,
-                    float x,
-                    float y
-                ) {
-                    LeagueRulesDialog.show(stage, game);
-                }
-            }
-        );
-
-        header
-            .add(rulesButton)
-            .width(165f)
-            .height(42f)
-            .padRight(8f);
-
-        ImageTextButton playoffTestButton =
-            IconTextButton.create(
-                "TESTAR PLAYOFFS",
-                game.skin,
-                "Icons8/icons8-relógio-50.png"
-            );
-
-        playoffTestButton
-            .getLabel()
-            .setFontScale(
-                0.52f
-            );
-
-        playoffTestButton.setDisabled(
-            !"REGULAR".equals(
-                game.league.getCurrentStage()
-            )
-        );
-
-        playoffTestButton.addListener(
-            new ClickListener() {
-
-                @Override
-                public void clicked(
-                    InputEvent event,
-                    float x,
-                    float y
-                ) {
-
-                    simulateUntilPlayoffs();
-                }
-            }
-        );
-
-        header
-            .add(playoffTestButton)
-            .width(190f)
-            .height(42f)
-            .padRight(8f);
-
-        ImageTextButton tacticsButton =
-            IconTextButton.create(
-                "EDITAR TÁTICA",
-                game.skin,
-                "Icons8/icons8-estrutura-em-árvore-50.png"
-            );
-
-        tacticsButton
-            .getLabel()
-            .setFontScale(
-                0.62f
-            );
-
-        tacticsButton.addListener(
-            new ClickListener() {
-
-                @Override
-                public void clicked(
-                    InputEvent event,
-                    float x,
-                    float y
-                ) {
-
-                    game.setScreen(
-                        new TacticsScreen(
-                            game,
-                            club
-                        )
-                    );
-                }
-            }
-        );
-
-        header
-            .add(tacticsButton)
-            .width(190f)
-            .height(42f);
 
         return header;
     }
@@ -799,7 +609,10 @@ public class ClubManagementScreen implements Screen {
                 .padRight(i < progress.size() - 1 ? 7f : 0f);
         }
 
-        panel.add(objectives).grow();
+        ScrollPane objectiveScroll = new ScrollPane(objectives, game.skin);
+        objectiveScroll.setScrollingDisabled(false, true);
+        objectiveScroll.setFadeScrollBars(false);
+        panel.add(objectiveScroll).grow().minWidth(0);
         return panel;
     }
 
@@ -1087,7 +900,7 @@ public class ClubManagementScreen implements Screen {
         Label title =
             ScreenUI.createSectionTitle(
                 game.skin,
-                "ELENCO • ESTATÍSTICAS"
+                "ELENCO DE JOGADORES"
             );
 
         panelHeader
@@ -1129,11 +942,17 @@ public class ClubManagementScreen implements Screen {
             }
         );
 
-        panelHeader
-            .add(filter)
-            .width(235f)
-            .height(52f)
-            .right();
+        TextField search = new TextField(playerSearch, game.skin);
+        search.setMessageText("Buscar jogador...");
+        search.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, com.badlogic.gdx.scenes.scene2d.Actor actor) {
+                playerSearch = search.getText();
+                ScrollPane list = stage.getRoot().findActor("squad-list");
+                if (list != null) list.setActor(createSquadTable());
+            }
+        });
+        panelHeader.add(search).width(205f).height(40f).padRight(8f);
+        panelHeader.add(filter).width(190f).height(40f).right();
 
         panel
             .add(panelHeader)
@@ -1151,14 +970,9 @@ public class ClubManagementScreen implements Screen {
                 game.skin
             );
 
-        scroll.setFadeScrollBars(
-            false
-        );
-
-        scroll.setScrollingDisabled(
-            false,
-            false
-        );
+        scroll.setName("squad-list");
+        scroll.setFadeScrollBars(false);
+        scroll.setScrollingDisabled(true, false);
 
         panel
             .add(scroll)
@@ -1286,7 +1100,7 @@ public class ClubManagementScreen implements Screen {
         ) {
 
             if (
-                !matchesPositionFilter(
+                !player.getName().toLowerCase(Locale.ROOT).contains(playerSearch.toLowerCase(Locale.ROOT)) || !matchesPositionFilter(
                     player
                 )
             ) {
@@ -1303,7 +1117,7 @@ public class ClubManagementScreen implements Screen {
             table
                 .add(row)
                 .growX()
-                .height(54f)
+.height(43f)
                 .row();
         }
 
@@ -1739,30 +1553,8 @@ public class ClubManagementScreen implements Screen {
             .padBottom(10f)
             .row();
 
-        int fieldWidth =
-            Math.min(
-                410,
-                Math.max(
-                    300,
-                    (int) (
-                        Gdx.graphics
-                            .getWidth() *
-                            0.27f
-                    )
-                )
-            );
-
-        int fieldHeight =
-            Math.min(
-                580,
-                Math.max(
-                    420,
-                    (int) (
-                        fieldWidth *
-                            1.42f
-                    )
-                )
-            );
+        int fieldWidth = 420;
+        int fieldHeight = 420;
 
         Stack field =
             new Stack();
@@ -1897,7 +1689,7 @@ public class ClubManagementScreen implements Screen {
             Math.min(
                 108f,
                 width *
-                    0.26f
+                    0.20f
             ),
             48f
         );
@@ -2445,7 +2237,7 @@ public class ClubManagementScreen implements Screen {
 
     @Override public void pause() {}
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

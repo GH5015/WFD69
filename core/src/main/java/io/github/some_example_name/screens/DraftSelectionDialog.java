@@ -187,6 +187,19 @@ public class DraftSelectionDialog extends Dialog {
                 0.56f
             );
 
+        close.setName("draft-candidate-bank-close");
+        // O ImageTextButton customizado nem sempre propaga o ChangeEvent que
+        // o Dialog usa para fechar automaticamente. O fechamento fica no
+        // próprio clique, sem depender desse evento implícito.
+        close.addListener(
+            new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    DraftSelectionDialog.this.hide();
+                }
+            }
+        );
+
         button(
             close,
             false

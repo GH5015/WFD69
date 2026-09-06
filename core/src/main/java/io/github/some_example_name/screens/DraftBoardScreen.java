@@ -47,6 +47,7 @@ public class DraftBoardScreen implements Screen {
     @Override public void show() { Gdx.input.setInputProcessor(stage); refreshUI(); }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
         Stack root = new Stack();
         root.setFillParent(true);
@@ -77,6 +78,7 @@ public class DraftBoardScreen implements Screen {
         page.add(back).width(300f).height(50f).center().row();
         root.add(page);
         NavigationDrawer.attach(stage, game, club, "SCOUTING", true);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table createDraftTable(List<DraftPick> picks) {
@@ -106,7 +108,7 @@ public class DraftBoardScreen implements Screen {
     private Table createRoundDivider(int round) {
         Table divider = ScreenUI.createSubtlePanel();
         int count = DraftOrderService.picksPerRound(game.league, game.league.getCurrentSeason() + 1);
-        divider.add(ScreenUI.createSectionTitle(game.skin, round + "ª RODADA  •  ESCOLHAS " + ((round - 1) * count + 1) + "–" + (round * count))).left().padLeft(12f);
+        divider.add(ScreenUI.createSectionTitle(game.skin, round + "ª RODADA  •  ESCOLHAS " + ((round - 1) * count + 1) + " - " + (round * count))).left().padLeft(12f);
         divider.add(ScreenUI.createSubtitle(game.skin, "A ordem muda conforme a classificação da liga")).right().expandX().padRight(12f);
         return divider;
     }
@@ -149,6 +151,6 @@ public class DraftBoardScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
     @Override public void dispose() { stage.dispose(); backgroundTexture.dispose(); }
 }

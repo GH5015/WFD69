@@ -86,6 +86,7 @@ public class ClubSelectionScreen implements Screen {
     @Override public void show() { Gdx.input.setInputProcessor(stage); refreshUI(); }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
         Stack root = new Stack();
         root.setFillParent(true);
@@ -108,6 +109,7 @@ public class ClubSelectionScreen implements Screen {
         page.add(footer()).growX().height(70f);
         border.add(page).grow();
         root.add(border);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table topHeader() {
@@ -740,7 +742,7 @@ public class ClubSelectionScreen implements Screen {
             game.skin,
             isJobSearch()
                 ? "Deseja assumir o comando desta franquia?"
-                : isExpansionPreview(choice) ? "Simular 1969–" + (choice.getStartYear() - 1)
+                : isExpansionPreview(choice) ? "Simular 1969 - " + (choice.getStartYear() - 1)
                     + " e assumir na off-season?" : "Deseja iniciar sua carreira com esta franquia?",
             StyleFactory.TEXT_PRIMARY,
             Align.center
@@ -900,7 +902,7 @@ public class ClubSelectionScreen implements Screen {
     @Override public void resize(int w, int h) { stage.getViewport().update(w, h, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
     @Override public void dispose() {
         stage.dispose(); starTexture.dispose();
         for (Texture texture : textures.values()) texture.dispose();

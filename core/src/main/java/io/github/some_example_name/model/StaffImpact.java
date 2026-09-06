@@ -28,9 +28,13 @@ public final class StaffImpact {
         return 0.90d + ((clampStars(coachStars) + clampStars(developmentStars)) * 0.025d);
     }
 
-    /** Preparador físico: acelera a recuperação entre jogos. */
+    /**
+     * Preparador físico: pequeno ajuste na recuperação entre jogos.
+     * A qualidade continua relevante, mas a diferença total entre 1 e 5
+     * estrelas passa de 30 para 10 pontos percentuais.
+     */
     public static double fitnessRecoveryMultiplier(int stars) {
-        return 0.78d + clampStars(stars) * 0.075d;
+        return 0.94d + clampStars(stars) * 0.025d;
     }
 
     /** Preparador físico: reduz o desgaste sofrido durante uma partida. */

@@ -6,7 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Match {
+public class Match implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private Club.TacticalSetup homePrematchSetup, awayPrematchSetup;
     private boolean tacticalSetupCaptured, tacticalSetupRestored;
     private transient io.github.some_example_name.engine.TacticalPerformanceReport homeFinalReport, awayFinalReport;
@@ -37,6 +38,9 @@ public class Match {
     private Club awayTeam;
     private int homeGoals;
     private int awayGoals;
+    private boolean penaltyShootout;
+    private int homePenaltyGoals;
+    private int awayPenaltyGoals;
     private boolean played;
     private List<Player> goalScorers;
     private List<Player> assisters;
@@ -93,6 +97,9 @@ public class Match {
     public Club getAwayTeam() { return awayTeam; }
     public int getHomeGoals() { return homeGoals; }
     public int getAwayGoals() { return awayGoals; }
+    public boolean hasPenaltyShootout() { return penaltyShootout; }
+    public int getHomePenaltyGoals() { return homePenaltyGoals; }
+    public int getAwayPenaltyGoals() { return awayPenaltyGoals; }
     public boolean isPlayed() { return played; }
     public List<Player> getGoalScorers() { return goalScorers; }
     public List<Player> getAssisters() { return assisters; }
@@ -197,6 +204,22 @@ public class Match {
     public void setPlayed(boolean played) { this.played = played; }
     public void setHomeGoals(int g) { this.homeGoals = g; }
     public void setAwayGoals(int g) { this.awayGoals = g; }
+    public void setPenaltyShootout(int homeGoals, int awayGoals) {
+        if (homeGoals == awayGoals) {
+            throw new IllegalArgumentException("A disputa de pênaltis precisa ter um vencedor.");
+        }
+        this.penaltyShootout = true;
+        this.homePenaltyGoals = Math.max(0, homeGoals);
+        this.awayPenaltyGoals = Math.max(0, awayGoals);
+    }
+
+    /** Vencedor do tempo normal ou, quando necessário, da disputa de pênaltis. */
+    public Club getWinningClub() {
+        if (homeGoals > awayGoals) return homeTeam;
+        if (awayGoals > homeGoals) return awayTeam;
+        if (!penaltyShootout) return null;
+        return homePenaltyGoals > awayPenaltyGoals ? homeTeam : awayTeam;
+    }
     public void addHomeShot(boolean onTarget) { homeShots++; if(onTarget) homeShotsOnTarget++; }
     public void addAwayShot(boolean onTarget) { awayShots++; if(onTarget) awayShotsOnTarget++; }
     public void setPossession(int hP) {
@@ -292,7 +315,8 @@ public class Match {
     public void applyPostMatchMorale() {
         if (!played || moraleProcessed) return;
         double homeOverall = homeTeam.getOverall(), awayOverall = awayTeam.getOverall();
-        int result = Integer.compare(homeGoals, awayGoals);
+        Club winner = getWinningClub();
+        int result = winner == homeTeam ? 1 : winner == awayTeam ? -1 : 0;
         homeTeam.updateSquadMorale(result, awayOverall, getParticipantsForClub(homeTeam));
         awayTeam.updateSquadMorale(-result, homeOverall, getParticipantsForClub(awayTeam));
         moraleProcessed = true;

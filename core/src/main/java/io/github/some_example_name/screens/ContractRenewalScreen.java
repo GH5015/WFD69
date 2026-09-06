@@ -69,6 +69,7 @@ public class ContractRenewalScreen implements Screen {
     }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
 
         Stack root = new Stack();
@@ -107,6 +108,7 @@ public class ContractRenewalScreen implements Screen {
             "CONTRATOS",
             true
         );
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table createFinanceHeader() {
@@ -306,10 +308,10 @@ public class ContractRenewalScreen implements Screen {
         final TextButton[] yearButtons = new TextButton[5];
         final Runnable[] proposalUpdater = new Runnable[1];
         Table yearSelection = new Table();
-        yearSelection.add(ScreenUI.createSubtitle(game.skin, "DURAÇÃO DO NOVO CONTRATO")).colspan(5).center().padBottom(5f).row();
+        yearSelection.add(ScreenUI.createSubtitle(game.skin, "ANOS ADICIONADOS AO CONTRATO ATUAL")).colspan(5).center().padBottom(5f).row();
         for (int year = 1; year <= 5; year++) {
             final int selectedYear = year;
-            TextButton button = ScreenUI.createInteractiveButton(year + " ANO" + (year > 1 ? "S" : ""), game.skin);
+            TextButton button = ScreenUI.createInteractiveButton("+" + year + " ANO" + (year > 1 ? "S" : ""), game.skin);
             button.getLabel().setFontScale(0.50f);
             button.setColor(year == years[0] ? StyleFactory.GOLD : Color.WHITE);
             button.addListener(new ClickListener() {
@@ -437,7 +439,7 @@ public class ContractRenewalScreen implements Screen {
         if (decision.outcome == ContractRenewalService.Outcome.COUNTER_OFFER) {
             Table counter = ScreenUI.createSubtlePanel();
             counter.add(ScreenUI.createSubtitle(game.skin, player.getName() + " deseja:")).colspan(2).center().padBottom(6f).row();
-            counter.add(ScreenUI.createBoldValue(game.skin, decision.counterYears + " anos", Color.WHITE, Align.center)).width(230f);
+            counter.add(ScreenUI.createBoldValue(game.skin, "+" + decision.counterYears + " anos", Color.WHITE, Align.center)).width(230f);
             counter.add(ScreenUI.createBoldValue(game.skin, formatMoney(decision.counterAnnualSalary) + " / ano", StyleFactory.PLAYOFF_GOLD, Align.center)).width(230f).row();
             content.add(counter).width(520f).height(88f).padBottom(9f).row();
 
@@ -608,7 +610,7 @@ public class ContractRenewalScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

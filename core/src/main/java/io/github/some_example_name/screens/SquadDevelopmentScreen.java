@@ -56,6 +56,7 @@ public class SquadDevelopmentScreen implements Screen {
     }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
         Stack root = new Stack();
         root.setFillParent(true);
@@ -76,6 +77,7 @@ public class SquadDevelopmentScreen implements Screen {
         root.add(page);
 
         NavigationDrawer.attach(stage, game, club, "DESENV.", true);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table createHeader() {
@@ -138,8 +140,8 @@ public class SquadDevelopmentScreen implements Screen {
         Table summary = new Table();
         summary.add(status("NO DEPARTAMENTO MÉDICO", String.valueOf(injured.size()), injured.isEmpty() ? ScreenUI.SUCCESS : ScreenUI.DANGER)).growX().uniformX().padRight(8f);
         summary.add(status("ATÉ 3 DIAS", String.valueOf(imminent), imminent > 0 ? ScreenUI.SUCCESS : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
-        summary.add(status("4–14 DIAS", String.valueOf(shortTerm), shortTerm > 0 ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
-        summary.add(status("15–30 DIAS", String.valueOf(mediumTerm), mediumTerm > 0 ? ScreenUI.WARNING : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("4 - 14 DIAS", String.valueOf(shortTerm), shortTerm > 0 ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
+        summary.add(status("15 - 30 DIAS", String.valueOf(mediumTerm), mediumTerm > 0 ? ScreenUI.WARNING : ScreenUI.MUTED_TEXT)).growX().uniformX().padRight(8f);
         summary.add(status("31+ DIAS", String.valueOf(longTerm), longTerm > 0 ? ScreenUI.DANGER : ScreenUI.MUTED_TEXT)).growX().uniformX();
         return summary;
     }
@@ -444,6 +446,6 @@ public class SquadDevelopmentScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
     @Override public void dispose() { stage.dispose(); }
 }

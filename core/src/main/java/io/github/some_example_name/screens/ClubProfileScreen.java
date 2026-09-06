@@ -11,6 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Scaling;
@@ -19,6 +20,7 @@ import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.Main;
 import io.github.some_example_name.model.AttendanceService;
 import io.github.some_example_name.model.Club;
+import io.github.some_example_name.model.LeagueHistory;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.SeasonHistory;
@@ -27,12 +29,15 @@ import io.github.some_example_name.model.StaffMember;
 import io.github.some_example_name.model.StaffRole;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
+import io.github.some_example_name.utils.ClubUniformAssets;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class ClubProfileScreen implements Screen {
 
@@ -44,6 +49,8 @@ public class ClubProfileScreen implements Screen {
     private Texture logoTexture;
     private Texture starTexture;
     private Texture stadiumIconTexture;
+    private Texture uniformTexture;
+    private Drawable uniformDrawable;
 
     private String activeTab = "RESUMO";
 
@@ -67,6 +74,7 @@ public class ClubProfileScreen implements Screen {
 
         starTexture = ScreenUI.loadTintableIcon("Icons8/icons8-estrela-48.png");
         stadiumIconTexture = ScreenUI.loadTintableIcon("Icons8/icons8-estádio-50.png");
+        loadClubUniform();
     }
 
     // =========================================================
@@ -88,6 +96,7 @@ public class ClubProfileScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
 
         stage.clear();
 
@@ -212,6 +221,7 @@ public class ClubProfileScreen implements Screen {
             true
         );
 
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     // =========================================================
@@ -222,6 +232,8 @@ public class ClubProfileScreen implements Screen {
 
         Table panel =
             ScreenUI.createPanel();
+
+        panel.pad(10f, 16f, 10f, 16f);
 
         if (
             logoTexture != null
@@ -240,9 +252,9 @@ public class ClubProfileScreen implements Screen {
 
             panel
                 .add(logo)
-                .width(150f)
-                .height(94f)
-                .padRight(18f);
+                .width(122f)
+                .height(88f)
+                .padRight(16f);
         }
 
         Table identity =
@@ -264,9 +276,12 @@ public class ClubProfileScreen implements Screen {
         clubName.setColor(
             StyleFactory.GOLD
         );
+        clubName.setEllipsis(true);
 
         identity
             .add(clubName)
+            .growX()
+            .minWidth(0f)
             .left()
             .row();
 
@@ -325,7 +340,8 @@ public class ClubProfileScreen implements Screen {
         panel
             .add(identity)
             .left()
-            .expandX();
+            .growX()
+            .minWidth(0f);
 
         // =====================================================
         // OVERALL
@@ -471,6 +487,7 @@ public class ClubProfileScreen implements Screen {
             ScreenUI.createPanel();
 
         left.top();
+        left.pad(14f, 16f, 14f, 16f);
 
         Label overviewTitle =
             ScreenUI.createSectionTitle(
@@ -501,10 +518,26 @@ public class ClubProfileScreen implements Screen {
 
             left
                 .add(logo)
-                .width(270f)
-                .height(170f)
+                .width(220f)
+                .height(126f)
                 .center()
-                .padBottom(14f)
+                .padBottom(7f)
+                .row();
+        }
+
+        if (uniformDrawable != null) {
+            Label uniformTitle = ScreenUI.createSubtitle(game.skin, "UNIFORME PRINCIPAL");
+            uniformTitle.setFontScale(.44f);
+            uniformTitle.setColor(ScreenUI.MUTED_TEXT);
+            left.add(uniformTitle).center().padBottom(2f).row();
+
+            Image uniform = new Image(uniformDrawable);
+            uniform.setScaling(Scaling.fit);
+            left.add(uniform)
+                .width(150f)
+                .height(112f)
+                .center()
+                .padBottom(8f)
                 .row();
         }
 
@@ -566,7 +599,7 @@ public class ClubProfileScreen implements Screen {
 
         root
             .add(left)
-            .width(340f)
+            .width(390f)
             .growY()
             .padRight(12f);
 
@@ -621,6 +654,7 @@ public class ClubProfileScreen implements Screen {
         right
             .add(stats)
             .growX()
+            .height(96f)
             .padBottom(12f)
             .row();
 
@@ -632,6 +666,7 @@ public class ClubProfileScreen implements Screen {
             ScreenUI.createPanel();
 
         info.top();
+        info.pad(12f, 14f, 8f, 14f);
 
         info
             .add(
@@ -686,6 +721,7 @@ public class ClubProfileScreen implements Screen {
         right
             .add(info)
             .growX()
+            .height(238f)
             .padBottom(12f)
             .row();
 
@@ -713,6 +749,7 @@ public class ClubProfileScreen implements Screen {
             ScreenUI.createPanel();
 
         panel.top();
+        panel.pad(10f, 12f, 10f, 12f);
 
         panel
             .add(
@@ -757,12 +794,12 @@ public class ClubProfileScreen implements Screen {
             Align.center
         );
 
-        panel
-            .add(header)
-            .growX()
-            .colspan(4)
-            .height(44f)
-            .row();
+            panel
+                .add(header)
+                .growX()
+                .colspan(4)
+                .height(38f)
+                .row();
 
         List<Player> players =
             new ArrayList<>(
@@ -853,7 +890,7 @@ public class ClubProfileScreen implements Screen {
                 .add(row)
                 .growX()
                 .colspan(4)
-                .height(48f)
+                .height(42f)
                 .row();
         }
 
@@ -865,6 +902,8 @@ public class ClubProfileScreen implements Screen {
     // =========================================================
 
     private Table createHistoryTab() {
+
+        ClubRecordLeaders leaders = resolveClubRecordLeaders();
 
         Table root =
             new Table();
@@ -960,26 +999,26 @@ public class ClubProfileScreen implements Screen {
         addRecord(
             records,
             "Maior artilheiro",
-            club.getTopScorerName() +
+            leaders.topScorerName +
                 " • " +
-                club.getTopScorerGoals() +
+                leaders.topScorerGoals +
                 " gols"
         );
 
         addRecord(
             records,
             "Mais jogos",
-            club.getMostGamesPlayerName() +
+            leaders.mostGamesName +
                 " • " +
-                club.getMostGamesCount()
+                leaders.mostGamesCount
         );
 
         addRecord(
             records,
             "Mais assistências",
-            club.getTopAssisterName() +
+            leaders.topAssisterName +
                 " • " +
-                club.getTopAssisterCount()
+                leaders.topAssisterCount
         );
 
         int saldo =
@@ -1100,6 +1139,104 @@ public class ClubProfileScreen implements Screen {
             .row();
 
         return root;
+    }
+
+    /**
+     * A aba História também precisa funcionar em saves anteriores à criação
+     * dos totais individuais no Club. Neste caso, recompomos os líderes a
+     * partir das temporadas já arquivadas e somamos a temporada em andamento.
+     */
+    private ClubRecordLeaders resolveClubRecordLeaders() {
+        Map<String, PlayerRecordTotals> totalsByPlayer = new HashMap<>();
+        LeagueHistory history = game.league != null ? game.league.getHistory() : null;
+        boolean currentSeasonCaptured = history != null
+            && history.findSeason(game.league.getCurrentSeason()) != null;
+
+        if (history != null) {
+            for (LeagueHistory.PlayerCareer career : history.getPlayerCareers()) {
+                PlayerRecordTotals totals = null;
+                for (LeagueHistory.PlayerSeason season : career.getSeasons()) {
+                    if (!club.getName().equals(season.getClubName())) continue;
+                    if (totals == null) {
+                        totals = totalsByPlayer.computeIfAbsent(career.getPlayerId(), ignored ->
+                            new PlayerRecordTotals(career.getPlayerName()));
+                    }
+                    totals.goals += season.getGoals();
+                    totals.assists += season.getAssists();
+                    totals.appearances += season.getAppearances();
+                }
+            }
+        }
+
+        // A temporada aberta ainda não foi gravada em LeagueHistory.
+        if (!currentSeasonCaptured) {
+            for (Player player : club.getSquad()) {
+                if (player == null) continue;
+                PlayerRecordTotals totals = totalsByPlayer.computeIfAbsent(player.getId(), ignored ->
+                    new PlayerRecordTotals(player.getName()));
+                totals.goals += player.getSeasonGoals();
+                totals.assists += player.getSeasonAssists();
+                totals.appearances += player.getSeasonAppearances();
+            }
+        }
+
+        ClubRecordLeaders leaders = new ClubRecordLeaders();
+        for (PlayerRecordTotals totals : totalsByPlayer.values()) leaders.consider(totals);
+
+        // Os valores persistidos pelo Club cobrem partidas recém-jogadas e
+        // carreiras que tenham sido salvas sem o arquivo LeagueHistory.
+        leaders.useStoredFallbacks(club);
+        return leaders;
+    }
+
+    private static final class PlayerRecordTotals {
+        private final String name;
+        private int goals;
+        private int assists;
+        private int appearances;
+
+        private PlayerRecordTotals(String name) {
+            this.name = name == null || name.trim().isEmpty() ? "Sem registros" : name;
+        }
+    }
+
+    private static final class ClubRecordLeaders {
+        private String topScorerName = "Sem registros";
+        private int topScorerGoals;
+        private String topAssisterName = "Sem registros";
+        private int topAssisterCount;
+        private String mostGamesName = "Sem registros";
+        private int mostGamesCount;
+
+        private void consider(PlayerRecordTotals totals) {
+            if (totals.goals > topScorerGoals) {
+                topScorerName = totals.name;
+                topScorerGoals = totals.goals;
+            }
+            if (totals.assists > topAssisterCount) {
+                topAssisterName = totals.name;
+                topAssisterCount = totals.assists;
+            }
+            if (totals.appearances > mostGamesCount) {
+                mostGamesName = totals.name;
+                mostGamesCount = totals.appearances;
+            }
+        }
+
+        private void useStoredFallbacks(Club club) {
+            if (club.getTopScorerGoals() > topScorerGoals) {
+                topScorerName = club.getTopScorerName();
+                topScorerGoals = club.getTopScorerGoals();
+            }
+            if (club.getTopAssisterCount() > topAssisterCount) {
+                topAssisterName = club.getTopAssisterName();
+                topAssisterCount = club.getTopAssisterCount();
+            }
+            if (club.getMostGamesCount() > mostGamesCount) {
+                mostGamesName = club.getMostGamesPlayerName();
+                mostGamesCount = club.getMostGamesCount();
+            }
+        }
     }
 
     // =========================================================
@@ -2208,6 +2345,22 @@ public class ClubProfileScreen implements Screen {
         return null;
     }
 
+    private void loadClubUniform() {
+        try {
+            String path = ClubUniformAssets.forClub(club);
+            if (path == null || !Gdx.files.internal(path).exists()) return;
+            uniformTexture = new Texture(Gdx.files.internal(path));
+            uniformTexture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+            );
+            uniformDrawable = ClubUniformAssets.drawable(uniformTexture);
+        } catch (Exception ignored) {
+            uniformTexture = null;
+            uniformDrawable = null;
+        }
+    }
+
     // =========================================================
     // SCREEN
     // =========================================================
@@ -2252,7 +2405,7 @@ public class ClubProfileScreen implements Screen {
 
     @Override public void pause() {}
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {
@@ -2273,6 +2426,10 @@ public class ClubProfileScreen implements Screen {
 
         if (stadiumIconTexture != null) {
             stadiumIconTexture.dispose();
+        }
+
+        if (uniformTexture != null) {
+            uniformTexture.dispose();
         }
     }
 }

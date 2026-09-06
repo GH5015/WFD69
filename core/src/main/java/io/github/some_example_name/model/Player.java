@@ -3,7 +3,8 @@ package io.github.some_example_name.model;
 import java.util.UUID;
 import java.util.Map;
 
-public class Player {
+public class Player implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private Map<String, PlayerNegotiation.Session> negotiationSessions = new java.util.HashMap<>();
     public PlayerNegotiation.Session negotiationSession(Club club, int year, String type) {
         if (negotiationSessions == null) negotiationSessions = new java.util.HashMap<>();
@@ -47,6 +48,8 @@ public class Player {
     private int matchRedCards = 0;
 
     private int fatigue = 100;
+    /** Acumula frações de desgaste durante a partida sem arredondar cada minuto. */
+    private transient double inMatchFatigueRemainder = 0d;
 
     // Sistema de Suspensão e Lesão
     private int suspendedMatches = 0;
@@ -345,6 +348,7 @@ public class Player {
                 return (int) Math.round(gk * 0.76 + fis * 0.12 + pas * 0.12);
 
             case CB:
+            case SW:
                 return (int) Math.round(def * 0.45 + fis * 0.30 + pas * 0.15 + atk * 0.05 + dri * 0.05);
 
             case LB:
@@ -397,10 +401,32 @@ public class Player {
             base = Math.max(15, (int) (this.overall * 0.25f));
         } else if (this.primaryPosition == targetPos) {
             base = this.overall;
-        } else if (this.secondaryPosition == targetPos) {
-            base = (int) Math.round(calculateOverallForPosition(targetPos) * 0.95);
         } else {
-            base = (int) Math.round(calculateOverallForPosition(targetPos) * 0.85);
+            int calculatedForPosition = calculateOverallForPosition(targetPos);
+            int familiarity = getPositionFamiliarity(targetPos);
+
+            if (familiarity == 3) {
+                // Posição secundária: praticamente a mesma capacidade da principal.
+                base = Math.max(
+                    this.overall - 2,
+                    (int) Math.round(calculatedForPosition * 0.98)
+                );
+            } else if (familiarity == 2) {
+                // Funções naturalmente intercambiáveis (ex.: LB/LWB, CM/CDM, CF/ST).
+                base = Math.max(
+                    this.overall - 4,
+                    (int) Math.round(calculatedForPosition * 0.96)
+                );
+            } else if (familiarity == 1) {
+                // Mesma faixa/setor do campo, mas exige alguma adaptação.
+                base = Math.max(
+                    this.overall - 7,
+                    (int) Math.round(calculatedForPosition * 0.92)
+                );
+            } else {
+                // Mudanças realmente incompatíveis continuam tendo penalidade relevante.
+                base = (int) Math.round(calculatedForPosition * 0.85);
+            }
         }
 
         if (fatigue >= 60) {
@@ -409,6 +435,76 @@ public class Player {
 
         double penalty = ((60 - fatigue) / 60.0) * 0.20;
         return (int) Math.round(base * (1.0 - penalty));
+    }
+
+    /**
+     * Mede a familiaridade com uma posição sem gravar estado novo no jogador,
+     * mantendo compatibilidade com partidas salvas antigas.
+     *
+     * @return 3 para a secundária, 2 para posição vizinha, 1 para o mesmo setor
+     *         e 0 para uma mudança incompatível.
+     */
+    private int getPositionFamiliarity(Position targetPos) {
+        if (secondaryPosition == targetPos) {
+            return 3;
+        }
+
+        if (isNaturalAlternative(primaryPosition, targetPos)
+            || isNaturalAlternative(secondaryPosition, targetPos)) {
+            return 2;
+        }
+
+        if (isRelatedPosition(primaryPosition, targetPos)
+            || isRelatedPosition(secondaryPosition, targetPos)) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private static boolean isNaturalAlternative(Position first, Position second) {
+        if (first == null || second == null) return false;
+
+        return isPair(first, second, Position.CB, Position.SW)
+            || isPair(first, second, Position.LB, Position.LWB)
+            || isPair(first, second, Position.RB, Position.RWB)
+            || isPair(first, second, Position.LB, Position.RB)
+            || isPair(first, second, Position.LWB, Position.RWB)
+            || isPair(first, second, Position.CDM, Position.CM)
+            || isPair(first, second, Position.CM, Position.CAM)
+            || isPair(first, second, Position.LM, Position.LW)
+            || isPair(first, second, Position.RM, Position.RW)
+            || isPair(first, second, Position.LM, Position.RM)
+            || isPair(first, second, Position.LW, Position.RW)
+            || isPair(first, second, Position.CF, Position.ST);
+    }
+
+    private static boolean isRelatedPosition(Position first, Position second) {
+        if (first == null || second == null || first.isGoalkeeper() || second.isGoalkeeper()) {
+            return false;
+        }
+
+        return bothIn(first, second, Position.CB, Position.SW, Position.LB, Position.RB,
+                Position.LWB, Position.RWB, Position.CDM)
+            || bothIn(first, second, Position.CDM, Position.CM, Position.CAM, Position.LM, Position.RM)
+            || bothIn(first, second, Position.LB, Position.LWB, Position.LM, Position.LW)
+            || bothIn(first, second, Position.RB, Position.RWB, Position.RM, Position.RW)
+            || bothIn(first, second, Position.CAM, Position.LM, Position.RM, Position.LW,
+                Position.RW, Position.CF, Position.ST);
+    }
+
+    private static boolean isPair(Position first, Position second, Position a, Position b) {
+        return (first == a && second == b) || (first == b && second == a);
+    }
+
+    private static boolean bothIn(Position first, Position second, Position... group) {
+        boolean containsFirst = false;
+        boolean containsSecond = false;
+        for (Position position : group) {
+            if (position == first) containsFirst = true;
+            if (position == second) containsSecond = true;
+        }
+        return containsFirst && containsSecond;
     }
 
     public int getPositionWeight() {
@@ -427,6 +523,23 @@ public class Player {
         if (primaryPosition.isGoalkeeper()) loss = 10;
         loss = Math.max(1, (int) Math.round(loss * Math.max(0.15d, multiplier)));
         this.fatigue = Math.max(0, this.fatigue - loss);
+    }
+
+    /**
+     * Aplica o desgaste minuto a minuto. A reserva decimal mantém a perda
+     * gradual visível sem transformar cada fração de ponto em um ponto inteiro.
+     */
+    public void applyInMatchFatigue(double amount) {
+        if (amount <= 0d || fatigue <= 0) return;
+        inMatchFatigueRemainder += amount;
+        int wholePoints = (int) Math.floor(inMatchFatigueRemainder);
+        if (wholePoints <= 0) return;
+        fatigue = Math.max(0, fatigue - wholePoints);
+        inMatchFatigueRemainder -= wholePoints;
+    }
+
+    public void resetInMatchFatigueAccumulator() {
+        inMatchFatigueRemainder = 0d;
     }
 
     public void recover(int days) {
@@ -545,11 +658,22 @@ public class Player {
 
     public void renewContract(long annualSalary, int years, int currentYear) {
         int safeYears = Math.max(1, Math.min(5, years));
+        int previousEndYear = Math.max(currentYear, this.contractEndYear);
+        applyContractTerms(annualSalary, previousEndYear + safeYears, currentYear);
+    }
+
+    /** Novo vínculo: usado por Draft e Free Agency, sem carregar duração anterior. */
+    public void signContract(long annualSalary, int years, int currentYear) {
+        int safeYears = Math.max(1, Math.min(5, years));
+        applyContractTerms(annualSalary, currentYear + safeYears, currentYear);
+    }
+
+    private void applyContractTerms(long annualSalary, int endYear, int currentYear) {
         this.salary = Math.max(0L, annualSalary) / 12.0;
         this.negotiatedMonthlySalary = this.salary;
-        this.contractYears = safeYears;
-        this.contractEndYear = currentYear + safeYears;
-        this.nextContractNegotiationYear = currentYear + Math.max(1, safeYears - 2);
+        this.contractEndYear = Math.max(currentYear + 1, endYear);
+        this.contractYears = Math.max(1, this.contractEndYear - currentYear);
+        this.nextContractNegotiationYear = Math.max(currentYear + 1, this.contractEndYear - 2);
         this.tradeBlockedDays = 30;
     }
     public int getTradeBlockedDays() { return tradeBlockedDays; }
@@ -572,6 +696,21 @@ public class Player {
         return development != null
             ? development.getTruePotential()
             : potential;
+    }
+
+    /**
+     * Recalibra o teto de um prospecto recém-criado para a curva global do Draft.
+     * O progresso é reinicializado porque este método é usado antes de o jogador
+     * entrar em um clube ou iniciar seu desenvolvimento profissional.
+     */
+    public void rebalanceDraftPotential(int newPotential) {
+        int safePotential = Math.max(40, Math.min(99, newPotential));
+        this.potential = safePotential;
+        this.development = new PlayerDevelopment(
+            safePotential,
+            selectDevelopmentCurve(name)
+        );
+        this.development.initialize(this.technicalAttributes, this.overall);
     }
     public PlayerDevelopment getDevelopment() { return development; }
     public DevelopmentFocus getDevelopmentFocus() { return development.getFocus(); }

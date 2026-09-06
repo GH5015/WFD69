@@ -98,6 +98,7 @@ public class ClubDetailsScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
 
         stage.clear();
 
@@ -219,6 +220,7 @@ public class ClubDetailsScreen implements Screen {
             true
         );
 
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     // =========================================================
@@ -1266,7 +1268,7 @@ public class ClubDetailsScreen implements Screen {
 
     @Override public void pause() {}
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

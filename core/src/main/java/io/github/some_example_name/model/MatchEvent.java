@@ -1,6 +1,7 @@
 package io.github.some_example_name.model;
 
-public class MatchEvent {
+public class MatchEvent implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     public int minute;
     public String description;
     public String type; // "GOL", "CHUTE", "CARTAO", etc.

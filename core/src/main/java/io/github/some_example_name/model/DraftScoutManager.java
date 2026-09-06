@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 
-public class DraftScoutManager {
+public class DraftScoutManager implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final List<ScoutTarget> activeTargets;
     private final List<ScoutTarget> completedTargets;
     private int scoutStars = 3;

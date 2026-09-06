@@ -106,6 +106,80 @@ public final class LeagueExpansionService {
         return Math.max(0, TARGET_ROSTER - club.getSquad().size());
     }
 
+    public static DraftSession beginSession(League league, Club user, Collection<Player> protectedPlayers) {
+        DraftSession existing = league.getExpansionSession();
+        if (existing != null && existing.year == league.getCurrentSeason() + 1) return existing;
+        if (!isPending(league)) throw new IllegalArgumentException("Expansão já concluída.");
+        List<Club> clubs = prepare(league, league.getCurrentSeason() + 1);
+        if (!clubs.contains(user) && user != null && (protectedPlayers == null
+            || protectedPlayers.size() != protectionLimit(user) || !user.getSquad().containsAll(protectedPlayers)))
+            throw new IllegalArgumentException("Confirme as proteções do clube.");
+        DraftSession session = new DraftSession(league.getCurrentSeason() + 1, clubs,
+            availablePool(league, clubs, clubs.contains(user) ? null : user, protectedPlayers));
+        league.setExpansionSession(session);
+        return session;
+    }
+
+    /** Escolhas em ordem fixa A/B/A/B, reservadas até a conclusão do evento. */
+    public static final class DraftSession implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
+        public final int year;
+        private final List<Club> clubs;
+        private final DraftPlan plan;
+        private final List<String> log = new ArrayList<>();
+        private int turn;
+        private boolean committed;
+        DraftSession(int year, List<Club> clubs, Map<Player, Club> pool) {
+            this.year = year; this.clubs = new ArrayList<>(clubs); plan = new DraftPlan(clubs, pool);
+        }
+        public List<Club> getClubs() { return Collections.unmodifiableList(clubs); }
+        public Club currentClub() {
+            for (int i = 0; i < clubs.size(); i++) {
+                Club c = clubs.get(turn % clubs.size());
+                if (plan.selections.get(c).size() < requiredSelections(c)) return c;
+                turn++;
+            }
+            return null;
+        }
+        public List<Player> available() { return new ArrayList<>(plan.available.keySet()); }
+        public Club source(Player p) { return plan.sources.get(p); }
+        public int losses(Club c) { return plan.losses.getOrDefault(c, 0); }
+        public long payroll(Club c) { return plan.payroll.getOrDefault(c, c.getFinance().getAnnualPayroll()); }
+        public List<Player> chosen(Club c) { return Collections.unmodifiableList(plan.selections.getOrDefault(c, Collections.emptyList())); }
+        public List<String> getLog() { return Collections.unmodifiableList(log); }
+        public void choose(Club club, Player player) {
+            if (committed || club == null || club != currentClub()) throw new IllegalArgumentException("Aguarde a vez do seu clube.");
+            if (!plan.available.containsKey(player)) throw new IllegalArgumentException("Jogador indisponível.");
+            int remaining = requiredSelections(club) - chosen(club).size();
+            if (!plan.canFinishAfter(club, player, remaining))
+                throw new IllegalArgumentException("Escolha inviável: limite de saídas ou orçamento para completar o elenco.");
+            plan.reserve(club, player);
+            log.add("#" + (log.size() + 1) + "  " + club.getName() + " ← " + player.getName() + " (" + source(player).getName() + ")");
+            turn++;
+        }
+        public void chooseAi() {
+            Club c = currentClub(); if (c == null) return;
+            int remaining = requiredSelections(c) - chosen(c).size();
+            Player p = plan.available.keySet().stream().filter(v -> plan.canFinishAfter(c, v, remaining))
+                .max(Comparator.comparingDouble((Player v) -> selectionScore(c, v, plan.selections.get(c)))
+                .thenComparing(Player::getName)).orElse(null);
+            if (p == null) throw new IllegalArgumentException("Não há escolha viável para " + c.getName() + ".");
+            choose(c, p);
+        }
+        public void finish(League league) {
+            if (committed) return;
+            if (currentClub() != null) throw new IllegalArgumentException("Ainda há escolhas pendentes.");
+            for (Club c : clubs) for (Player p : plan.selections.get(c)) {
+                Club source = source(p);
+                source.getStartingXI().remove(p);
+                source.getTacticsMap().entrySet().removeIf(e -> e.getValue() == p);
+                p.transferTo(c);
+            }
+            committed = true;
+            league.completeExpansionDraft(year, new ArrayList<>(log));
+        }
+    }
+
     /** Sugestão editável; não transfere ninguém nem encerra o evento. */
     public static List<Player> suggestedSelections(League league, Club newcomer) {
         if (!isPending(league)) return Collections.emptyList();
@@ -165,7 +239,7 @@ public final class LeagueExpansionService {
         if (manual) for (Player player : selectedPlayers) plan.reserve(userClub, player);
         for (int round = 0; round < TARGET_ROSTER; round++) {
             for (int turn = 0; turn < newcomers.size(); turn++) {
-                Club recipient = newcomers.get(round % 2 == 0 ? turn : newcomers.size() - 1 - turn);
+                Club recipient = newcomers.get(turn);
                 int remaining = requiredSelections(recipient) - plan.selections.get(recipient).size();
                 if (remaining <= 0) continue;
                 Player selected = plan.available.keySet().stream()
@@ -195,7 +269,8 @@ public final class LeagueExpansionService {
         return available;
     }
 
-    private static final class DraftPlan {
+    private static final class DraftPlan implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         final Map<Club, List<Player>> selections = new LinkedHashMap<>();
         final Map<Player, Club> sources;
         final Map<Player, Club> available;

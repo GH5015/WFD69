@@ -50,6 +50,7 @@ public class CompletedScoutingScreen implements Screen {
     }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
         Stack root = new Stack();
         root.setFillParent(true);
@@ -83,6 +84,7 @@ public class CompletedScoutingScreen implements Screen {
         page.add(back).width(300f).height(50f).center().row();
         root.add(page);
         NavigationDrawer.attach(stage, game, club, "SCOUTING", true);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table createCompletedTable() {
@@ -148,6 +150,6 @@ public class CompletedScoutingScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
     @Override public void dispose() { stage.dispose(); backgroundTexture.dispose(); }
 }

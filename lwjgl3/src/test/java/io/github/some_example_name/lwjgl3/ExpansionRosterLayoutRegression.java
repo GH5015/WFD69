@@ -59,18 +59,25 @@ public final class ExpansionRosterLayoutRegression extends ApplicationAdapter {
             Dialog dialog = stage.getRoot().findActor("expansion-roster-dialog");
             TextButton confirm = dialog.findActor("confirm-expansion-roster");
             if (!confirm.isDisabled()) throw new AssertionError("Confirmação vazia habilitada");
-            for (Player p : chosen) click(dialog.findActor("expansion-player-" + p.getId()));
-            if (confirm.isDisabled() || !club.getSquad().isEmpty()) throw new AssertionError("Seleção não é reversível");
+            click(dialog.findActor("expansion-next-pick"));
+            Player p = game.league.getExpansionSession().available().get(0);
+            click(dialog.findActor("expansion-player-" + p.getId()));
+            if (confirm.isDisabled() || !club.getSquad().isEmpty()) throw new AssertionError("Escolha manual indisponível");
+            click(confirm);
         }
         if (frames == 20) {
             Pixmap image = Pixmap.createFromFrameBuffer(0, 0, 1600, 900);
             PixmapIO.writePNG(Gdx.files.absolute(output), image, -1, true); image.dispose();
             Dialog dialog = stage.getRoot().findActor("expansion-roster-dialog");
             if (dialog.getX() < 0 || dialog.getY() < 0 || dialog.getTop() > stage.getHeight()) throw new AssertionError("Modal fora da tela");
+            LeagueExpansionService.DraftSession session = game.league.getExpansionSession();
+            while (session.currentClub() != null) session.chooseAi();
+            chosen = new java.util.ArrayList<>(session.chosen(club));
+            click(dialog.findActor("expansion-next-pick")); // Atualiza a tela após a simulação do restante.
             click(dialog.findActor("confirm-expansion-roster"));
             if (!completed || !new HashSet<>(club.getSquad()).equals(new HashSet<>(chosen))) throw new AssertionError("Escolhas não aplicadas");
             if (LeagueExpansionService.isPending(game.league)) throw new AssertionError("Expansão não concluiu");
-            System.out.println("Manual expansion UI: 20 button choices, confirmation, exact transfers and modal bounds OK.");
+            System.out.println("Turn-based expansion UI: AI reveal, manual pick, final confirmation, exact transfers and modal bounds OK.");
             Gdx.app.exit();
         }
     }

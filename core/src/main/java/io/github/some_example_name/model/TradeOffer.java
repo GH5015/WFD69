@@ -3,7 +3,8 @@ package io.github.some_example_name.model;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TradeOffer {
+public class TradeOffer implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     /**
      * The interface and the negotiation rules both use this limit. Keeping it
      * here prevents a counteroffer or future screen from bypassing the five

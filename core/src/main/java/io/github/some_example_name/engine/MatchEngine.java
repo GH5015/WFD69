@@ -3,6 +3,7 @@ package io.github.some_example_name.engine;
 import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.ClubFinance;
 import io.github.some_example_name.model.AttendanceService;
+import io.github.some_example_name.model.AutomaticInjurySubstitutionService;
 import io.github.some_example_name.model.League;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.MatchEvent;
@@ -12,6 +13,9 @@ import io.github.some_example_name.model.StaffImpact;
 import io.github.some_example_name.model.TechnicalAttributes;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -34,10 +38,56 @@ public class MatchEngine {
         AttendanceService.ensureAttendance(league, match);
         prepareMatchLineups(match);
 
+        int homeInjurySubstitutions = 0;
+        int awayInjurySubstitutions = 0;
+        List<Player> homeSubstitutedPlayers = new ArrayList<>();
+        List<Player> awaySubstitutedPlayers = new ArrayList<>();
+
         for (int min = 1; min <= 90; min++) {
-            simulateMinute(match, min);
+            Map<Integer, Player> homeBeforeMinute = new HashMap<>(match.getHomeTeam().getTacticsMap());
+            Map<Integer, Player> awayBeforeMinute = new HashMap<>(match.getAwayTeam().getTacticsMap());
+            MatchEvent event = simulateMinute(match, min);
+
+            if (event == null || !"LESIONADO".equals(event.type)) continue;
+
+            if (event.isHomeTeam && homeInjurySubstitutions < 5) {
+                AutomaticInjurySubstitutionService.Result result = replaceInjuredPlayerDuringFastSimulation(
+                    match, match.getHomeTeam(), homeBeforeMinute, homeSubstitutedPlayers, min
+                );
+                if (result != null) {
+                    homeInjurySubstitutions++;
+                    homeSubstitutedPlayers.add(result.injured);
+                }
+            } else if (!event.isHomeTeam && awayInjurySubstitutions < 5) {
+                AutomaticInjurySubstitutionService.Result result = replaceInjuredPlayerDuringFastSimulation(
+                    match, match.getAwayTeam(), awayBeforeMinute, awaySubstitutedPlayers, min
+                );
+                if (result != null) {
+                    awayInjurySubstitutions++;
+                    awaySubstitutedPlayers.add(result.injured);
+                }
+            }
         }
         finalizeMatch(match);
+    }
+
+    /** Executa a troca obrigatória usada pela simulação integral, sem abrir a tela de táticas. */
+    static AutomaticInjurySubstitutionService.Result replaceInjuredPlayerDuringFastSimulation(
+        Match match,
+        Club club,
+        Map<Integer, Player> lineupBeforeMinute,
+        List<Player> alreadySubstituted,
+        int minute
+    ) {
+        if (club == null) return null;
+        return AutomaticInjurySubstitutionService.replace(
+            match,
+            club,
+            lineupBeforeMinute,
+            club.getBenchPlayers(),
+            alreadySubstituted,
+            minute
+        );
     }
 
     /**
@@ -52,6 +102,8 @@ public class MatchEngine {
         }
 
         prepareLineupsForPreview(match);
+        resetInMatchFatigueAccumulators(match.getHomeTeam());
+        resetInMatchFatigueAccumulators(match.getAwayTeam());
         match.capturePrematchTactics();
         match.recordStartingLineups(
             new java.util.ArrayList<>(match.getHomeTeam().getStartingXI()),
@@ -102,6 +154,8 @@ public class MatchEngine {
         );
         TacticalModifiers hMods = tacticalContext.getHomeModifiers();
         TacticalModifiers aMods = tacticalContext.getAwayModifiers();
+        applyMinuteFatigue(home, hStarters, hMods.fatigueMultiplier);
+        applyMinuteFatigue(away, aStarters, aMods.fatigueMultiplier);
         match.recordTacticalSample(
             true,
             home,
@@ -697,20 +751,7 @@ public class MatchEngine {
         // FADIGA
         // ==============================
 
-        TacticalModifiers homeTacticalLoad = TacticalEngine.calculateModifiers(
-            home.getTempo(), home.getMentalityValue(), home.getPassing(), home.getWidth(), home.getPressure()
-        );
-        TacticalModifiers awayTacticalLoad = TacticalEngine.calculateModifiers(
-            away.getTempo(), away.getMentalityValue(), away.getPassing(), away.getWidth(), away.getPressure()
-        );
-        double homeFatigueMultiplier = homeTacticalLoad.fatigueMultiplier
-            * StaffImpact.matchFatigueMultiplier(home.getStaffLevel(StaffRole.FITNESS_COACH));
-        double awayFatigueMultiplier = awayTacticalLoad.fatigueMultiplier
-            * StaffImpact.matchFatigueMultiplier(away.getStaffLevel(StaffRole.FITNESS_COACH));
-
         match.finishPlayerMinuteTracking();
-        applyParticipantFatigue(match, home, homeFatigueMultiplier);
-        applyParticipantFatigue(match, away, awayFatigueMultiplier);
 
         // ==============================
         // RESULTADO
@@ -721,6 +762,10 @@ public class MatchEngine {
 
         int awayGoals =
             match.getAwayGoals();
+
+        if (match.isPlayoffs() && homeGoals == awayGoals && !match.hasPenaltyShootout()) {
+            simulatePenaltyShootout(match);
+        }
 
         registerSeasonPerformance(
             home,
@@ -735,6 +780,12 @@ public class MatchEngine {
             homeGoals,
             match
         );
+
+        // Recordes de clube precisam sobreviver à virada de temporada e às
+        // transferências. Registra os participantes e eventos desta partida
+        // antes de qualquer fluxo posterior poder alterar o elenco.
+        home.recordPlayerMatchStatistics(match);
+        away.recordPlayerMatchStatistics(match);
 
         match.setResult(
             homeGoals,
@@ -787,7 +838,7 @@ public class MatchEngine {
         // ==============================
 
         match.applyPostMatchMorale();
-        Club winner = homeGoals > awayGoals ? home : awayGoals > homeGoals ? away : null;
+        Club winner = match.getWinningClub();
 
         // ==============================
         // PREMIAÇÕES WFL
@@ -835,24 +886,75 @@ public class MatchEngine {
         match.restorePrematchTactics();
     }
 
+    /** Resolve obrigatoriamente todo empate eliminatório em uma disputa de pênaltis. */
+    private void simulatePenaltyShootout(Match match) {
+        int homePenalties = 0;
+        int awayPenalties = 0;
+
+        double homeChance = penaltyConversionChance(match.getHomeTeam());
+        double awayChance = penaltyConversionChance(match.getAwayTeam());
+
+        for (int kick = 0; kick < 5; kick++) {
+            if (random.nextDouble() < homeChance) homePenalties++;
+            if (random.nextDouble() < awayChance) awayPenalties++;
+        }
+
+        int suddenDeathRounds = 0;
+        while (homePenalties == awayPenalties && suddenDeathRounds < 12) {
+            boolean homeScored = random.nextDouble() < homeChance;
+            boolean awayScored = random.nextDouble() < awayChance;
+            if (homeScored) homePenalties++;
+            if (awayScored) awayPenalties++;
+            suddenDeathRounds++;
+        }
+
+        // Proteção extrema contra uma sequência indefinida de cobranças iguais.
+        if (homePenalties == awayPenalties) {
+            if (random.nextBoolean()) homePenalties++;
+            else awayPenalties++;
+        }
+
+        match.setPenaltyShootout(homePenalties, awayPenalties);
+    }
+
+    private double penaltyConversionChance(Club club) {
+        if (club == null || club.getStartingXI().isEmpty()) return .72d;
+        double attackingQuality = club.getStartingXI().stream()
+            .filter(player -> player != null && player.canPlay())
+            .mapToInt(player -> player.getTechnicalAttributes().getAtaque())
+            .average()
+            .orElse(65d);
+        return clamp(.68d + (attackingQuality - 55d) * .0025d, .66d, .84d);
+    }
+
+    private void resetInMatchFatigueAccumulators(Club club) {
+        if (club == null) return;
+        for (Player player : club.getSquad()) {
+            player.resetInMatchFatigueAccumulator();
+        }
+    }
+
     private double physicalFatigueResistance(Player player) {
         if (player == null || player.getTechnicalAttributes() == null) return 1d;
         int physical = player.getTechnicalAttributes().getFisico();
         return clamp(1.15d - (physical - 50d) * .006d, .78d, 1.22d);
     }
 
-    private void applyParticipantFatigue(Match match, Club club, double tacticalLoad) {
-        java.util.Map<Player, Integer> minutes = match.getPlayerMinutesForClub(club);
-        if (minutes.isEmpty()) {
-            for (Player player : club.getStartingXI()) {
-                player.applyMatchFatigue(tacticalLoad * physicalFatigueResistance(player));
-            }
-            return;
-        }
-        for (java.util.Map.Entry<Player, Integer> participant : minutes.entrySet()) {
-            double share = clamp(participant.getValue() / 90d, .10d, 1d);
-            Player player = participant.getKey();
-            player.applyMatchFatigue(tacticalLoad * physicalFatigueResistance(player) * share);
+    private void applyMinuteFatigue(
+        Club club,
+        List<Player> starters,
+        double tacticalLoad
+    ) {
+        if (club == null || starters == null) return;
+        double staffAdjustedLoad = tacticalLoad * StaffImpact.matchFatigueMultiplier(
+            club.getStaffLevel(StaffRole.FITNESS_COACH)
+        );
+        for (Player player : starters) {
+            if (player == null) continue;
+            double fullMatchLoss = player.getPrimaryPosition().isGoalkeeper() ? 10d : 34.5d;
+            player.applyInMatchFatigue(
+                fullMatchLoss * staffAdjustedLoad * physicalFatigueResistance(player) / 90d
+            );
         }
     }
 

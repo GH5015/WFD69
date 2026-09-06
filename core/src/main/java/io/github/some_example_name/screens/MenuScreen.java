@@ -9,11 +9,13 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.Main;
 import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.SaveGameService;
 import io.github.some_example_name.utils.StyleFactory;
 
 public class MenuScreen implements Screen {
@@ -52,6 +54,7 @@ public class MenuScreen implements Screen {
 
         ImageTextButton startButton = IconTextButton.create(
                 "INICIAR CARREIRA", game.skin, "Icons8/icons8-ligar-50.png");
+        startButton.setName("menu-start-button");
         startButton.getLabel().setFontScale(0.68f);
         startButton.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
@@ -59,7 +62,44 @@ public class MenuScreen implements Screen {
             }
         });
 
+        ImageTextButton loadButton = IconTextButton.create(
+                "CARREGAR PARTIDA", game.skin, "Icons8/icons8-abrir-pasta-50.png");
+        loadButton.setName("menu-load-button");
+        loadButton.setDisabled(!SaveGameService.hasSave());
+        if (loadButton.isDisabled()) loadButton.getLabel().setColor(Color.GRAY);
+        loadButton.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                if (loadButton.isDisabled()) return;
+                try {
+                    SaveGameService.load(game);
+                    if (game.managerCareer.isUnemployed()) {
+                        game.setScreen(new UnemployedScreen(game));
+                    } else if ("OFFSEASON".equals(game.league.getCurrentStage())) {
+                        game.setScreen(new OffSeasonScreen(game, game.playerClub));
+                    } else {
+                        game.setScreen(new ClubManagementScreen(game, game.playerClub));
+                    }
+                } catch (Exception failure) {
+                    Gdx.app.error("WFL-SAVE", "Não foi possível carregar a partida.", failure);
+                    Dialog dialog = new Dialog("ERRO AO CARREGAR", game.skin);
+                    dialog.text(failure.getMessage() == null ? "O save não pôde ser carregado." : failure.getMessage());
+                    dialog.button("FECHAR");
+                    dialog.show(stage);
+                }
+            }
+        });
+
+        ImageTextButton settingsButton = IconTextButton.create(
+                "CONFIGURAÇÕES", game.skin, "Icons8/icons8-configurações-50.png");
+        settingsButton.setName("menu-settings-button");
+        settingsButton.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                SettingsDialog.show(game, stage);
+            }
+        });
+
         ImageTextButton exitButton = IconTextButton.create("SAIR", game.skin, "Icons8/icons8-sair-50.png");
+        exitButton.setName("menu-exit-button");
         exitButton.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 Gdx.app.exit();
@@ -67,8 +107,10 @@ public class MenuScreen implements Screen {
         });
 
         Table actions = new Table();
-        actions.add(startButton).width(370).height(68).padRight(16);
-        actions.add(exitButton).width(148).height(54);
+        actions.add(startButton).width(330).height(68).padRight(12);
+        actions.add(loadButton).width(275).height(58).padRight(12);
+        actions.add(settingsButton).width(245).height(58).padRight(12);
+        actions.add(exitButton).width(135).height(54);
         uiTable.add(actions);
     }
 

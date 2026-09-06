@@ -9,7 +9,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 /** Memória persistente das temporadas, carreiras, recordes e lendas da WFL. */
-public class LeagueHistory {
+public class LeagueHistory implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final List<SeasonRecord> seasons = new ArrayList<>();
     private final Map<String, PlayerCareer> playerCareers = new LinkedHashMap<>();
     private final Map<Integer, DraftRecord> firstOverallPicks = new LinkedHashMap<>();
@@ -225,7 +226,8 @@ public class LeagueHistory {
     public PlayerCareer leaderByTitles() { return getPlayerCareers().stream().max(Comparator.comparingInt(PlayerCareer::getTitles)).orElse(null); }
     public PlayerCareer leaderByAppearances() { return getPlayerCareers().stream().max(Comparator.comparingInt(PlayerCareer::getAppearances)).orElse(null); }
 
-    public static final class SeasonRecord {
+    public static final class SeasonRecord implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private final int year;
         private final String champion;
         private final String runnerUp;
@@ -276,7 +278,8 @@ public class LeagueHistory {
         public DraftRecord getFirstOverallPick() { return firstOverallPick; }
     }
 
-    public static final class TeamOfYearMember {
+    public static final class TeamOfYearMember implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private final String slot;
         private final String playerName;
         private final String clubName;
@@ -296,7 +299,8 @@ public class LeagueHistory {
         public double getAverageRating() { return averageRating; }
     }
 
-    public static final class DraftRecord {
+    public static final class DraftRecord implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private final int year;
         private final String playerName;
         private final String ownerClub;
@@ -314,7 +318,8 @@ public class LeagueHistory {
         public boolean isViaTrade() { return !ownerClub.equals(originalClub); }
     }
 
-    public static final class PlayerSeason {
+    public static final class PlayerSeason implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private final int year;
         private final String clubName;
         private final int appearances;
@@ -353,7 +358,8 @@ public class LeagueHistory {
         public int getAge() { return age; }
     }
 
-    public static final class PlayerCareer {
+    public static final class PlayerCareer implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private static final PlayerCareer EMPTY = new PlayerCareer("", "", "");
         private final String playerId;
         private final String playerName;
@@ -390,7 +396,8 @@ public class LeagueHistory {
         }
     }
 
-    public static final class HallOfFameEntry {
+    public static final class HallOfFameEntry implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private final String playerId;
         private final String playerName;
         private final int inductionYear;

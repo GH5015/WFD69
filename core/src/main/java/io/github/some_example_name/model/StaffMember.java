@@ -1,7 +1,8 @@
 package io.github.some_example_name.model;
 
 /** Funcionário com qualidade interna, contrato simples e exibição por estrelas. */
-public class StaffMember {
+public class StaffMember implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final StaffRole role;
     private final String name;
     private final int quality;

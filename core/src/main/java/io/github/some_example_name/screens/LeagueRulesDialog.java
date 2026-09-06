@@ -197,9 +197,9 @@ public final class LeagueRulesDialog {
                     "1. Pontos  2. Saldo de gols  3. Gols marcados\n" +
                     "4. Confronto direto  5. Sorteio da liga");
                 addRule(content, game, "PLAYOFFS",
-                    "• 20–22 clubes: 8 vagas (6 Ocidente + 2 Oriente).\n" +
-                    "• 24–26 clubes: 10 vagas (5 por conferência); 4º x 5º no Play-In.\n" +
-                    "• 28–30 clubes: 12 vagas (6 por conferência); 3º x 6º e 4º x 5º no Play-In.\n" +
+                    "• 20 - 22 clubes: 8 vagas (6 Ocidente + 2 Oriente).\n" +
+                    "• 24 - 26 clubes: 10 vagas (5 por conferência); 4º x 5º no Play-In.\n" +
+                    "• 28 - 30 clubes: 12 vagas (6 por conferência); 3º x 6º e 4º x 5º no Play-In.\n" +
                     "• Play-In em jogo único; os melhores recebem bye. Quartas e semifinais em melhor de 3; final em jogo único.");
                 break;
             case 2:

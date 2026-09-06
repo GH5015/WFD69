@@ -13,7 +13,8 @@ import java.util.Map;
 import java.util.Random;
 import io.github.some_example_name.model.TechnicalAttributes;
 
-public class GameDatabase {
+public class GameDatabase implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private List<Club> clubs;
     private Random random = new Random();
 

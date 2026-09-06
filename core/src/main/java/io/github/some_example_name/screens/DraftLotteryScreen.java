@@ -233,7 +233,7 @@ public class DraftLotteryScreen implements Screen {
     private Table footer() {
         Table table = new Table();
         table.add(button("VOLTAR À OFF SEASON", () -> game.setScreen(new OffSeasonScreen(game, club)), false)).width(315).height(48).padRight(15);
-        table.add(wrapped("Próxima etapa: SCOUTING E WORKOUTS • 2–19 DEZ", .39f, Color.LIGHT_GRAY)).growX();
+        table.add(wrapped("Próxima etapa: SCOUTING E WORKOUTS • 2 - 19 DEZ", .39f, Color.LIGHT_GRAY)).growX();
         TextButton skip = button("PULAR ANIMAÇÕES", this::skip, false); skip.setName("lottery-skip"); skip.setDisabled(phase == Phase.COMPLETE);
         table.add(skip).width(250).height(45).padRight(10);
         table.add(button("REGRAS", () -> LeagueRulesDialog.show(stage, game), false)).width(145).height(45); return table;

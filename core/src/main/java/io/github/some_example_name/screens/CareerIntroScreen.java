@@ -21,6 +21,7 @@ import com.badlogic.gdx.video.VideoPlayer;
 import com.badlogic.gdx.video.VideoPlayerCreator;
 import com.badlogic.gdx.video.scenes.scene2d.VideoActor;
 import io.github.some_example_name.Main;
+import io.github.some_example_name.utils.GameSettings;
 import io.github.some_example_name.utils.ResponsiveViewport;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
@@ -103,7 +104,7 @@ public class CareerIntroScreen implements Screen {
 
             videoPlayer = VideoPlayerCreator.createVideoPlayer();
             videoPlayer.setLooping(false);
-            videoPlayer.setVolume(1f);
+            videoPlayer.setVolume(GameSettings.getMasterVolume());
             videoPlayer.setOnCompletionListener(file -> Gdx.app.postRunnable(this::finishIntro));
             videoPlayer.setOnVideoSizeListener(this::layoutVideo);
             videoActor = new VideoActor(videoPlayer);

@@ -3,7 +3,11 @@ package io.github.some_example_name.model;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class League {
+public class League implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
+    private LeagueExpansionService.DraftSession expansionSession;
+    public LeagueExpansionService.DraftSession getExpansionSession() { return expansionSession; }
+    public void setExpansionSession(LeagueExpansionService.DraftSession session) { expansionSession = session; }
     private String name;
     private List<Club> clubs;
     private List<Match> schedule;
@@ -16,11 +20,27 @@ public class League {
     private final Map<Club, Integer> playoffSeeds = new HashMap<>();
     private final List<TradeRecord> tradeHistory = new ArrayList<>();
     private TradeOffer pendingIncomingTradeOffer;
+    private Set<String> generatedDraftTradeOfferKeys = new HashSet<>();
     private final List<Club> draftLotteryOrder = new ArrayList<>();
     private final List<DraftSelection> draftSelections = new ArrayList<>();
     private final List<RetirementRecord> seasonRetirements = new ArrayList<>();
     private final LeagueHistory history = new LeagueHistory();
     private List<NewsEvent> newsHistory = new ArrayList<>();
+    private List<FreeAgencySigning> freeAgencyHistory = new ArrayList<>();
+
+    public void recordFreeAgencySigning(Player player, Club club, long salary, int years) {
+        if (freeAgencyHistory == null) freeAgencyHistory = new ArrayList<>();
+        freeAgencyHistory.add(new FreeAgencySigning(this, player, club, salary, years));
+    }
+
+    public List<FreeAgencySigning> getFreeAgencyHistory(int season) {
+        List<FreeAgencySigning> result = new ArrayList<>();
+        if (freeAgencyHistory != null) for (FreeAgencySigning signing : freeAgencyHistory) {
+            if (signing.season == season) result.add(signing);
+        }
+        Collections.reverse(result);
+        return Collections.unmodifiableList(result);
+    }
     private long lastGeneratedNewsWeekKey = Long.MIN_VALUE;
     private boolean weeklyNewsPending;
     private boolean draftFinalized;
@@ -70,6 +90,7 @@ public class League {
         this.currentStage = "REGULAR";
         this.tradeHistory.clear();
         this.pendingIncomingTradeOffer = null;
+        if (generatedDraftTradeOfferKeys != null) generatedDraftTradeOfferKeys.clear();
         this.playoffSeries.clear();
         this.playoffSeeds.clear();
         this.pendingRoundSummaryDate = null;
@@ -97,6 +118,20 @@ public class League {
     public void clearPendingIncomingTradeOffer(TradeOffer offer) {
         if (offer == null || pendingIncomingTradeOffer == offer) pendingIncomingTradeOffer = null;
     }
+    /** Impede que recusar uma oferta faça a mesma pick gerar propostas em loop. */
+    public boolean markDraftTradeOfferGenerated(DraftPick pick) {
+        if (pick == null) return false;
+        if (generatedDraftTradeOfferKeys == null) generatedDraftTradeOfferKeys = new HashSet<>();
+        return generatedDraftTradeOfferKeys.add(draftTradeOfferKey(pick));
+    }
+    public boolean hasGeneratedDraftTradeOffer(DraftPick pick) {
+        return pick != null && generatedDraftTradeOfferKeys != null
+            && generatedDraftTradeOfferKeys.contains(draftTradeOfferKey(pick));
+    }
+    private String draftTradeOfferKey(DraftPick pick) {
+        String origin = pick.getOriginalOwner() == null ? "WFL" : pick.getOriginalOwner().getName();
+        return pick.getYear() + ":" + pick.getRound() + ":" + origin;
+    }
     public List<NewsEvent> getNewsHistory() {
         if (newsHistory == null) newsHistory = new ArrayList<>();
         return new ArrayList<>(newsHistory);
@@ -114,6 +149,13 @@ public class League {
     }
     public boolean generateWeeklyNewsIfNeeded() {
         long weekKey = NewsGenerator.weekKey(currentDate);
+        // A Off Season tem seus próprios eventos e telas de mercado; não
+        // produzimos nem mantemos uma edição semanal pendente nesse período.
+        if ("OFFSEASON".equalsIgnoreCase(currentStage)) {
+            weeklyNewsPending = false;
+            lastGeneratedNewsWeekKey = weekKey;
+            return false;
+        }
         if (weekKey == Long.MIN_VALUE || weekKey == lastGeneratedNewsWeekKey) return false;
         List<NewsEvent> edition = NewsGenerator.generateWeekly(this);
         if (newsHistory == null) newsHistory = new ArrayList<>();
@@ -146,7 +188,7 @@ public class League {
         // só aplica um prêmio moderado. Assim um prospecto não supera uma
         // estrela consolidada apenas por ter sido escolhido cedo.
         long annualSalary = calculateRookieAnnualSalary(pick, player);
-        player.renewContract(annualSalary, pick.getRound() == 1 ? 4 : 2, currentSeason);
+        player.signContract(annualSalary, pick.getRound() == 1 ? 4 : 2, currentSeason);
         player.setDraftedYear(pick.getYear());
         player.transferTo(pick.getCurrentOwner());
     }
@@ -479,9 +521,11 @@ public class League {
         PlayoffSeries series = playoffSeries.get(match.getPlayoffSeriesId());
         if (series == null || series.isComplete()) return;
 
-        Club gameWinner = match.getHomeGoals() == match.getAwayGoals()
-            ? betterSeed(match.getHomeTeam(), match.getAwayTeam())
-            : match.getHomeGoals() > match.getAwayGoals() ? match.getHomeTeam() : match.getAwayTeam();
+        Club gameWinner = match.getWinningClub();
+        // Compatibilidade com saves antigos que já continham empate de playoff.
+        if (gameWinner == null) {
+            gameWinner = betterSeed(match.getHomeTeam(), match.getAwayTeam());
+        }
         series.recordGame(gameWinner);
 
         if (!series.isComplete()) {
@@ -627,6 +671,7 @@ public class League {
                 retirePlayer(club, player);
             }
         }
+        AiStadiumRenovationService.processMonthly(this);
         LeagueExpansionService.prepare(this, currentSeason + 1);
     }
 

@@ -7,12 +7,14 @@ import java.util.Random;
 /** Barganha limitada por jogador, clube e temporada; consultas não sorteiam respostas. */
 public final class PlayerNegotiation {
     private PlayerNegotiation() { }
-    public static class Session {
+    public static class Session implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         public double askingRatio = 1d;
         public int rounds;
         public Map<String, Response> responses = new HashMap<>();
     }
-    public static class Response {
+    public static class Response implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         public boolean accepted;
         public boolean rejected;
         public long salary;

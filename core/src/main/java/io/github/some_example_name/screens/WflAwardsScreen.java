@@ -97,7 +97,8 @@ public class WflAwardsScreen implements Screen {
         panel.add(heading).growX().pad(9f, 12f, 8f, 12f).row();
 
         Table pitch = ScreenUI.createSubtlePanel();
-        pitch.pad(8f, 28f, 8f, 28f);
+        pitch.top();
+        pitch.pad(14f, 30f, 14f, 30f);
         List<LeagueHistory.TeamOfYearMember> members = record.getTeamOfYear();
         addFormationLine(pitch, members, "LW", "ST", "RW");
         addFormationLine(pitch, members, "CM", "CAM", "CM");
@@ -109,11 +110,30 @@ public class WflAwardsScreen implements Screen {
 
     private void addFormationLine(Table pitch, List<LeagueHistory.TeamOfYearMember> source, String... slots) {
         List<LeagueHistory.TeamOfYearMember> remaining = new ArrayList<>(source);
+        Table line = new Table();
+        line.center();
+        float cardWidth = slots.length >= 4 ? 278f : slots.length == 1 ? 310f : 300f;
+        float gap = slots.length >= 4 ? 9f : 18f;
+
         for (String slot : slots) {
             LeagueHistory.TeamOfYearMember member = takeFirst(remaining, slot);
-            pitch.add(playerCard(member, slot)).width(slots.length == 1 ? 265f : 235f).height(62f).pad(3f, 9f, 3f, 9f);
+            line.add(playerCard(member, slot, cardWidth))
+                .width(cardWidth)
+                .height(68f)
+                .padLeft(gap)
+                .padRight(gap);
         }
-        pitch.row();
+
+        // Cada setor usa sua própria grade. Isso mantém ataque, meio, defesa
+        // e principalmente o goleiro centralizados independentemente do
+        // número de jogadores existente na linha.
+        pitch.add(line)
+            .growX()
+            .expandY()
+            .center()
+            .padTop(5f)
+            .padBottom(5f)
+            .row();
     }
 
     private LeagueHistory.TeamOfYearMember takeFirst(List<LeagueHistory.TeamOfYearMember> members, String slot) {
@@ -127,17 +147,57 @@ public class WflAwardsScreen implements Screen {
         return null;
     }
 
-    private Table playerCard(LeagueHistory.TeamOfYearMember member, String slot) {
+    private Table playerCard(
+        LeagueHistory.TeamOfYearMember member,
+        String slot,
+        float cardWidth
+    ) {
         Table card = ScreenUI.createRow(slot.hashCode());
-        card.add(ScreenUI.createBadge(game.skin, slot, StyleFactory.getPositionColor(slot))).width(48f).height(25f).padLeft(6f).padRight(7f);
+        card.pad(5f, 6f, 5f, 6f);
+        card.add(ScreenUI.createBadge(game.skin, slot, StyleFactory.getPositionColor(slot)))
+            .width(48f)
+            .height(27f)
+            .padRight(8f);
+
         Table copy = new Table();
-        copy.add(ScreenUI.createBoldValue(game.skin, member != null ? member.getPlayerName() : "—", Color.WHITE, Align.left)).left().row();
-        String detail = member == null ? "Sem registro" : member.getClubName() + "  •  OVR " + member.getOverall()
-            + (member.getAverageRating() > 0 ? "  •  " + String.format(Locale.US, "%.1f", member.getAverageRating()) : "");
-        com.badlogic.gdx.scenes.scene2d.ui.Label detailLabel = ScreenUI.createSubtitle(game.skin, detail);
-        detailLabel.setEllipsis(true);
-        copy.add(detailLabel).growX().left().padTop(2f);
-        card.add(copy).growX().left().padRight(6f);
+        copy.left();
+        float copyWidth = cardWidth - 76f;
+
+        com.badlogic.gdx.scenes.scene2d.ui.Label name = ScreenUI.createBoldValue(
+            game.skin,
+            member != null ? member.getPlayerName() : "—",
+            Color.WHITE,
+            Align.left
+        );
+        name.setFontScale(.56f);
+        name.setEllipsis(true);
+        copy.add(name).width(copyWidth).left().row();
+
+        if (member == null) {
+            com.badlogic.gdx.scenes.scene2d.ui.Label empty = ScreenUI.createSubtitle(game.skin, "Sem registro");
+            empty.setColor(ScreenUI.MUTED_TEXT);
+            copy.add(empty).width(copyWidth).left().padTop(3f);
+        } else {
+            Table details = new Table();
+            com.badlogic.gdx.scenes.scene2d.ui.Label clubName = ScreenUI.createSubtitle(
+                game.skin,
+                member.getClubName()
+            );
+            clubName.setEllipsis(true);
+
+            String performance = "OVR " + member.getOverall()
+                + (member.getAverageRating() > 0
+                    ? "  •  " + String.format(Locale.US, "%.1f", member.getAverageRating())
+                    : "");
+            com.badlogic.gdx.scenes.scene2d.ui.Label stats = ScreenUI.createSubtitle(game.skin, performance);
+            stats.setColor(StyleFactory.SOFT_YELLOW);
+
+            details.add(clubName).growX().minWidth(0f).left().padRight(5f);
+            details.add(stats).right();
+            copy.add(details).width(copyWidth).left().padTop(3f);
+        }
+
+        card.add(copy).width(copyWidth).left();
         return card;
     }
 

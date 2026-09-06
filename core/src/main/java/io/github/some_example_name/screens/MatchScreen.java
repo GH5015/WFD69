@@ -24,11 +24,13 @@ import java.util.Locale;
 import io.github.some_example_name.Main;
 import io.github.some_example_name.engine.TacticalSuitabilityEvaluator;
 import io.github.some_example_name.model.Club;
+import io.github.some_example_name.model.AutomaticInjurySubstitutionService;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.MatchEvent;
 import io.github.some_example_name.model.Player;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.MatchNarrator;
+import io.github.some_example_name.utils.SaveGameService;
 import io.github.some_example_name.utils.ScreenUI;
 import io.github.some_example_name.utils.StyleFactory;
 
@@ -55,6 +57,9 @@ public class MatchScreen implements Screen {
 
     private final List<Player> matchBenchPlayers =
         new ArrayList<>();
+
+    private int simulatedHomeSubstitutionsUsed = 0;
+    private int simulatedAwaySubstitutionsUsed = 0;
 
     // =========================================================
     // CRONÔMETRO
@@ -2062,13 +2067,35 @@ public class MatchScreen implements Screen {
                                         currentMinute
                                     );
 
-                            refreshMatchStats();
-                            updateTacticalCounters();
-                            maybeShowTacticalFeedback();
+                            boolean goalEvent =
+                                event != null &&
+                                    "GOL".equals(
+                                        event.type
+                                    );
+
+                            /*
+                             * O motor atualiza o resultado no instante em
+                             * que gera o evento. Na transmissão, porém, o
+                             * placar e a narração só podem avançar quando a
+                             * finalização tiver chegado à rede e o banner de
+                             * gol estiver visível.
+                             */
+                            if (!goalEvent) {
+                                refreshMatchStats();
+                                updateTacticalCounters();
+                                maybeShowTacticalFeedback();
+                            }
 
                             if (
                                 event != null
                             ) {
+
+                                if (goalEvent) {
+                                    processVisualEvent(
+                                        event
+                                    );
+                                    return;
+                                }
 
                                 updateEvents(
                                     event
@@ -2123,14 +2150,6 @@ public class MatchScreen implements Screen {
                                     event
                                 );
 
-                                if (
-                                    "GOL".equals(
-                                        event.type
-                                    )
-                                ) {
-
-                                    return;
-                                }
                             }
                         }
 
@@ -2784,35 +2803,11 @@ public class MatchScreen implements Screen {
         goalFrozen =
             true;
 
-        refreshMatchStats();
-
-        scoreLabel.clearActions();
-
-        scoreLabel.setColor(
-            StyleFactory.PLAYOFF_GOLD
-        );
-
-        scoreLabel.addAction(
-            Actions.sequence(
-
-                Actions.scaleTo(
-                    1.28f,
-                    1.28f,
-                    0.18f,
-                    Interpolation.bounceOut
-                ),
-
-                Actions.scaleTo(
-                    1f,
-                    1f,
-                    0.18f
-                ),
-
-                Actions.color(
-                    Color.WHITE,
-                    0.45f
-                )
-            )
+        // A transmissão só confirma o gol depois de a animação terminar.
+        // Assim placar e narração nunca antecipam o desfecho visual.
+        showGoalBanner(
+            event,
+            () -> confirmGoalAfterAnimation(event)
         );
 
         if (
@@ -2822,10 +2817,6 @@ public class MatchScreen implements Screen {
             tacticalField
                 .triggerGoalCelebration();
         }
-
-        showGoalBanner(
-            event
-        );
 
         Timer.schedule(
             new Timer.Task() {
@@ -2858,8 +2849,27 @@ public class MatchScreen implements Screen {
         );
     }
 
-    private void showGoalBanner(
+    private void confirmGoalAfterAnimation(
         MatchEvent event
+    ) {
+        refreshMatchStats();
+        updateTacticalCounters();
+        updateEvents(event);
+
+        scoreLabel.clearActions();
+        scoreLabel.setColor(StyleFactory.PLAYOFF_GOLD);
+        scoreLabel.addAction(
+            Actions.sequence(
+                Actions.scaleTo(1.28f, 1.28f, 0.18f, Interpolation.bounceOut),
+                Actions.scaleTo(1f, 1f, 0.18f),
+                Actions.color(Color.WHITE, 0.45f)
+            )
+        );
+    }
+
+    private void showGoalBanner(
+        MatchEvent event,
+        final Runnable onFinished
     ) {
 
         goalOverlay.clear();
@@ -2975,11 +2985,10 @@ public class MatchScreen implements Screen {
                 ),
 
                 Actions.run(
-                    () ->
-                        goalOverlay
-                            .setVisible(
-                                false
-                            )
+                    () -> {
+                        goalOverlay.setVisible(false);
+                        if (onFinished != null) onFinished.run();
+                    }
                 )
             )
         );
@@ -3021,6 +3030,9 @@ public class MatchScreen implements Screen {
 
                 currentMinute++;
 
+                java.util.Map<Integer, Player> homeBeforeMinute = snapshotLineup(match.getHomeTeam());
+                java.util.Map<Integer, Player> awayBeforeMinute = snapshotLineup(match.getAwayTeam());
+
                 MatchEvent event =
                     game.matchEngine
                         .simulateMinute(
@@ -3035,6 +3047,8 @@ public class MatchScreen implements Screen {
                     updateEvents(
                         event
                     );
+
+                    handleAutomaticInjurySubstitution(event, homeBeforeMinute, awayBeforeMinute);
 
                     queueCriticalEventForSquad(
                         event
@@ -3063,6 +3077,9 @@ public class MatchScreen implements Screen {
 
             currentMinute++;
 
+            java.util.Map<Integer, Player> homeBeforeMinute = snapshotLineup(match.getHomeTeam());
+            java.util.Map<Integer, Player> awayBeforeMinute = snapshotLineup(match.getAwayTeam());
+
             MatchEvent event =
                 game.matchEngine
                     .simulateMinute(
@@ -3078,6 +3095,8 @@ public class MatchScreen implements Screen {
                     event
                 );
 
+                handleAutomaticInjurySubstitution(event, homeBeforeMinute, awayBeforeMinute);
+
                 queueCriticalEventForSquad(
                     event
                 );
@@ -3091,6 +3110,52 @@ public class MatchScreen implements Screen {
         refreshMatchStats();
 
         finishMatch();
+    }
+
+    private java.util.Map<Integer, Player> snapshotLineup(Club club) {
+        return club == null ? new java.util.HashMap<>()
+            : new java.util.HashMap<>(club.getTacticsMap());
+    }
+
+    private void handleAutomaticInjurySubstitution(
+        MatchEvent event,
+        java.util.Map<Integer, Player> homeBeforeMinute,
+        java.util.Map<Integer, Player> awayBeforeMinute
+    ) {
+        if (event == null || !"LESIONADO".equals(event.type)) return;
+        Club affected = event.isHomeTeam ? match.getHomeTeam() : match.getAwayTeam();
+        boolean userTeam = affected == playerClub;
+        int used = userTeam ? substitutionsUsed
+            : event.isHomeTeam ? simulatedHomeSubstitutionsUsed : simulatedAwaySubstitutionsUsed;
+        if (used >= 5) return;
+
+        List<Player> bench = userTeam ? matchBenchPlayers : affected.getBenchPlayers();
+        java.util.Map<Integer, Player> before = event.isHomeTeam ? homeBeforeMinute : awayBeforeMinute;
+        AutomaticInjurySubstitutionService.Result result =
+            AutomaticInjurySubstitutionService.replace(
+                match, affected, before, bench,
+                userTeam ? substitutedPlayers : null, currentMinute
+            );
+        if (result == null) return;
+
+        if (userTeam) {
+            substitutionsUsed++;
+            if (!substitutedPlayers.contains(result.injured)) substitutedPlayers.add(result.injured);
+            matchBenchPlayers.remove(result.replacement);
+        } else if (event.isHomeTeam) {
+            simulatedHomeSubstitutionsUsed++;
+        } else {
+            simulatedAwaySubstitutionsUsed++;
+        }
+
+        MatchEvent substitution = new MatchEvent(
+            currentMinute,
+            "Substituição automática por lesão: sai " + result.injured.getName()
+                + ", entra " + result.replacement.getName() + " (" + affected.getName() + ").",
+            "SUBSTITUICAO",
+            event.isHomeTeam
+        );
+        updateEvents(substitution);
     }
 
     // =========================================================
@@ -3141,7 +3206,19 @@ public class MatchScreen implements Screen {
         game.league
             .advanceMatch();
 
+        autosaveCompletedUserMatch();
+
         showMatchReportDialog();
+    }
+
+    /** O resultado, estatísticas e o calendário já foram consolidados neste ponto. */
+    private void autosaveCompletedUserMatch() {
+        try {
+            SaveGameService.save(game);
+        } catch (Exception failure) {
+            // Uma falha de disco nunca deve impedir o usuário de ver o resultado da partida.
+            Gdx.app.error("WFL-AUTOSAVE", "Não foi possível salvar automaticamente após a partida.", failure);
+        }
     }
 
     private void showMatchReportDialog() {

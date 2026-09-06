@@ -39,7 +39,7 @@ public class CalendarScreen implements Screen {
         false;
 
     private boolean annualCalendarCollapsed =
-        false;
+        true;
 
     private final SimpleDateFormat dateFormat =
         new SimpleDateFormat(
@@ -125,6 +125,7 @@ public class CalendarScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
 
         stage.clear();
 
@@ -287,6 +288,7 @@ public class CalendarScreen implements Screen {
             true
         );
 
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     // =========================================================
@@ -339,8 +341,8 @@ public class CalendarScreen implements Screen {
             { "JUNHO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
             { "JULHO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
             { "AGOSTO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
-            { "1–15 SETEMBRO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
-            { "16–30 SETEMBRO", "REGULAR", "ENCERRADAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "1 - 15 SETEMBRO", "REGULAR", "ABERTAS", "ABERTAS", "FECHADA", "SCOUTING" },
+            { "16 - 30 SETEMBRO", "REGULAR", "ENCERRADAS", "ABERTAS", "FECHADA", "SCOUTING" },
             { "OUTUBRO", "PLAYOFFS", "ENCERRADAS", "ENCERRADA", "FECHADA", "SCOUTING" },
             { "NOVEMBRO", "OFFSEASON", "ABERTAS", "PRÓPRIOS FA", "ABERTA", "SCOUTING" },
             { "DEZEMBRO", "DRAFT / OFFSEASON", "ABERTAS", "ABERTAS", "ABERTA", "DRAFT + SCOUTING" }
@@ -1118,7 +1120,7 @@ public class CalendarScreen implements Screen {
 
     @Override public void pause() {}
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

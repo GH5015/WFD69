@@ -1,7 +1,8 @@
 package io.github.some_example_name.model;
 
 /** Registro exibido no fechamento da temporada para um atleta aposentado. */
-public final class RetirementRecord {
+public final class RetirementRecord implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final Player player;
     private final String lastClubName;
     private final int season;

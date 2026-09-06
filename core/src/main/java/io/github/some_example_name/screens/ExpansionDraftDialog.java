@@ -18,7 +18,7 @@ public final class ExpansionDraftDialog {
     public static void show(Stage stage, Main game, Club club, Runnable completed) {
         int year = game.league.getCurrentSeason() + 1;
         boolean newcomer = LeagueExpansionService.prepare(game.league, year).contains(club);
-        if (newcomer) {
+        if (newcomer || (game.league.getExpansionSession() != null && game.league.getExpansionSession().year == year)) {
             ExpansionRosterDialog.show(stage, game, club, completed);
             return;
         }
@@ -68,20 +68,10 @@ public final class ExpansionDraftDialog {
                     counter.setText("Selecione " + required + " jogadores antes de confirmar.");
                     return;
                 }
-                List<String> log;
-                try { log = LeagueExpansionService.runDraft(game.league, club, protectedPlayers); }
+                try { LeagueExpansionService.beginSession(game.league, club, protectedPlayers); }
                 catch (IllegalArgumentException failure) { counter.setText(failure.getMessage()); return; }
                 dialog.hide();
-                completed.run();
-                Dialog result = new Dialog("WFL EXPANSION CONCLUÍDO", game.skin);
-                Label text = new Label(String.join("\n", log), game.skin);
-                text.setWrap(true);
-                Table report = new Table(); report.add(text).width(820).pad(12);
-                ScrollPane reportScroll = new ScrollPane(report, game.skin);
-                reportScroll.setScrollingDisabled(true, false);
-                result.getContentTable().add(reportScroll).width(860).height(460);
-                result.button("CONTINUAR OFF SEASON");
-                result.show(stage);
+                ExpansionRosterDialog.show(stage, game, club, protectedPlayers, completed);
             }
         });
         dialog.getButtonTable().add(confirm).width(640).height(46);

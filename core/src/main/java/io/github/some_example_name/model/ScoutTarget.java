@@ -1,6 +1,7 @@
 package io.github.some_example_name.model;
 
-public class ScoutTarget {
+public class ScoutTarget implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final Player player;
     private double scoutingKnowledge; // 0.0 a 100.0
     private int scoutStars = 3;
@@ -59,11 +60,11 @@ public class ScoutTarget {
         } else if (scoutingKnowledge < 60.0) {
             return getLetterGrade(ovr, true);
         } else if (scoutingKnowledge < 100.0) {
-            // Exibe intervalo de variação ex: "78-82"
+            // Exibe intervalo de variação sem depender de glifos de traço.
             int margin = Math.max(1, (int) Math.ceil(((100.0 - scoutingKnowledge) / 5.0) * errorMultiplier()));
             int min = Math.max(1, ovr - margin);
             int max = Math.min(99, ovr + margin);
-            return min + "-" + max;
+            return min + " ATÉ " + max;
         } else {
             return String.valueOf(ovr); // 100% Relatório Exato
         }

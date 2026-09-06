@@ -28,6 +28,10 @@ public final class IncomingTradeOfferDialog {
     private IncomingTradeOfferDialog() { }
 
     public static boolean showPending(Stage stage, Main game, Club userClub) {
+        return showPending(stage, game, userClub, null);
+    }
+
+    public static boolean showPending(Stage stage, Main game, Club userClub, Runnable onResolved) {
         if (stage == null || game == null || game.league == null || userClub == null) return false;
         final TradeOffer offer = game.league.getPendingIncomingTradeOffer();
         if (offer == null) return false;
@@ -95,6 +99,7 @@ public final class IncomingTradeOfferDialog {
             @Override public void clicked(InputEvent event, float x, float y) {
                 game.league.clearPendingIncomingTradeOffer(offer);
                 dialog.hide();
+                if (onResolved != null) onResolved.run();
             }
         });
         negotiate.addListener(new ClickListener() {
@@ -125,7 +130,14 @@ public final class IncomingTradeOfferDialog {
                 result.text(completed
                     ? "A proposta foi aceita. Elencos, picks e escalações foram atualizados."
                     : "A proposta deixou de atender às regras da WFL.");
-                result.button("CONTINUAR");
+                TextButton continueButton = ScreenUI.createPrimaryButton(game.skin, "CONTINUAR");
+                continueButton.addListener(new ClickListener() {
+                    @Override public void clicked(InputEvent event, float x, float y) {
+                        result.hide();
+                        if (onResolved != null) onResolved.run();
+                    }
+                });
+                result.button(continueButton);
                 result.show(stage);
             }
         });

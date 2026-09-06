@@ -108,8 +108,9 @@ public final class ExpansionCareerSimulator {
             league.advanceDateOneDay();
             Calendar current = Calendar.getInstance(); current.setTime(league.getCurrentDate());
             boolean newWeek = previous.get(Calendar.WEEK_OF_YEAR) != current.get(Calendar.WEEK_OF_YEAR);
+            boolean newMonth = previous.get(Calendar.MONTH) != current.get(Calendar.MONTH);
             for (Club club : league.getClubs()) {
-                if (previous.get(Calendar.MONTH) != current.get(Calendar.MONTH)) club.getFinance().applyMonthlyBalance();
+                if (newMonth) club.getFinance().applyMonthlyBalance();
                 for (Player player : club.getSquad()) {
                     player.recover(1, StaffImpact.fitnessRecoveryMultiplier(club.getStaffLevel(StaffRole.FITNESS_COACH)));
                     player.recoverFromInjury(1 + (newWeek ? StaffImpact.medicalRecoveryBonus(club.getStaffLevel(StaffRole.DOCTOR)) : 0));
@@ -117,6 +118,7 @@ public final class ExpansionCareerSimulator {
                 }
                 club.advanceStadiumRenovationDay();
             }
+            if (newMonth) AiStadiumRenovationService.processMonthly(league);
             if (newWeek) {
                 development.updateWeekly(league);
                 AiTradeService.processWeeklyTrade(league, null);

@@ -55,6 +55,7 @@ public class TradeHubScreen implements Screen {
     }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
 
         Stack root = new Stack();
@@ -122,6 +123,7 @@ public class TradeHubScreen implements Screen {
 
         root.add(page);
         if (!"OFFSEASON".equals(game.league.getCurrentStage())) NavigationDrawer.attach(stage, game, userClub, "TROCAS", true);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table createHistoryPanel(String title, List<TradeRecord> records, boolean clubOnly) {
@@ -214,7 +216,7 @@ public class TradeHubScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

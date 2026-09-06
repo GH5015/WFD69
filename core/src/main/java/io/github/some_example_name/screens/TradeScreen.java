@@ -172,6 +172,7 @@ public class TradeScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
 
         DraftOrderService.getCurrentDraftOrder(
             game.league,
@@ -331,6 +332,7 @@ public class TradeScreen implements Screen {
             returnOverlay.add(back).width(220f).height(42f); root.add(returnOverlay);
         }
 
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     // =========================================================
@@ -3436,7 +3438,7 @@ public class TradeScreen implements Screen {
 
     @Override public void pause() {}
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

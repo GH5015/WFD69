@@ -1,6 +1,7 @@
 package io.github.some_example_name.model;
 
-public class DraftPick {
+public class DraftPick implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private int year;
     private int round;
     private Club originalOwner;

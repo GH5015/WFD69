@@ -6,7 +6,8 @@ import java.util.Date;
 import java.util.List;
 
 /** Registro imutável exibido no histórico do mercado de trocas. */
-public final class TradeRecord {
+public final class TradeRecord implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final int season;
     private final Date date;
     private final Club firstClub;

@@ -14,7 +14,8 @@ import io.github.some_example_name.utils.NameGenerator;
  * Mercado enxuto de agentes livres. A proposta do usuário é processada no
  * próximo avanço de dia para que salário não seja o único fator da decisão.
  */
-public class FreeAgencyService {
+public class FreeAgencyService implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     public enum OfferStatus {
         PENDING("AGUARDANDO"),
         ACCEPTED("ACEITOU"),
@@ -32,7 +33,8 @@ public class FreeAgencyService {
         }
     }
 
-    public static final class Offer {
+    public static final class Offer implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private final Player player;
         private final long annualSalary;
         private final int years;
@@ -293,12 +295,13 @@ public class FreeAgencyService {
 
             if (userScore >= 52.0 && (best == null || userScore >= best.score)) {
                 offer.player.transferTo(userClub);
-                offer.player.renewContract(
+                offer.player.signContract(
                     offer.annualSalary,
                     offer.years,
                     getContractStartYear(currentYear)
                 );
                 offer.player.setTradeBlockedDays(60);
+                league.recordFreeAgencySigning(offer.player, userClub, offer.annualSalary, offer.years);
                 freeAgents.remove(offer.player);
                 offer.status = OfferStatus.ACCEPTED;
                 offer.decisionMessage = offer.player.getName() + " aceitou: " + offer.years + " anos por " + formatMillions(offer.annualSalary) + "/ano.";
@@ -307,12 +310,13 @@ public class FreeAgencyService {
                 offer.status = OfferStatus.REJECTED;
                 if (best != null && best.score >= 52.0) {
                     offer.player.transferTo(best.club);
-                    offer.player.renewContract(
+                    offer.player.signContract(
                         best.salary,
                         best.years,
                         getContractStartYear(currentYear)
                     );
                     offer.player.setTradeBlockedDays(60);
+                    league.recordFreeAgencySigning(offer.player, best.club, best.salary, best.years);
                     freeAgents.remove(offer.player);
                     offer.decisionMessage = offer.player.getName() + " escolheu " + best.club.getName() + ". A proposta financeira não foi o único fator.";
                 } else {
@@ -337,12 +341,8 @@ public class FreeAgencyService {
      */
     public int processAiFreeAgentSignings(Club userClub, int currentYear) {
         if (!SeasonCalendar.isFreeAgentSigningOpen(league)) return 0;
-        if (
-            "OFFSEASON".equals(league.getCurrentStage()) &&
-            !league.isDraftFinalized()
-        ) {
-            return 0;
-        }
+        // A IA participa da mesma janela que o usuário, inclusive antes do
+        // draft. O calendário já bloqueia playoffs e expansões pendentes.
 
         collectExpiredPlayers();
         ensureMarketDepth();
@@ -402,12 +402,13 @@ public class FreeAgencyService {
             if (offerScore < 52.0) continue;
 
             target.transferTo(club);
-            target.renewContract(
+            target.signContract(
                 salary,
                 years,
                 getContractStartYear(currentYear)
             );
             target.setTradeBlockedDays(60);
+            league.recordFreeAgencySigning(target, club, salary, years);
             freeAgents.remove(target);
             signings++;
 
@@ -624,12 +625,13 @@ public class FreeAgencyService {
                 if (signing == null) break;
 
                 signing.transferTo(club);
-                signing.renewContract(
+                signing.signContract(
                     getRequestedAnnualSalary(signing),
                     Math.max(1, getPreferredYears(signing)),
                     getContractStartYear(league.getCurrentSeason())
                 );
                 signing.setTradeBlockedDays(60);
+                league.recordFreeAgencySigning(signing, club, signing.getAnnualSalary(), signing.getContractYears());
                 freeAgents.remove(signing);
                 moves++;
             }

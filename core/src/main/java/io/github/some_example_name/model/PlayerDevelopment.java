@@ -7,7 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 /** Dados persistentes e progresso fracionado do desenvolvimento de um atleta. */
-public class PlayerDevelopment {
+public class PlayerDevelopment implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final int initialTruePotential;
     private int truePotential;
     private int perceivedPotential;

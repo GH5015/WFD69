@@ -10,7 +10,8 @@ import java.util.EnumMap;
 import io.github.some_example_name.model.DraftPick;
 import io.github.some_example_name.database.StaffDatabase;
 
-public class Club {
+public class Club implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private String name;
     private String nickname = "";
     private String country;
@@ -27,6 +28,7 @@ public class Club {
     private int stadiumRenovationDaysRemaining;
     private long stadiumRenovationCost;
     private int stadiumRenovationTemporaryCapacity;
+    private int lastAiStadiumRenovationSeason;
     private String philosophy = "Desenvolver Jovens";
     private String logoPath;
     private boolean userControlled = false;
@@ -78,7 +80,8 @@ public class Club {
     private List<DraftPick> draftPicks = new ArrayList<>();
 
     /** Apenas escolhas táticas: não copia condição física, moral nem estatísticas. */
-    public static final class TacticalSetup {
+    public static final class TacticalSetup implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private Formation formation;
         private List<Player> starters, bench;
         private Map<Integer, Player> slots;
@@ -157,6 +160,15 @@ public class Club {
 
     private String topAssisterName = "Sem registros";
     private int topAssisterCount = 0;
+
+    /*
+     * Totais de cada atleta pelo clube. Eles não são reiniciados no fim da
+     * temporada: são a fonte dos recordes exibidos na aba História.
+     *
+     * O mapa pode ser nulo em carreiras salvas antes deste campo existir, por
+     * isso todo acesso passa por playerHistory().
+     */
+    private Map<String, PlayerClubHistory> playerHistory;
     private ClubFinance finance;
     private final Map<StaffRole, StaffMember> staffMembers = new EnumMap<>(StaffRole.class);
 
@@ -280,6 +292,7 @@ public class Club {
         this.squad = new ArrayList<>();
         this.startingXI = new ArrayList<>();
         this.tacticsMap = new HashMap<>();
+        this.playerHistory = new HashMap<>();
         putInitialStaff(StaffRole.COACH, "Treinador principal", 82, 1971);
         putInitialStaff(StaffRole.SCOUT, "Chefe de scouting", 76, 1971);
         putInitialStaff(StaffRole.FITNESS_COACH, "Preparador físico", 84, 1971);
@@ -626,6 +639,64 @@ public class Club {
         } else {
             this.totalLosses++;
             this.currentUnbeatenStreak = 0;
+        }
+    }
+
+    /**
+     * Registra os números individuais de uma partida no histórico do clube.
+     * Deve ser chamado uma vez, depois de a partida ter fechado os minutos e
+     * os eventos de gol/assistência.
+     */
+    public void recordPlayerMatchStatistics(Match match) {
+        if (match == null) return;
+        Map<Player, Integer> minutesByPlayer = match.getPlayerMinutesForClub(this);
+        if (minutesByPlayer.isEmpty()) return;
+
+        for (Map.Entry<Player, Integer> entry : minutesByPlayer.entrySet()) {
+            Player player = entry.getKey();
+            if (player == null) continue;
+            PlayerClubHistory totals = playerHistory().computeIfAbsent(playerHistoryKey(player), ignored ->
+                new PlayerClubHistory(player.getName()));
+            totals.appearances++;
+            totals.goals += (int) match.getGoalScorers().stream().filter(player::equals).count();
+            totals.assists += (int) match.getAssisters().stream().filter(player::equals).count();
+            updatePlayerRecordLeaders(totals);
+        }
+    }
+
+    private void updatePlayerRecordLeaders(PlayerClubHistory totals) {
+        if (totals.goals > topScorerGoals) {
+            topScorerName = totals.playerName;
+            topScorerGoals = totals.goals;
+        }
+        if (totals.assists > topAssisterCount) {
+            topAssisterName = totals.playerName;
+            topAssisterCount = totals.assists;
+        }
+        if (totals.appearances > mostGamesCount) {
+            mostGamesPlayerName = totals.playerName;
+            mostGamesCount = totals.appearances;
+        }
+    }
+
+    private Map<String, PlayerClubHistory> playerHistory() {
+        if (playerHistory == null) playerHistory = new HashMap<>();
+        return playerHistory;
+    }
+
+    private static String playerHistoryKey(Player player) {
+        return player.getId() != null ? player.getId() : player.getName();
+    }
+
+    private static final class PlayerClubHistory implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
+        private final String playerName;
+        private int appearances;
+        private int goals;
+        private int assists;
+
+        private PlayerClubHistory(String playerName) {
+            this.playerName = playerName == null || playerName.trim().isEmpty() ? "Jogador" : playerName;
         }
     }
 
@@ -1398,6 +1469,8 @@ public class Club {
         return 100d * (stadiumRenovationTotalDays - stadiumRenovationDaysRemaining)
             / stadiumRenovationTotalDays;
     }
+    public int getLastAiStadiumRenovationSeason() { return lastAiStadiumRenovationSeason; }
+    public void setLastAiStadiumRenovationSeason(int season) { lastAiStadiumRenovationSeason = season; }
 
     public String getPhilosophy() { return philosophy; }
     public void setPhilosophy(String philosophy) { this.philosophy = philosophy; }

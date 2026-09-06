@@ -29,6 +29,7 @@ import io.github.some_example_name.model.Player;
 import io.github.some_example_name.model.SeasonCalendar;
 import io.github.some_example_name.model.SmartTradeEvaluator;
 import io.github.some_example_name.model.TradeFinderService;
+import io.github.some_example_name.model.TradeMarketSearchEvaluator;
 import io.github.some_example_name.model.TradeOffer;
 import io.github.some_example_name.model.TradeRosterImpactEvaluator;
 import io.github.some_example_name.utils.PlayerDetailsDialog;
@@ -52,9 +53,10 @@ public class TradePlayerSearchScreen implements Screen {
 
     private String query = "";
     private String positionFilter = "TODOS";
-    private String sortMode = "VALOR";
+    private String sortMode = "ENCAIXE";
     private String ownerScope = "LIGA";
     private String assetType = "JOGADORES";
+    private String marketProfile = "TODOS";
     private Player selected;
     private DraftPick selectedPick;
     private TextField searchField;
@@ -73,6 +75,7 @@ public class TradePlayerSearchScreen implements Screen {
     }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         DraftOrderService.refreshAllPickProjections(game.league);
         List<Player> players = filteredPlayers();
         List<DraftPick> picks = filteredPicks();
@@ -97,22 +100,36 @@ public class TradePlayerSearchScreen implements Screen {
         background.setFillParent(true);
         root.add(background);
 
-        Table page = ScreenUI.createPage(true);
+        Table page = new Table();
+        page.top();
+        page.pad(6f, 24f, 10f, 24f);
+        page.background(StyleFactory.createMetallicBoard(
+            64,
+            64,
+            Color.valueOf("07110D")
+        ));
+
+        page.add(createBrandStrip()).growX().height(46f).padBottom(5f).row();
         page.add(ScreenUI.createHeader(
             game.skin,
             "TRADE FINDER",
             "BUSCA DE JOGADORES E PICKS • " + resultCount(players, picks) + " RESULTADO" + (resultCount(players, picks) == 1 ? "" : "S")
-        )).growX().height(ScreenUI.HEADER_HEIGHT).padBottom(10f).row();
+        )).growX().height(70f).padBottom(7f).row();
 
-        page.add(createControls()).growX().height(132f).padBottom(10f).row();
+        page.add(createControls()).growX().height("JOGADORES".equals(assetType) ? 205f : 158f).padBottom(7f).row();
 
         Table body = new Table();
         body.add("JOGADORES".equals(assetType) ? createResultsPanel(players) : createPickResultsPanel(picks))
-            .grow().padRight(10f);
-        body.add(createSelectedPanel()).width(420f).growY();
-        page.add(body).grow().padBottom(10f).row();
+            .grow().minHeight(0f).padRight(8f);
+        body.add(createSelectedPanel()).width(500f).growY().minHeight(0f);
+        page.add(body).grow().minHeight(0f).padBottom(7f).row();
 
         Table footer = new Table();
+        footer.background(StyleFactory.createRoundedPanel(
+            Color.valueOf("161B19"),
+            StyleFactory.BORDER_SOFT
+        ));
+        footer.pad(4f, 12f, 4f, 12f);
         TextButton back = ScreenUI.createInteractiveButton("← VOLTAR AO MERCADO", game.skin);
         back.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
@@ -125,44 +142,78 @@ public class TradePlayerSearchScreen implements Screen {
                 game.setScreen(new TradeScreen(game, userClub));
             }
         });
-        footer.add(back).width(255f).height(46f).left();
+        footer.add(back).width(275f).height(42f).left();
         footer.add().expandX();
-        footer.add(central).width(285f).height(46f).right();
-        page.add(footer).growX().height(48f);
+        footer.add(ScreenUI.createSubtitle(game.skin, "WFL  •  WORLD FOOTBALL LEAGUE")).center();
+        footer.add().expandX();
+        footer.add(central).width(310f).height(42f).right();
+        page.add(footer).growX().height(52f);
 
         root.add(page);
-        if (!"OFFSEASON".equals(game.league.getCurrentStage())) {
-            NavigationDrawer.attach(stage, game, userClub, "TROCAS", true);
-        }
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
+    }
+
+    private Table createBrandStrip() {
+        Table strip = new Table();
+        strip.background(StyleFactory.createRoundedPanel(
+            StyleFactory.METAL_DARK,
+            Color.valueOf("55605B")
+        ));
+        strip.pad(2f, 28f, 2f, 28f);
+
+        Label brand = ScreenUI.createBoldValue(game.skin, "WFL", StyleFactory.YELLOW_TITLE, Align.left);
+        brand.setFontScale(.72f);
+        strip.add(brand).left();
+        Label fullName = ScreenUI.createSubtitle(game.skin, "WORLD\nFOOTBALL\nLEAGUE");
+        fullName.setFontScale(.35f);
+        strip.add(fullName).width(125f).left().padLeft(9f);
+        strip.add().expandX();
+        Label motto = ScreenUI.createSubtitle(game.skin, "MAIS QUE UM JOGO.\nUMA LIGA.");
+        motto.setAlignment(Align.center);
+        motto.setColor(StyleFactory.CREME_AGED);
+        strip.add(motto).center();
+        strip.add().expandX();
+        Label values = ScreenUI.createSubtitle(game.skin, "GERIR\nCONQUISTAR\nFAZER HISTÓRIA");
+        values.setFontScale(.36f);
+        values.setAlignment(Align.right);
+        strip.add(values).right();
+        return strip;
     }
 
     private Table createControls() {
         Table panel = ScreenUI.createPanel();
-        panel.pad(7f, 12f, 7f, 12f);
+        panel.pad(9f, 12f, 9f, 12f);
 
-        panel.add(ScreenUI.createSubtitle(game.skin, "ATIVOS")).left().padRight(8f);
+        Table left = new Table();
+        left.top().left();
+        Table filterMark = ScreenUI.createSubtlePanel();
+        Label filterTitle = ScreenUI.createBoldValue(game.skin, "▼\nFILTROS\nDE BUSCA", StyleFactory.CREME_AGED, Align.center);
+        filterTitle.setFontScale(.45f);
+        filterMark.add(filterTitle).grow();
+
+        Table filterFields = new Table();
+        filterFields.top().left();
         Table scopeTabs = new Table();
-        scopeTabs.add(modeButton("MERCADO DA LIGA", "LIGA", true)).width(175f).height(33f).padRight(5f);
-        scopeTabs.add(modeButton("MEUS ATIVOS", "MEUS", true)).width(150f).height(33f);
-        panel.add(scopeTabs).colspan(3).left();
+        scopeTabs.add(modeButton("MERCADO DA LIGA", "LIGA", true)).width(210f).height(34f).padRight(7f);
+        scopeTabs.add(modeButton("MEUS ATIVOS", "MEUS", true)).width(185f).height(34f);
+        filterFields.add(scopeTabs).growX().left().padBottom(7f).row();
 
-        panel.add(ScreenUI.createSubtitle(game.skin, "TIPO")).right().padRight(6f);
-        Table typeTabs = new Table();
-        typeTabs.add(modeButton("JOGADORES", "JOGADORES", false)).width(135f).height(33f).padRight(5f);
-        typeTabs.add(modeButton("PICKS DO DRAFT", "PICKS", false)).width(155f).height(33f);
-        panel.add(typeTabs).colspan(4).right().row();
-
-        panel.add(ScreenUI.createSubtitle(
-            game.skin,
-            "JOGADORES".equals(assetType) ? "BUSCAR POR NOME OU CLUBE" : "BUSCAR POR CLUBE OU ANO"
-        )).left().padRight(8f).padTop(6f);
+        Table searchRow = new Table();
         searchField = new TextField(query, game.skin);
         searchField.setMessageText(
             "JOGADORES".equals(assetType)
-                ? "Digite o nome do jogador ou da franquia..."
+                ? "Ex.: Silva, Brasil, ST ou nome do clube..."
                 : "Digite o clube de origem ou o ano da pick..."
         );
-        panel.add(searchField).width(350f).height(35f).padRight(7f).padTop(6f);
+        searchField.setTextFieldListener(new TextField.TextFieldListener() {
+            @Override public void keyTyped(TextField textField, char character) {
+                if (character == '\r' || character == '\n') {
+                    query = textField.getText().trim();
+                    refreshUI();
+                }
+            }
+        });
+        searchRow.add(searchField).growX().height(36f).padRight(8f);
 
         TextButton search = ScreenUI.createPrimaryButton(game.skin, "BUSCAR");
         search.getLabel().setFontScale(.48f);
@@ -172,7 +223,7 @@ public class TradePlayerSearchScreen implements Screen {
                 refreshUI();
             }
         });
-        panel.add(search).width(105f).height(35f).padRight(5f).padTop(6f);
+        searchRow.add(search).width(145f).height(36f).padRight(7f);
 
         TextButton clear = ScreenUI.createInteractiveButton("LIMPAR", game.skin, "toggle");
         clear.getLabel().setFontScale(.44f);
@@ -182,36 +233,88 @@ public class TradePlayerSearchScreen implements Screen {
                 refreshUI();
             }
         });
-        panel.add(clear).width(95f).height(35f).padRight(14f).padTop(6f);
+        searchRow.add(clear).width(135f).height(36f);
+        filterFields.add(searchRow).growX().padBottom(7f).row();
 
-        panel.add(ScreenUI.createSubtitle(game.skin, "ORDENAR")).padRight(5f).padTop(6f);
-        String[] sortOptions = "JOGADORES".equals(assetType)
-            ? new String[]{"VALOR", "OVR", "IDADE"}
-            : new String[]{"VALOR", "ANO", "RODADA"};
-        for (String mode : sortOptions) {
-            panel.add(sortButton(mode)).width(82f).height(35f).padRight(4f);
-        }
-
-        panel.row();
         if ("JOGADORES".equals(assetType)) {
-            panel.add(ScreenUI.createSubtitle(game.skin, "POSIÇÃO")).left().padTop(6f);
+            Table positionRow = new Table();
+            positionRow.add(compactControlLabel("POSIÇÃO")).width(95f).left();
             Table filters = new Table();
             for (String filter : new String[]{"TODOS", "GK", "DEF", "MEI", "ATA"}) {
-                filters.add(positionButton(filter)).width(105f).height(32f).padRight(5f);
+                filters.add(positionButton(filter)).width(108f).height(32f).padRight(7f);
             }
-            panel.add(filters).colspan(6).left().padTop(5f);
+            positionRow.add(filters).growX().left();
+            filterFields.add(positionRow).growX().padBottom(6f).row();
+
+            Table profileRow = new Table();
+            profileRow.add(compactControlLabel("PERFIL")).width(95f).left();
+            Table profiles = new Table();
+            for (String profile : new String[]{"TODOS", "ENCAIXE", "NEGOCIÁVEIS", "OPORTUNIDADES", "JOVENS", "EXPIRANDO"}) {
+                profiles.add(profileButton(profile)).width(profile.length() > 11 ? 150f : 112f).height(32f).padRight(7f);
+            }
+            profileRow.add(profiles).growX().left();
+            filterFields.add(profileRow).growX();
         } else {
-            panel.add(ScreenUI.createSubtitle(game.skin, "PICKS")).left().padTop(6f);
-            panel.add(ScreenUI.createSubtitle(
+            filterFields.add(ScreenUI.createSubtitle(
                 game.skin,
                 "1ª e 2ª rodadas pertencentes ao dono atual"
-            )).colspan(6).left().padTop(6f);
+            )).left().padTop(8f);
         }
-        panel.add(ScreenUI.createSubtitle(
+
+        left.add(filterMark).width(145f).growY().padRight(14f);
+        left.add(filterFields).grow().minWidth(0f);
+
+        Table right = new Table();
+        right.top().left();
+        Table typeRow = new Table();
+        typeRow.add(compactControlLabel("TIPO")).width(115f).left();
+        typeRow.add(modeButton("JOGADORES", "JOGADORES", false)).width(150f).height(34f).padRight(7f);
+        typeRow.add(modeButton("PICKS DO DRAFT", "PICKS", false)).width(165f).height(34f);
+        right.add(typeRow).growX().left().padBottom(12f).row();
+
+        Table sortRow = new Table();
+        sortRow.add(compactControlLabel("ORDENAR POR")).width(115f).left();
+        String[] sortOptions = "JOGADORES".equals(assetType)
+            ? new String[]{"ENCAIXE", "DISPON.", "VALOR", "OVR", "IDADE"}
+            : new String[]{"VALOR", "ANO", "RODADA"};
+        for (String mode : sortOptions) {
+            sortRow.add(sortButton(mode)).width(84f).height(34f).padRight(6f);
+        }
+        right.add(sortRow).growX().left().padBottom(18f).row();
+
+        Table hint = new Table();
+        Label infoIcon = ScreenUI.createBoldValue(game.skin, "ⓘ", StyleFactory.YELLOW_TITLE, Align.center);
+        infoIcon.setFontScale(.58f);
+        hint.add(infoIcon).width(42f).padRight(8f);
+        hint.add(ScreenUI.createSubtitle(
             game.skin,
-            "Selecione um ativo e procure propostas que a IA aceitaria."
-        )).colspan(3).right().padTop(7f);
+            "Use encaixe e disponibilidade para priorizar alvos realistas."
+        )).left().growX();
+        right.add(hint).growX().left();
+
+        panel.add(left).grow().minWidth(0f).padRight(18f);
+        panel.add(right).width(650f).growY().minWidth(0f);
         return panel;
+    }
+
+    private Label compactControlLabel(String text) {
+        Label label = ScreenUI.createSubtitle(game.skin, text);
+        label.setFontScale(.48f);
+        label.setColor(StyleFactory.CREME_AGED);
+        return label;
+    }
+
+    private TextButton profileButton(final String profile) {
+        TextButton button = ScreenUI.createInteractiveButton(profile, game.skin, "toggle");
+        button.getLabel().setFontScale(profile.length() > 11 ? .38f : .43f);
+        button.setChecked(profile.equals(marketProfile));
+        button.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                marketProfile = profile;
+                refreshUI();
+            }
+        });
+        return button;
     }
 
     private TextButton modeButton(final String label, final String value, final boolean scope) {
@@ -223,7 +326,7 @@ public class TradePlayerSearchScreen implements Screen {
                 if (scope) ownerScope = value;
                 else {
                     assetType = value;
-                    sortMode = "VALOR";
+                    sortMode = "JOGADORES".equals(value) ? "ENCAIXE" : "VALOR";
                 }
                 query = "";
                 refreshUI();
@@ -260,23 +363,31 @@ public class TradePlayerSearchScreen implements Screen {
 
     private Table createResultsPanel(List<Player> players) {
         Table panel = ScreenUI.createPanel();
-        panel.top();
-        panel.add(ScreenUI.createSectionTitle(game.skin, "JOGADORES ENCONTRADOS"))
-            .left().padBottom(7f).row();
+        panel.top().pad(8f, 12f, 8f, 12f);
+        Table heading = new Table();
+        Label icon = ScreenUI.createBoldValue(game.skin, "●", StyleFactory.YELLOW_TITLE, Align.center);
+        icon.setFontScale(.56f);
+        heading.add(icon).width(30f).padRight(5f);
+        heading.add(ScreenUI.createSectionTitle(game.skin, "JOGADORES ENCONTRADOS")).left();
+        heading.add().expandX();
+        heading.add(ScreenUI.createSubtitle(game.skin, players.size() + " RESULTADOS")).right();
+        panel.add(heading).growX().padBottom(7f).row();
 
         Table list = new Table();
         list.top();
         Table header = ScreenUI.createTableHeaderRow();
-        addHeader(header, "POS", 58f, Align.center);
-        addHeader(header, "JOGADOR", 205f, Align.left);
-        addHeader(header, "CLUBE", 190f, Align.left);
-        addHeader(header, "ID", 44f, Align.center);
-        addHeader(header, "OVR", 52f, Align.center);
-        addHeader(header, "POT", 52f, Align.center);
-        addHeader(header, "SALÁRIO", 100f, Align.center);
-        addHeader(header, "CONTR.", 75f, Align.center);
-        addHeader(header, "VALOR", 72f, Align.center);
-        addHeader(header, "", 42f, Align.center);
+        addHeader(header, "POS", 75f, Align.center);
+        addHeader(header, "JOGADOR", 210f, Align.left);
+        addHeader(header, "CLUBE", 200f, Align.left);
+        addHeader(header, "ID", 50f, Align.center);
+        addHeader(header, "OVR", 55f, Align.center);
+        addHeader(header, "POT", 55f, Align.center);
+        addHeader(header, "SALÁRIO", 115f, Align.center);
+        addHeader(header, "CONTR.", 90f, Align.center);
+        addHeader(header, "FIT", 60f, Align.center);
+        addHeader(header, "MERCADO", 140f, Align.center);
+        addHeader(header, "VALOR", 70f, Align.center);
+        addHeader(header, "", 48f, Align.center);
         list.add(header).growX().height(38f).row();
 
         if (players.isEmpty()) {
@@ -289,14 +400,15 @@ public class TradePlayerSearchScreen implements Screen {
         } else {
             int index = 0;
             for (final Player player : players) {
-                list.add(createPlayerRow(player, index++)).growX().height(48f).row();
+                list.add(createPlayerRow(player, index++)).growX().height(45f).padBottom(2f).row();
             }
         }
 
         ScrollPane scroll = new ScrollPane(list, game.skin);
+        scroll.setName("trade-finder-player-results");
         scroll.setFadeScrollBars(false);
         scroll.setScrollingDisabled(true, false);
-        panel.add(scroll).grow();
+        panel.add(scroll).grow().minHeight(0f);
         return panel;
     }
 
@@ -313,15 +425,19 @@ public class TradePlayerSearchScreen implements Screen {
             game.skin,
             player.getPosition(),
             StyleFactory.getPositionColor(player.getPosition())
-        )).width(58f).height(26f);
-        row.add(value(ScreenUI.shorten(player.getName(), 23), Color.WHITE, Align.left)).width(205f).padLeft(7f);
-        row.add(value(ScreenUI.shorten(player.getCurrentClub().getName(), 21), ScreenUI.MUTED_TEXT, Align.left)).width(190f).padLeft(5f);
-        row.add(value(String.valueOf(player.getAge()), ScreenUI.MUTED_TEXT, Align.center)).width(44f);
-        row.add(value(String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW, Align.center)).width(52f);
-        row.add(value(io.github.some_example_name.model.PlayerPotentialDisplay.forViewer(player, userClub), ScreenUI.SUCCESS, Align.center)).width(52f);
-        row.add(value(formatMoney(player.getAnnualSalary()), Color.WHITE, Align.center)).width(100f);
-        row.add(value(contractText(player), contractColor(player), Align.center)).width(75f);
-        row.add(value(String.valueOf(perceivedValue(player)), StyleFactory.SOFT_YELLOW, Align.center)).width(72f);
+        )).width(75f).height(26f);
+        row.add(createPlayerIdentity(player)).width(210f).padLeft(7f);
+        row.add(value(ScreenUI.shorten(player.getCurrentClub().getName(), 22), ScreenUI.MUTED_TEXT, Align.left)).width(200f).padLeft(5f);
+        row.add(value(String.valueOf(player.getAge()), ScreenUI.MUTED_TEXT, Align.center)).width(50f);
+        row.add(value(String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW, Align.center)).width(55f);
+        row.add(value(io.github.some_example_name.model.PlayerPotentialDisplay.forViewer(player, userClub), ScreenUI.SUCCESS, Align.center)).width(55f);
+        row.add(value(formatMoney(player.getAnnualSalary()), Color.WHITE, Align.center)).width(115f);
+        row.add(value(contractText(player), contractColor(player), Align.center)).width(90f);
+        int fit = fitScore(player);
+        row.add(value(String.valueOf(fit), scoreColor(fit), Align.center)).width(60f);
+        String market = marketLabel(player);
+        row.add(value(market, marketColor(player), Align.center)).width(140f);
+        row.add(value(String.valueOf(perceivedValue(player)), StyleFactory.SOFT_YELLOW, Align.center)).width(70f);
 
         TextButton details = ScreenUI.createInteractiveButton("i", game.skin);
         details.getLabel().setFontScale(.48f);
@@ -331,7 +447,7 @@ public class TradePlayerSearchScreen implements Screen {
                 showPlayerDetails(player);
             }
         });
-        row.add(details).width(36f).height(30f).padRight(3f);
+        row.add(details).width(42f).height(30f).padRight(3f);
         row.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 selected = player;
@@ -341,11 +457,22 @@ public class TradePlayerSearchScreen implements Screen {
         return row;
     }
 
+    private Table createPlayerIdentity(Player player) {
+        Table identity = new Table();
+        Table country = ScreenUI.createBadge(game.skin, countryCode(player.getNationality()), Color.valueOf("2A4D3D"));
+        identity.add(country).width(42f).height(22f).padRight(7f);
+        identity.add(value(ScreenUI.shorten(player.getName(), 20), Color.WHITE, Align.left)).growX().left();
+        return identity;
+    }
+
     private Table createPickResultsPanel(List<DraftPick> picks) {
         Table panel = ScreenUI.createPanel();
-        panel.top();
-        panel.add(ScreenUI.createSectionTitle(game.skin, "PICKS ENCONTRADAS"))
-            .left().padBottom(7f).row();
+        panel.top().pad(8f, 12f, 8f, 12f);
+        Table heading = new Table();
+        heading.add(ScreenUI.createSectionTitle(game.skin, "PICKS ENCONTRADAS")).left();
+        heading.add().expandX();
+        heading.add(ScreenUI.createSubtitle(game.skin, picks.size() + " RESULTADOS")).right();
+        panel.add(heading).growX().padBottom(7f).row();
 
         Table list = new Table();
         list.top();
@@ -371,9 +498,10 @@ public class TradePlayerSearchScreen implements Screen {
         }
 
         ScrollPane scroll = new ScrollPane(list, game.skin);
+        scroll.setName("trade-finder-pick-results");
         scroll.setFadeScrollBars(false);
         scroll.setScrollingDisabled(true, false);
-        panel.add(scroll).grow();
+        panel.add(scroll).grow().minHeight(0f);
         return panel;
     }
 
@@ -407,12 +535,17 @@ public class TradePlayerSearchScreen implements Screen {
 
     private Table createSelectedPanel() {
         Table panel = ScreenUI.createPanel();
-        panel.top().pad(13f);
-        panel.add(ScreenUI.createSectionTitle(
+        panel.top().pad(8f, 11f, 8f, 11f);
+        Table heading = new Table();
+        Label icon = ScreenUI.createBoldValue(game.skin, "●", StyleFactory.YELLOW_TITLE, Align.center);
+        icon.setFontScale(.54f);
+        heading.add(icon).width(28f).padRight(4f);
+        heading.add(ScreenUI.createSectionTitle(
             game.skin,
             "JOGADORES".equals(assetType) ? "JOGADOR SELECIONADO" : "PICK SELECIONADA"
-        ))
-            .left().padBottom(12f).row();
+        )).left();
+        heading.add().expandX();
+        panel.add(heading).growX().padBottom(8f).row();
 
         if ("PICKS".equals(assetType)) {
             return populateSelectedPickPanel(panel);
@@ -425,32 +558,51 @@ public class TradePlayerSearchScreen implements Screen {
             return panel;
         }
 
-        panel.add(ScreenUI.createBoldValue(
+        Table playerOverview = new Table();
+        Table identity = new Table();
+        identity.top().left();
+        Label playerName = ScreenUI.createBoldValue(
             game.skin,
             selected.getName().toUpperCase(),
-            StyleFactory.SOFT_YELLOW,
+            StyleFactory.YELLOW_TITLE,
             Align.left
-        )).growX().left().row();
-        panel.add(ScreenUI.createSubtitle(
+        );
+        playerName.setFontScale(.64f);
+        playerName.setEllipsis(true);
+        identity.add(playerName).growX().left().row();
+
+        Table nationality = new Table();
+        nationality.add(ScreenUI.createBadge(
+            game.skin,
+            countryCode(selected.getNationality()),
+            Color.valueOf("2A4D3D")
+        )).width(48f).height(23f).padRight(7f);
+        nationality.add(ScreenUI.createSubtitle(
             game.skin,
             selected.getPosition() + " • " + selected.getAge() + " anos • " + selected.getNationality()
-        )).left().padTop(3f).padBottom(12f).row();
+        )).left().growX();
+        identity.add(nationality).growX().left().padTop(4f).padBottom(10f).row();
 
         Table ratings = new Table();
         ratings.add(ScreenUI.createStatusBox(game.skin, "OVR", String.valueOf(selected.getOverall()), StyleFactory.SOFT_YELLOW))
-            .growX().uniformX().height(60f).padRight(7f);
+            .growX().uniformX().height(68f).padRight(7f);
         ratings.add(ScreenUI.createStatusBox(game.skin, "POTENCIAL", io.github.some_example_name.model.PlayerPotentialDisplay.forViewer(selected, userClub), ScreenUI.SUCCESS))
-            .growX().uniformX().height(60f);
-        panel.add(ratings).growX().padBottom(11f).row();
+            .growX().uniformX().height(68f);
+        identity.add(ratings).growX();
+        playerOverview.add(identity).growX().minWidth(0f);
+        panel.add(playerOverview).growX().padBottom(8f).row();
 
         Table information = ScreenUI.createSubtlePanel();
+        information.pad(8f, 10f, 8f, 10f);
         addInfo(information, "CLUBE", selected.getCurrentClub().getName(), Color.WHITE);
         addInfo(information, "FASE DO CLUBE", phaseLabel(selected.getCurrentClub()), StyleFactory.SOFT_YELLOW);
         addInfo(information, "SALÁRIO", formatMoney(selected.getAnnualSalary()) + "/ano", Color.WHITE);
         addInfo(information, "CONTRATO", contractText(selected), contractColor(selected));
         addInfo(information, "NECESSIDADE NO SEU CLUBE", needStars(selected), ScreenUI.SUCCESS);
+        addInfo(information, "ENCAIXE ESPORTIVO", fitScore(selected) + "/100", scoreColor(fitScore(selected)));
+        addInfo(information, "ABERTURA DO VENDEDOR", availabilityScore(selected) + "/100", marketColor(selected));
         addInfo(information, "VALOR PARA SEU CLUBE", String.valueOf(perceivedValue(selected)), StyleFactory.SOFT_YELLOW);
-        panel.add(information).growX().padBottom(10f).row();
+        panel.add(information).growX().padBottom(7f).row();
 
         boolean untouchable = TradeRosterImpactEvaluator.isUntouchable(
             selected.getCurrentClub(), selected
@@ -460,19 +612,21 @@ public class TradePlayerSearchScreen implements Screen {
         Table market = ScreenUI.createSubtlePanel();
         market.add(ScreenUI.createSubtitle(game.skin, "STATUS DE MERCADO")).left().expandX();
         market.add(ScreenUI.createBoldValue(game.skin, status, statusColor, Align.right)).right();
-        panel.add(market).growX().padBottom(10f).row();
+        market.pad(8f, 10f, 8f, 10f);
+        panel.add(market).growX().padBottom(7f).row();
 
-        TextButton profile = ScreenUI.createInteractiveButton("VER PERFIL COMPLETO", game.skin);
+        TextButton profile = ScreenUI.createPrimaryButton(game.skin, "▤  VER PERFIL COMPLETO");
+        profile.getLabel().setFontScale(.45f);
         profile.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 showPlayerDetails(selected);
             }
         });
-        panel.add(profile).growX().height(42f).padBottom(7f).row();
+        panel.add(profile).growX().height(39f).padBottom(5f).row();
 
-        TextButton finder = ScreenUI.createPrimaryButton(
-            game.skin,
-            canSearchTrade(selected) ? "BUSCAR TROCAS POSSÍVEIS" : "TRADE FINDER INDISPONÍVEL"
+        TextButton finder = ScreenUI.createInteractiveButton(
+            canSearchTrade(selected) ? "↔  BUSCAR TROCAS POSSÍVEIS" : "TRADE FINDER INDISPONÍVEL",
+            game.skin
         );
         finder.getLabel().setFontScale(.47f);
         finder.setDisabled(!canSearchTrade(selected));
@@ -481,10 +635,10 @@ public class TradePlayerSearchScreen implements Screen {
                 if (canSearchTrade(selected)) showTradeFinderResults();
             }
         });
-        panel.add(finder).growX().height(48f).padBottom(7f).row();
+        panel.add(finder).growX().height(39f).padBottom(5f).row();
 
         if (selected.getCurrentClub() != userClub) {
-            TextButton negotiate = ScreenUI.createInteractiveButton("MONTAR PROPOSTA MANUAL", game.skin);
+            TextButton negotiate = ScreenUI.createInteractiveButton("✎  MONTAR PROPOSTA MANUAL", game.skin);
             negotiate.getLabel().setFontScale(.45f);
             negotiate.setDisabled(!canNegotiate(selected));
             negotiate.addListener(new ClickListener() {
@@ -498,7 +652,7 @@ public class TradePlayerSearchScreen implements Screen {
                     ));
                 }
             });
-            panel.add(negotiate).growX().height(42f);
+            panel.add(negotiate).growX().height(39f);
         }
         return panel;
     }
@@ -668,7 +822,8 @@ public class TradePlayerSearchScreen implements Screen {
         )).left().row();
         club.add(ScreenUI.createSubtitle(
             game.skin,
-            phaseLabel(result.getPartner()) + " • COMPAT. " + Math.round(result.getScore()) + "%"
+            phaseLabel(result.getPartner()) + " • COMPAT. " + Math.round(result.getScore()) + "%" +
+                " • FIT " + Math.round(result.getStrategicFit())
         )).left().padTop(3f);
         card.add(club).width(210f).left().padRight(10f);
 
@@ -777,15 +932,35 @@ public class TradePlayerSearchScreen implements Screen {
                     continue;
                 }
                 if (!normalizedQuery.isEmpty()) {
-                    String searchable = normalize(player.getName() + " " + club.getName());
+                    String secondary = player.getSecondaryPosition() != null
+                        ? player.getSecondaryPosition().name()
+                        : "";
+                    String searchable = normalize(
+                        player.getName() + " " + club.getName() + " " + player.getNationality() +
+                            " " + player.getPosition() + " " + secondary + " " + player.getAge()
+                    );
                     if (!searchable.contains(normalizedQuery)) continue;
                 }
+                if (!TradeMarketSearchEvaluator.matchesProfile(
+                    marketProfile, userClub, club, player, season
+                )) continue;
                 players.add(player);
             }
         }
 
         Comparator<Player> comparator;
-        if ("IDADE".equals(sortMode)) {
+        if (!normalizedQuery.isEmpty()) {
+            comparator = Comparator.comparingInt((Player player) -> queryRelevance(player, normalizedQuery)).reversed()
+                .thenComparing(Comparator.comparingInt(this::fitScore).reversed())
+                .thenComparing(Comparator.comparingInt(Player::getOverall).reversed());
+        } else if ("ENCAIXE".equals(sortMode)) {
+            comparator = Comparator.comparingInt(this::fitScore).reversed()
+                .thenComparing(Comparator.comparingInt(this::availabilityScore).reversed())
+                .thenComparing(Comparator.comparingInt(Player::getOverall).reversed());
+        } else if ("DISPON.".equals(sortMode)) {
+            comparator = Comparator.comparingInt(this::availabilityScore).reversed()
+                .thenComparing(Comparator.comparingInt(this::fitScore).reversed());
+        } else if ("IDADE".equals(sortMode)) {
             comparator = Comparator.comparingInt(Player::getAge)
                 .thenComparing(Comparator.comparingInt(Player::getOverall).reversed());
         } else if ("OVR".equals(sortMode)) {
@@ -893,6 +1068,48 @@ public class TradePlayerSearchScreen implements Screen {
         );
     }
 
+    private int fitScore(Player player) {
+        return TradeMarketSearchEvaluator.fitScore(userClub, player);
+    }
+
+    private int availabilityScore(Player player) {
+        if (player == null || player.getCurrentClub() == null) return 0;
+        if (player.getCurrentClub() == userClub) return 100;
+        return TradeMarketSearchEvaluator.availabilityScore(
+            player.getCurrentClub(), player, game.league.getCurrentSeason()
+        );
+    }
+
+    private String marketLabel(Player player) {
+        if (player.getCurrentClub() == userClub) return "SEU ATIVO";
+        return TradeMarketSearchEvaluator.availabilityLabel(
+            player.getCurrentClub(), player, game.league.getCurrentSeason()
+        );
+    }
+
+    private Color marketColor(Player player) {
+        int score = availabilityScore(player);
+        if (score >= 76) return ScreenUI.SUCCESS;
+        if (score >= 50) return StyleFactory.SOFT_YELLOW;
+        return score > 0 ? ScreenUI.WARNING : ScreenUI.DANGER;
+    }
+
+    private Color scoreColor(int score) {
+        if (score >= 72) return ScreenUI.SUCCESS;
+        if (score >= 52) return StyleFactory.SOFT_YELLOW;
+        return ScreenUI.MUTED_TEXT;
+    }
+
+    private int queryRelevance(Player player, String normalizedQuery) {
+        String name = normalize(player.getName());
+        String club = normalize(player.getCurrentClub().getName());
+        if (name.equals(normalizedQuery)) return 5;
+        if (name.startsWith(normalizedQuery)) return 4;
+        for (String part : name.split("\\s+")) if (part.startsWith(normalizedQuery)) return 3;
+        if (name.contains(normalizedQuery)) return 2;
+        return club.startsWith(normalizedQuery) ? 1 : 0;
+    }
+
     private long perceivedPickValue(DraftPick pick) {
         return DraftPickEvaluator.getPerceivedPickValue(
             userClub,
@@ -970,6 +1187,49 @@ public class TradePlayerSearchScreen implements Screen {
             .trim();
     }
 
+    private String countryCode(String nationality) {
+        String country = normalize(nationality);
+        switch (country) {
+            case "argentina": return "ARG";
+            case "alemanha": return "GER";
+            case "brasil": return "BRA";
+            case "espanha": return "ESP";
+            case "italia": return "ITA";
+            case "franca": return "FRA";
+            case "inglaterra": return "ENG";
+            case "pais de gales": return "WAL";
+            case "escocia": return "SCO";
+            case "irlanda": return "IRL";
+            case "irlanda do norte": return "NIR";
+            case "holanda": return "NED";
+            case "portugal": return "POR";
+            case "uruguai": return "URU";
+            case "paraguai": return "PAR";
+            case "chile": return "CHI";
+            case "colombia": return "COL";
+            case "mexico": return "MEX";
+            case "estados unidos":
+            case "eua": return "USA";
+            case "canada": return "CAN";
+            case "japao": return "JPN";
+            case "coreia do sul": return "KOR";
+            case "nigeria": return "NGA";
+            case "camaroes": return "CMR";
+            case "costa do marfim": return "CIV";
+            case "australia": return "AUS";
+            case "suecia": return "SWE";
+            case "noruega": return "NOR";
+            case "dinamarca": return "DEN";
+            case "suica": return "SUI";
+            case "turquia": return "TUR";
+            case "russia": return "RUS";
+            default:
+                if (nationality == null || nationality.trim().isEmpty()) return "---";
+                String clean = normalize(nationality).replaceAll("[^a-z]", "").toUpperCase(Locale.ROOT);
+                return clean.length() <= 3 ? clean : clean.substring(0, 3);
+        }
+    }
+
     @Override
     public void render(float delta) {
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
@@ -981,7 +1241,7 @@ public class TradePlayerSearchScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

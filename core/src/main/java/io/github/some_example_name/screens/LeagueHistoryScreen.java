@@ -42,6 +42,7 @@ public class LeagueHistoryScreen implements Screen {
     @Override public void show() { Gdx.input.setInputProcessor(stage); refreshUI(); }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
         Stack root = new Stack();
         root.setFillParent(true);
@@ -71,6 +72,7 @@ public class LeagueHistoryScreen implements Screen {
         root.add(page);
         ScreenUI.animateTabContent(content);
         NavigationDrawer.attach(stage, game, playerClub, "TABELA", true);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table createTabs() {
@@ -306,6 +308,6 @@ public class LeagueHistoryScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
     @Override public void dispose() { stage.dispose(); }
 }

@@ -35,6 +35,12 @@ public final class WflNewsDialog {
 
     public static boolean showPending(Stage stage, Main game) {
         if (stage == null || game == null || game.league == null || !game.league.isWeeklyNewsPending()) return false;
+        if ("OFFSEASON".equalsIgnoreCase(game.league.getCurrentStage())) {
+            // Evita que uma edição pendente da temporada anterior cubra as
+            // rotinas da Off Season ao trocar de tela ou avançar a data.
+            game.league.markWeeklyNewsDisplayed();
+            return false;
+        }
         List<NewsEvent> edition = game.league.getLatestNewsEdition();
         if (edition.isEmpty()) return false;
         show(stage, game, edition);

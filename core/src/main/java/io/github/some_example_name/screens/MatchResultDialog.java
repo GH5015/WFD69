@@ -229,6 +229,17 @@ public class MatchResultDialog extends Dialog {
             .center()
             .row();
 
+        if (match.hasPenaltyShootout()) {
+            Label penalties = new Label(
+                "PÊNALTIS  " + match.getHomePenaltyGoals() + " - " + match.getAwayPenaltyGoals(),
+                game.skin,
+                "font-bold"
+            );
+            penalties.setFontScale(0.48f);
+            penalties.setColor(StyleFactory.GOLD);
+            center.add(penalties).center().padTop(2f).row();
+        }
+
         Label result =
             new Label(
                 getResultDescription(),
@@ -2003,21 +2014,13 @@ public class MatchResultDialog extends Dialog {
         int away =
             match.getAwayGoals();
 
-        if (
-            home ==
-                away
-        ) {
-
+        if (home == away && !match.hasPenaltyShootout()) {
             return "EMPATE";
         }
 
-        Club winner =
-            home >
-                away
-                ? match.getHomeTeam()
-                : match.getAwayTeam();
+        Club winner = match.getWinningClub();
 
-        return "VITÓRIA • " +
+        return (match.hasPenaltyShootout() ? "VITÓRIA NOS PÊNALTIS • " : "VITÓRIA • ") +
             winner.getName()
                 .toUpperCase();
     }

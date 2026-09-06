@@ -1,11 +1,19 @@
 package io.github.some_example_name.screens;
 
 import com.badlogic.gdx.math.Vector2;
+import io.github.some_example_name.model.Formation;
+
+import java.util.List;
 
 public class TacticalFormations {
 
     public static Vector2[] getPositions(String formation, MatchPhase phase) {
         if (formation == null) return get433(phase);
+
+        Formation definedFormation = Formation.fromName(formation);
+        if (usesGeneratedLayout(definedFormation)) {
+            return getRoleBasedPositions(definedFormation.getPositionSlots(), phase);
+        }
 
         String normalized = formation.toLowerCase().replaceAll("[^a-z0-9]", "");
 
@@ -20,6 +28,86 @@ public class TacticalFormations {
         if (normalized.contains("falso9") || normalized.contains("false9")) return get433False9(phase);
 
         return get433(phase);
+    }
+
+    /** As formações novas usam os próprios slots para que cada variação tenha desenho distinto. */
+    private static boolean usesGeneratedLayout(Formation formation) {
+        if (formation == null) return false;
+        switch (formation) {
+            case F_3142:
+            case F_3412:
+            case F_3421:
+            case F_41212_2:
+            case F_4132:
+            case F_4141:
+            case F_4213:
+            case F_4222:
+            case F_4231_2:
+            case F_4312:
+            case F_4321:
+            case F_433_2:
+            case F_433_3:
+            case F_433_FALSE9:
+            case F_4411_2:
+            case F_442_2:
+            case F_451_2:
+            case F_5212:
+            case F_523:
+            case F_541:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static Vector2[] getRoleBasedPositions(List<String> slots, MatchPhase phase) {
+        if (phase == MatchPhase.ESCANTEIO) return getCornerPositions();
+
+        Vector2[] result = new Vector2[slots.size()];
+        for (int slot = 0; slot < slots.size(); slot++) {
+            String position = slots.get(slot);
+            float baseX = roleDepth(position);
+            float x = phase == MatchPhase.DEFESA
+                ? 0.04f + Math.max(0f, baseX - 0.08f) * 0.50f
+                : phase == MatchPhase.ATAQUE
+                    ? Math.min(0.92f, 0.18f + Math.max(0f, baseX - 0.08f) * 1.13f)
+                    : baseX;
+            float y = roleWidth(position, slots, slot);
+            if (phase == MatchPhase.DEFESA) y = 0.50f + (y - 0.50f) * 0.84f;
+            result[slot] = new Vector2(x, y);
+        }
+        return result;
+    }
+
+    private static float roleDepth(String rawPosition) {
+        String position = rawPosition == null ? "CM" : rawPosition.toUpperCase();
+        if (position.equals("GK")) return 0.08f;
+        if (position.equals("CB") || position.equals("SW")) return 0.22f;
+        if (position.equals("LB") || position.equals("RB")) return 0.30f;
+        if (position.equals("LWB") || position.equals("RWB")) return 0.43f;
+        if (position.equals("CDM")) return 0.40f;
+        if (position.equals("CM") || position.equals("LM") || position.equals("RM")) return 0.52f;
+        if (position.equals("CAM")) return 0.63f;
+        if (position.equals("LW") || position.equals("RW")) return 0.72f;
+        if (position.equals("CF")) return 0.73f;
+        return 0.79f;
+    }
+
+    private static float roleWidth(String rawPosition, List<String> slots, int slotIndex) {
+        String position = rawPosition == null ? "CM" : rawPosition.toUpperCase();
+        if (position.equals("LB") || position.equals("LWB") || position.equals("LM") || position.equals("LW")) return 0.12f;
+        if (position.equals("RB") || position.equals("RWB") || position.equals("RM") || position.equals("RW")) return 0.88f;
+        if (position.equals("GK")) return 0.50f;
+
+        int count = 0;
+        int index = 0;
+        for (int slot = 0; slot < slots.size(); slot++) {
+            if (position.equalsIgnoreCase(slots.get(slot))) {
+                if (slot < slotIndex) index++;
+                count++;
+            }
+        }
+        return (index + 1f) / (count + 1f);
     }
 
     // Posicionamento padrão para situações de bola parada (Escanteio)

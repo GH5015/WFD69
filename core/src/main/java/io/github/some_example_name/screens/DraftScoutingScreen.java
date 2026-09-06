@@ -129,6 +129,7 @@ public class DraftScoutingScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
 
         stage.clear();
 
@@ -349,6 +350,7 @@ public class DraftScoutingScreen implements Screen {
             returnOverlay.add(back).width(235f).height(42f); root.add(returnOverlay);
         } else NavigationDrawer.attach(stage, game, club, "SCOUTING", true);
 
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     // =========================================================
@@ -1183,7 +1185,7 @@ public class DraftScoutingScreen implements Screen {
 
     @Override public void pause() {}
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
 
     @Override
     public void dispose() {

@@ -3,7 +3,8 @@ package io.github.some_example_name.model;
 import java.util.Date;
 
 /** Uma matéria curta gerada por templates a partir do estado real da liga. */
-public final class NewsEvent {
+public final class NewsEvent implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     public enum Category {
         RESULTADO("RODADA"), DESTAQUE("DESTAQUE"), TRADE("TRADE"),
         HISTORIA("HISTÓRIA"), DIRETORIA("DIRETORIA"), LIGA("WFL");

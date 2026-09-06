@@ -65,6 +65,7 @@ public class FreeAgencyScreen implements Screen {
     }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         if (selected == null || !game.freeAgencyService.getFreeAgents().contains(selected)) {
             selected = game.freeAgencyService.getFreeAgents().isEmpty() ? null : game.freeAgencyService.getFreeAgents().get(0);
         }
@@ -78,29 +79,21 @@ public class FreeAgencyScreen implements Screen {
         Table page = ScreenUI.createPage(true);
         boolean marketOpen = SeasonCalendar.isFreeAgentSigningOpen(game.league);
         Table headerLine = new Table();
-        float headerWidth = Math.max(820f, stage.getWidth() - ScreenUI.PAGE_LEFT_OPEN - ScreenUI.PAGE_RIGHT - 405f);
-        headerLine.add(ScreenUI.createHeader(game.skin, "FREE AGENCY", "WFL • " + game.league.getCurrentSeason() + " • " + SeasonCalendar.getFreeAgencyStatus(game.league))).width(headerWidth).height(78f).left();
-        headerLine.add().expandX();
-        page.add(headerLine).growX().height(78f).padBottom(10f).row();
-        page.add(createSalaryCapPanel()).growX().height(72f).padBottom(8f).row();
-        if (marketOpen) {
+        headerLine.add(ScreenUI.createHeader(game.skin, "FREE AGENCY", "AGENTES LIVRES DISPONÍVEIS • WFL " + game.league.getCurrentSeason())).left().expandX();
+        page.add(headerLine).growX().height(70f).padBottom(6f).row();
+        page.add(createCompactFinanceStrip()).growX().height(58f).padBottom(8f).row();
+        if (marketOpen || "HISTÓRICO".equals(tab)) {
             page.add(createToolbar()).growX().height(82f).padBottom(8f).row();
-            page.add("JOGADORES".equals(tab) ? createMarketBody() : createOffersPanel()).grow().row();
+            page.add("HISTÓRICO".equals(tab) ? createSigningHistory() : createMarketBody()).grow().row();
         } else {
+            page.add(createToolbar()).growX().height(82f).padBottom(8f).row();
             page.add(createMarketClosedPanel()).grow();
         }
         root.add(page);
 
-        boolean offseason = "OFFSEASON".equals(game.league.getCurrentStage());
         Table actionOverlay = new Table();
         actionOverlay.setFillParent(true);
         actionOverlay.bottom().pad(18f);
-        if (offseason) {
-            TextButton back = ScreenUI.createInteractiveButton("← VOLTAR À OFF SEASON", game.skin);
-            back.getLabel().setFontScale(.45f);
-            back.addListener(new ClickListener(){ @Override public void clicked(InputEvent e,float x,float y){ game.setScreen(new OffSeasonScreen(game, club)); }});
-            actionOverlay.add(back).width(235f).height(42f).left();
-        }
         actionOverlay.add().expandX();
         TextButton advance = ScreenUI.createPrimaryButton(game.skin, "AVANÇAR DIA");
         advance.getLabel().setFontScale(.52f);
@@ -112,7 +105,7 @@ public class FreeAgencyScreen implements Screen {
                         CareerOverlay.advanceOneDay(game, club);
                         if (screenBefore != game.getScreen()) return;
 
-                        tab = "MINHAS OFERTAS";
+                        tab = "JOGADORES";
                         refreshUI();
                         if (!IncomingTradeOfferDialog.showPending(stage, game, club)
                             && !FreeAgencyDecisionDialog.showPending(stage, game)) {
@@ -125,9 +118,8 @@ public class FreeAgencyScreen implements Screen {
         actionOverlay.add(advance).width(220f).height(44f).right();
         root.add(actionOverlay);
 
-        if (!offseason) {
-            NavigationDrawer.attach(stage, game, club, "AGENTES", true);
-        }
+        NavigationDrawer.attach(stage, game, club, "AGENTES", true);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
     }
 
     private Table createSalaryCapPanel() {
@@ -153,6 +145,28 @@ public class FreeAgencyScreen implements Screen {
         return panel;
     }
 
+    /** Faixa curta para a central de mercado; detalhes completos continuam em Finanças. */
+    private Table createCompactFinanceStrip() {
+        long payroll = club.getFinance().getAnnualPayroll();
+        long cap = club.getFinance().getSalaryCap();
+        long hardCap = club.getFinance().getHardCap();
+        long room = Math.max(0L, hardCap - payroll);
+        Color color = payroll > hardCap ? ScreenUI.DANGER : payroll > cap ? ScreenUI.WARNING : ScreenUI.SUCCESS;
+        Table strip = ScreenUI.createSubtlePanel();
+        strip.add(status("SALARY CAP", money(cap), StyleFactory.SOFT_YELLOW)).width(180f).padRight(8f);
+        strip.add(status("FOLHA ATUAL", money(payroll), color)).width(180f).padRight(8f);
+        strip.add(status("ESPAÇO NO HARD CAP", money(room), ScreenUI.SUCCESS)).width(195f).padRight(10f);
+        strip.add(ScreenUI.createBlockProgress(game.skin, hardCap == 0 ? 0 : payroll * 100d / hardCap, 14, color)).growX().height(12f);
+        return strip;
+    }
+
+    private int pendingOfferCount() {
+        int count = 0;
+        for (FreeAgencyService.Offer offer : game.freeAgencyService.getUserOffers())
+            if (offer.getStatus() == FreeAgencyService.OfferStatus.PENDING) count++;
+        return count;
+    }
+
     private Table createMarketClosedPanel() {
         Table panel = ScreenUI.createPanel();
         panel.add(ScreenUI.createSectionTitle(game.skin, "MERCADO FECHADO")).center().padBottom(10f).row();
@@ -175,8 +189,9 @@ public class FreeAgencyScreen implements Screen {
     private Table createToolbar() {
         Table panel = ScreenUI.createPanel();
         Table tabs = new Table();
-        tabs.add(tabButton("JOGADORES")).width(140f).height(32f).padRight(5f);
-        tabs.add(tabButton("MINHAS OFERTAS")).width(155f).height(32f);
+        tabs.add(tabButton("JOGADORES", "AGENTES LIVRES")).width(145f).height(34f).padRight(5f);
+        tabs.add(targetsButton()).width(130f).height(34f).padRight(5f);
+        tabs.add(tabButton("HISTÓRICO", "HISTÓRICO")).width(130f).height(34f);
         panel.add(tabs).left().padBottom(5f).row();
 
         if ("JOGADORES".equals(tab)) {
@@ -215,19 +230,52 @@ public class FreeAgencyScreen implements Screen {
             controls.add(sortBox).width(135f).height(32f);
             panel.add(controls).left().padTop(8f);
         } else {
-            int pending = 0;
-            for (FreeAgencyService.Offer offer : game.freeAgencyService.getUserOffers()) {
-                if (offer.getStatus() == FreeAgencyService.OfferStatus.PENDING) pending++;
-            }
-            panel.add(ScreenUI.createSubtitle(game.skin, pending == 0
-                ? "Nenhuma proposta pendente. As decisões são processadas ao avançar o dia."
-                : pending + " proposta(s) aguardando decisão ao avançar o dia.")).left().padTop(10f);
+            panel.add(ScreenUI.createSubtitle(game.skin, "Contratações concluídas por todos os clubes • Temporada "
+                + game.league.getCurrentSeason())).left().padTop(10f);
         }
         return panel;
     }
 
-    private TextButton tabButton(final String value) {
-        TextButton button = ScreenUI.createInteractiveButton(value, game.skin, "toggle");
+    private Table createSigningHistory() {
+        Table panel = ScreenUI.createPanel();
+        panel.top();
+        List<io.github.some_example_name.model.FreeAgencySigning> history =
+            game.league.getFreeAgencyHistory(game.league.getCurrentSeason());
+        panel.add(ScreenUI.createSectionTitle(game.skin, "CONTRATAÇÕES DA TEMPORADA (" + history.size() + ")"))
+            .growX().left().padBottom(12f).row();
+        Table list = new Table();
+        list.top();
+        Table header = new Table();
+        String[] headings = {"DATA", "JOGADOR", "CLUBE", "POS", "OVR", "SALÁRIO ANUAL", "DURAÇÃO"};
+        float[] widths = {105f, 290f, 320f, 65f, 65f, 170f, 110f};
+        for (int i = 0; i < headings.length; i++)
+            header.add(value(headings[i], StyleFactory.SOFT_YELLOW, Align.left)).width(widths[i]);
+        list.add(header).growX().height(38f).row();
+        java.text.SimpleDateFormat date = new java.text.SimpleDateFormat("dd/MM/yyyy");
+        for (int i = 0; i < history.size(); i++) {
+            io.github.some_example_name.model.FreeAgencySigning signing = history.get(i);
+            Table row = ScreenUI.createRow(i);
+            String[] values = {signing.date == 0 ? "—" : date.format(new java.util.Date(signing.date)),
+                signing.playerName, signing.clubName, signing.position, String.valueOf(signing.overall),
+                money(signing.annualSalary), getYearsText(signing.years)};
+            for (int j = 0; j < values.length; j++) {
+                Label cell = value(values[j], j == 5 ? ScreenUI.SUCCESS : Color.WHITE, Align.left);
+                cell.setEllipsis(true);
+                row.add(cell).width(widths[j]);
+            }
+            list.add(row).growX().height(46f).row();
+        }
+        if (history.isEmpty()) list.add(ScreenUI.createSubtitle(game.skin,
+            "Nenhuma contratação registrada nesta temporada.")).pad(24f).row();
+        ScrollPane scroll = new ScrollPane(list, game.skin);
+        scroll.setScrollingDisabled(true, false);
+        scroll.setFadeScrollBars(false);
+        panel.add(scroll).grow();
+        return panel;
+    }
+
+    private TextButton tabButton(final String value, String label) {
+        TextButton button = ScreenUI.createInteractiveButton(label, game.skin, "toggle");
         boolean active = value.equals(tab);
         button.setChecked(active);
         button.getLabel().setFontScale(0.48f);
@@ -239,6 +287,17 @@ public class FreeAgencyScreen implements Screen {
                 refreshUI();
             }
         });
+        return button;
+    }
+
+    private TextButton targetsButton() {
+        TextButton button = ScreenUI.createInteractiveButton("MEUS ALVOS", game.skin, "toggle");
+        boolean active = "JOGADORES".equals(tab) && "★".equals(filter);
+        button.setChecked(active); button.getLabel().setFontScale(.44f);
+        button.getLabel().setColor(active ? StyleFactory.SOFT_YELLOW : StyleFactory.TEXT_PRIMARY);
+        button.addListener(new ClickListener() { @Override public void clicked(InputEvent event, float x, float y) {
+            tab = "JOGADORES"; filter = "★"; refreshUI();
+        }});
         return button;
     }
 
@@ -261,7 +320,7 @@ public class FreeAgencyScreen implements Screen {
     private Table createMarketBody() {
         Table body = new Table();
         float usable = Math.max(900f, stage.getWidth() - ScreenUI.PAGE_LEFT_OPEN - ScreenUI.PAGE_RIGHT);
-        float detailsWidth = Math.min(440f, usable * 0.31f);
+        float detailsWidth = Math.min(410f, usable * .30f);
         body.add(createMarketTable()).width(usable - detailsWidth - 10f).growY().padRight(10f);
         body.add(createPlayerDetails()).width(detailsWidth).growY();
         return body;
@@ -272,14 +331,15 @@ public class FreeAgencyScreen implements Screen {
         panel.top();
         Table list = new Table();
         Table header = ScreenUI.createTableHeaderRow();
-        header.add(head("★", Align.center)).width(42f);
-        header.add(head("JOGADOR", Align.left)).width(200f);
-        header.add(head("POS", Align.center)).width(55f);
-        header.add(head("IDADE", Align.center)).width(64f);
-        header.add(head("OVR", Align.center)).width(54f);
-        header.add(head("POT", Align.center)).width(54f);
-        header.add(head("PEDIDO", Align.center)).width(106f);
-        header.add(head("INTERESSE", Align.center)).width(112f);
+        header.add(head("#", Align.center)).width(34f);
+        header.add(head("JOGADOR", Align.left)).width(180f);
+        header.add(head("POS", Align.center)).width(52f);
+        header.add(head("IDADE", Align.center)).width(48f);
+        header.add(head("OVR", Align.center)).width(48f);
+        header.add(head("POT", Align.center)).width(48f);
+        header.add(head("NACIONALIDADE", Align.left)).width(105f);
+        header.add(head("PEDIDO SALARIAL", Align.center)).width(125f);
+        header.add(head("INTERESSE", Align.center)).width(98f);
         list.add(header).growX().height(38f).row();
 
         List<Player> players = filteredPlayers();
@@ -300,7 +360,7 @@ public class FreeAgencyScreen implements Screen {
 
     private Table createPlayerRow(final Player player, int index) {
         Table row = ScreenUI.createRow(index);
-        TextButton favourite = ScreenUI.createInteractiveButton(game.freeAgencyService.isFavourite(player) ? "★" : "☆", game.skin, "toggle");
+        TextButton favourite = ScreenUI.createInteractiveButton(game.freeAgencyService.isFavourite(player) ? "★" : String.valueOf(index + 1), game.skin, "toggle");
         favourite.getLabel().setFontScale(0.62f);
         favourite.getLabel().setColor(game.freeAgencyService.isFavourite(player) ? StyleFactory.SOFT_YELLOW : ScreenUI.MUTED_TEXT);
         favourite.addListener(new ClickListener() {
@@ -309,14 +369,15 @@ public class FreeAgencyScreen implements Screen {
                 refreshUI();
             }
         });
-        row.add(favourite).width(42f).height(29f);
-        row.add(value(ScreenUI.shorten(player.getName(), 22), Color.WHITE, Align.left)).width(200f).padLeft(5f);
-        row.add(ScreenUI.createBadge(game.skin, player.getPosition(), StyleFactory.getPositionColor(player.getPosition()))).width(55f).height(25f);
-        row.add(value(String.valueOf(player.getAge()), Color.WHITE, Align.center)).width(64f);
-        row.add(value(String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW, Align.center)).width(54f);
-        row.add(value(io.github.some_example_name.model.PlayerPotentialDisplay.forViewer(player, club), ScreenUI.SUCCESS, Align.center)).width(54f);
-        row.add(value(money(game.freeAgencyService.getRequestedAnnualSalary(player)), Color.WHITE, Align.center)).width(106f);
-        row.add(value(stars(game.freeAgencyService.getInterestStars(player, club)), interestColor(player), Align.center)).width(112f);
+        row.add(favourite).width(34f).height(29f);
+        row.add(value(ScreenUI.shorten(player.getName(), 20), Color.WHITE, Align.left)).width(180f).padLeft(5f);
+        row.add(ScreenUI.createBadge(game.skin, player.getPosition(), StyleFactory.getPositionColor(player.getPosition()))).width(52f).height(25f);
+        row.add(value(String.valueOf(player.getAge()), Color.WHITE, Align.center)).width(48f);
+        row.add(value(String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW, Align.center)).width(48f);
+        row.add(value(io.github.some_example_name.model.PlayerPotentialDisplay.forViewer(player, club), ScreenUI.SUCCESS, Align.center)).width(48f);
+        row.add(value(ScreenUI.shorten(player.getNationality(), 13), ScreenUI.MUTED_TEXT, Align.left)).width(105f);
+        row.add(value(money(game.freeAgencyService.getRequestedAnnualSalary(player)) + "/ano", Color.WHITE, Align.center)).width(125f);
+        row.add(createInterestMeter(player)).width(98f);
         row.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 selected = player;
@@ -335,7 +396,7 @@ public class FreeAgencyScreen implements Screen {
         }
         Player player = selected;
         Table title = new Table();
-        title.add(ScreenUI.createSectionTitle(game.skin, "JOGADOR SELECIONADO")).left().expandX();
+        title.add(ScreenUI.createSectionTitle(game.skin, "ALVO PRINCIPAL")).left().expandX();
         TextButton favourite = ScreenUI.createInteractiveButton(game.freeAgencyService.isFavourite(player) ? "★ FAVORITO" : "☆ FAVORITAR", game.skin, "toggle");
         favourite.getLabel().setFontScale(0.43f);
         favourite.addListener(new ClickListener() {
@@ -351,6 +412,7 @@ public class FreeAgencyScreen implements Screen {
         name.setFontScale(0.74f);
         panel.add(name).left().padTop(10f).row();
         panel.add(ScreenUI.createSubtitle(game.skin, player.getPosition() + " • " + player.getAge() + " anos • " + player.getNationality())).left().padTop(2f).row();
+        panel.add(ScreenUI.createSubtitle(game.skin, "Agente livre • negociações podem alterar a pedida")).left().padTop(3f).row();
 
         Table ratings = new Table();
         ratings.add(status("OVR", String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW)).growX().padRight(6f);
@@ -369,9 +431,10 @@ public class FreeAgencyScreen implements Screen {
         long demand = game.freeAgencyService.getRequestedAnnualSalary(player);
         int interest = game.freeAgencyService.getInterestStars(player, club);
         Table contract = ScreenUI.createSubtlePanel();
-        contract.add(label("PEDIDO", money(demand) + " / ano", Color.WHITE)).left().expandX().row();
+        contract.add(label("PEDIDO SALARIAL", money(demand) + " / ano", Color.WHITE)).left().expandX().row();
         contract.add(label("PREFERÊNCIA", getYearsText(game.freeAgencyService.getPreferredYears(player)), ScreenUI.MUTED_TEXT)).left().padTop(5f).row();
-        contract.add(label("INTERESSE", stars(interest) + "  " + interestText(interest), interestColor(player))).left().padTop(5f).row();
+        contract.add(label("INTERESSE", interestText(interest), interestColor(player))).left().padTop(5f).row();
+        contract.add(createInterestMeter(player)).left().padTop(5f).row();
         contract.add(label("CHANCE DE TITULARIDADE", game.freeAgencyService.getStarterChance(player, club) + "%", ScreenUI.SUCCESS)).left().padTop(5f);
         panel.add(contract).growX().padTop(12f).row();
 
@@ -508,15 +571,16 @@ public class FreeAgencyScreen implements Screen {
         };
         dialog.setModal(true);
         dialog.setMovable(false);
+        dialog.setName("contract-negotiation");
+        dialog.setBackground(StyleFactory.createRoundedPanel(Color.valueOf("091411"), StyleFactory.GOLD));
         Table content = dialog.getContentTable();
-        content.background(StyleFactory.createMetallicBoard(1080, 720, Color.valueOf("091813")));
-        content.pad(18f, 22f, 14f, 22f);
+        content.pad(24f);
 
         Table heading = new Table();
         Table headingCopy = new Table();
         headingCopy.left();
-        Label offerTitle = ScreenUI.createSectionTitle(game.skin, "OFERTA DE CONTRATO");
-        offerTitle.setFontScale(.72f);
+        Label offerTitle = ScreenUI.createSectionTitle(game.skin, "NEGOCIAÇÃO DE CONTRATO");
+        offerTitle.setFontScale(.95f);
         headingCopy.add(offerTitle).left().row();
         Label subtitle = ScreenUI.createSubtitle(game.skin, "Negocie os termos com " + player.getName().toUpperCase());
         subtitle.setColor(StyleFactory.GOLD);
@@ -537,29 +601,36 @@ public class FreeAgencyScreen implements Screen {
         identity.add(ScreenUI.createStatusBox(game.skin, "OVR", String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW)).width(105f).height(62f).padRight(7f);
         identity.add(ScreenUI.createStatusBox(game.skin, "POTENCIAL", io.github.some_example_name.model.PlayerPotentialDisplay.forViewer(player, club), ScreenUI.SUCCESS)).width(118f).height(62f).padRight(7f);
         int interest = game.freeAgencyService.getInterestStars(player, club);
-        identity.add(ScreenUI.createStatusBox(game.skin, "INTERESSE", interestText(interest), interest >= 4 ? ScreenUI.SUCCESS : StyleFactory.SOFT_YELLOW)).width(165f).height(62f);
+        Table interestPanel = new Table();
+        interestPanel.add(ScreenUI.createSubtitle(game.skin, "INTERESSE DO JOGADOR")).row();
+        interestPanel.add(createInterestMeter(player)).padTop(8f);
+        identity.add(interestPanel).width(195f).height(62f);
         content.add(identity).growX().height(82f).padBottom(9f).row();
 
         Table body = new Table();
         Table terms = ScreenUI.createPanel();
         terms.top().left();
-        terms.add(ScreenUI.createSectionTitle(game.skin, "TERMOS DA OFERTA")).colspan(3).growX().left().padBottom(8f).row();
-        terms.add(ScreenUI.createSubtitle(game.skin, "PEDIDO DO JOGADOR")).width(185f).left();
-        terms.add(ScreenUI.createBoldValue(game.skin, money(requested) + " / ano", StyleFactory.SOFT_YELLOW, Align.left)).width(245f).left();
-        terms.add(ScreenUI.createSubtitle(game.skin, getYearsText(game.freeAgencyService.getPreferredYears(player)))).growX().right().row();
-        terms.add(ScreenUI.createSubtitle(game.skin, "SALÁRIO ANUAL")).width(185f).left().padTop(11f);
-        terms.add(salary).width(245f).height(42f).left().padTop(11f);
-        terms.add(ScreenUI.createSubtitle(game.skin, "Escolha um valor dentro da faixa de mercado.")).growX().left().padLeft(14f).padTop(11f).row();
-        terms.add(ScreenUI.createSubtitle(game.skin, "DURAÇÃO")).width(185f).left().padTop(10f);
-        terms.add(years).width(150f).height(42f).left().padTop(10f);
-        terms.add(ScreenUI.createSubtitle(game.skin, "Contratos longos aumentam o custo total.")).growX().left().padLeft(14f).padTop(10f).row();
-        terms.add(ScreenUI.createSubtitle(game.skin, "CHANCE DE SUCESSO")).width(185f).left().padTop(17f);
-        terms.add(chance).width(245f).left().padTop(17f);
-        terms.add(chanceMeter).growX().height(16f).padLeft(14f).padTop(17f).row();
+        terms.add(ScreenUI.createSectionTitle(game.skin, "SUA PROPOSTA")).colspan(2).growX().left().padBottom(18f).row();
+        terms.add(ScreenUI.createSubtitle(game.skin, "PEDIDO DO JOGADOR")).width(220f).left();
+        terms.add(ScreenUI.createBoldValue(game.skin, money(requested) + " / ano", StyleFactory.SOFT_YELLOW, Align.left)).growX().left().row();
+        terms.add(ScreenUI.createSubtitle(game.skin, "DURAÇÃO DESEJADA")).left().padTop(8f);
+        terms.add(ScreenUI.createSubtitle(game.skin, getYearsText(game.freeAgencyService.getPreferredYears(player)))).left().padTop(8f).row();
+        terms.add(ScreenUI.createDivider()).colspan(2).growX().height(1f).padTop(18f).padBottom(18f).row();
+        terms.add(ScreenUI.createSubtitle(game.skin, "SALÁRIO ANUAL")).left();
+        terms.add(salary).growX().height(48f).row();
+        terms.add(ScreenUI.createSubtitle(game.skin, "DURAÇÃO (ANOS)")).left().padTop(14f);
+        terms.add(years).growX().height(48f).padTop(14f).row();
+        terms.add(chance).colspan(2).left().padTop(22f).row();
+        terms.add(chanceMeter).colspan(2).left().height(16f).padTop(8f).row();
+        Label estimateHint = ScreenUI.createSubtitle(game.skin, "Estimativa, não garantia: o jogador pode aceitar, recusar ou fazer uma contraproposta.");
+        estimateHint.setWrap(true);
+        terms.add(estimateHint).colspan(2).growX().padTop(10f).row();
         Table capBox = ScreenUI.createSubtlePanel();
         capBox.add(capPreview).growX().left().row();
         capBox.add(taxPreview).growX().left().padTop(5f);
-        terms.add(capBox).colspan(3).growX().height(68f).padTop(14f);
+        capPreview.setWrap(true);
+        taxPreview.setWrap(true);
+        terms.add(capBox).colspan(2).growX().height(82f).padTop(18f);
 
         Table information = ScreenUI.createPanel();
         information.top().left();
@@ -574,16 +645,29 @@ public class FreeAgencyScreen implements Screen {
         addOfferInfo(information, "Idade", player.getAge() + " anos", Color.WHITE);
         addOfferInfo(information, "Nacionalidade", player.getNationality(), Color.WHITE);
         addOfferInfo(information, "Situação", "Sem contrato", StyleFactory.SOFT_YELLOW);
+        information.add(ScreenUI.createDivider()).colspan(2).growX().height(1f).padTop(14f).padBottom(12f).row();
+        information.add(ScreenUI.createSubtitle(game.skin, "ATRIBUTOS PRINCIPAIS")).colspan(2).left().padBottom(10f).row();
+        TechnicalAttributes attributes = player.getTechnicalAttributes();
+        Table stats = new Table();
+        stats.add(attribute("ATA", attributes.getAtaque())).expandX();
+        stats.add(attribute("PAS", attributes.getPasse())).expandX();
+        stats.add(attribute("DEF", attributes.getDefesa())).expandX();
+        stats.add(attribute("FIS", attributes.getFisico())).expandX();
+        stats.add(attribute("DRI", attributes.getDrible())).expandX();
+        information.add(stats).colspan(2).growX();
 
-        body.add(terms).width(680f).growY().padRight(9f);
-        body.add(information).width(330f).growY();
-        content.add(body).growX().height(355f).row();
+        body.add(terms).width(720f).growY().padRight(14f);
+        body.add(information).grow().minWidth(510f);
+        content.add(body).grow().padTop(6f).row();
 
         updatePreview.run();
         dialog.button("CANCELAR", false);
         dialog.button("ENVIAR OFERTA", true);
+        dialog.getButtonTable().pad(12f, 24f, 22f, 24f);
+        for (com.badlogic.gdx.scenes.scene2d.ui.Cell<?> cell : dialog.getButtonTable().getCells())
+            cell.width(245f).height(48f).padLeft(8f).padRight(8f);
         dialog.show(stage);
-        dialog.setSize(1080f, 680f);
+        dialog.setSize(Math.min(1360f, stage.getWidth() - 40f), Math.min(820f, stage.getHeight() - 40f));
         dialog.setPosition((stage.getWidth() - dialog.getWidth()) * .5f, (stage.getHeight() - dialog.getHeight()) * .5f);
     }
 
@@ -667,6 +751,14 @@ public class FreeAgencyScreen implements Screen {
         return ScreenUI.formatStars(count);
     }
 
+    private Table createInterestMeter(Player player) {
+        int interest = Math.max(0, Math.min(5, game.freeAgencyService.getInterestStars(player, club)));
+        Table meter = ScreenUI.createBlockProgress(game.skin, interest * 20.0, 5, interestColor(player));
+        meter.setName("interest-meter");
+        meter.add(value(interest + "/5", interestColor(player), Align.center)).padLeft(5f);
+        return meter;
+    }
+
     private String getYearsText(int years) {
         return years + (years == 1 ? " ano" : " anos");
     }
@@ -705,6 +797,6 @@ public class FreeAgencyScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
     @Override public void dispose() { stage.dispose(); }
 }

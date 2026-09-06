@@ -38,13 +38,13 @@ import java.util.Locale;
 public class OffSeasonScreen implements Screen {
     private enum OffseasonPhase {
         EXPANSION("1 NOV", "WFL EXPANSION", "Proteja seu elenco antes da entrada das novas franquias."),
-        STAFF("1–5 NOV", "STAFF", "Contrate, renove ou substitua membros da comissão técnica."),
-        SCOUTING("6–30 NOV", "SCOUTING", "Acompanhe a classe e construa seu Big Board."),
+        STAFF("1 - 5 NOV", "STAFF", "Contrate, renove ou substitua membros da comissão técnica."),
+        SCOUTING("6 - 30 NOV", "SCOUTING", "Acompanhe a classe e construa seu Big Board."),
         LOTTERY("1 DEZ", "LOTERIA DO DRAFT", "Acompanhe a revelação da ordem oficial das escolhas."),
-        WORKOUTS("2–19 DEZ", "WORKOUTS", "Finalize relatórios e organize seu Big Board."),
+        WORKOUTS("2 - 19 DEZ", "WORKOUTS", "Finalize relatórios e organize seu Big Board."),
         DRAFT("20 DEZ", "WFL DRAFT", "Selecione os futuros jogadores da franquia."),
-        FREE_AGENCY("21–25 DEZ", "FREE AGENCY", "Contrate jogadores livres e acompanhe propostas."),
-        TRADES("26–31 DEZ", "TROCAS", "Negocie jogadores e escolhas após o Draft."),
+        FREE_AGENCY("21 - 25 DEZ", "FREE AGENCY", "Contrate jogadores livres e acompanhe propostas."),
+        TRADES("26 - 31 DEZ", "TROCAS", "Negocie jogadores e escolhas após o Draft."),
         NEW_SEASON("1 JAN", "NOVA TEMPORADA", "A nova temporada está pronta para começar.");
         final String date, title, description;
         OffseasonPhase(String date, String title, String description) { this.date=date; this.title=title; this.description=description; }
@@ -72,32 +72,128 @@ public class OffSeasonScreen implements Screen {
     }
 
     private void refreshUI() {
+        io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
-        Stack root = new Stack();
-        root.setFillParent(true);
-        stage.addActor(root);
-
-        Image background = new Image(new TextureRegionDrawable(backgroundTexture));
-        background.setFillParent(true);
-        root.add(background);
-
         Table page = ScreenUI.createPage(true);
-        page.add(ScreenUI.createHeader(
-                game.skin,
-                "OFF SEASON — " + (game.league.getCurrentSeason() + 1),
-                club.getName().toUpperCase() + " • " + currentMonthLabel()
-            )).growX().height(70f).padBottom(7f).row();
+        page.setFillParent(true); page.padBottom(22f);
+        page.background(StyleFactory.createRoundedPanel(Color.valueOf("071411"), StyleFactory.DARK_GOLD));
+        stage.addActor(page);
         OffseasonPhase phase = currentPhase();
-        page.add(createPhaseTimeline(phase)).growX().height(104f).padBottom(8f).row();
+        Table header = new Table();
+        Table title = new Table(); title.left();
+        Label heading = ScreenUI.createSectionTitle(game.skin, "OFF SEASON");
+        heading.setFontScale(1.35f);
+        title.add(heading).left().row();
+        title.add(ScreenUI.createSubtitle(game.skin, "PLANEJE O FUTURO. CONSTRUA UMA ERA.")).left().padTop(6);
+        header.add(title).growX().left();
+        header.add(ScreenUI.createStatusBox(game.skin, "PRÓXIMA ETAPA",
+            nextPhase(phase).title + " • " + nextPhase(phase).date, StyleFactory.SOFT_YELLOW)).width(380).height(76).padRight(12);
+        TextButton advance = ScreenUI.createPrimaryButton(game.skin,
+            phase == OffseasonPhase.NEW_SEASON ? "INICIAR TEMPORADA" : "AVANÇAR À PRÓXIMA ETAPA");
+        advance.getLabel().setFontScale(.5f);
+        advance.addListener(new ClickListener() { public void clicked(InputEvent e, float x, float y) { advanceToNextPhase(phase); } });
+        header.add(advance).width(315).height(56);
+        page.add(header).growX().height(94).padBottom(10).row();
+        page.add(createPhaseTimeline(phase)).growX().height(104).padBottom(12).row();
+        Table hero = ScreenUI.createPanel();
+        Label season = ScreenUI.createSectionTitle(game.skin, "OFF SEASON " + (game.league.getCurrentSeason() + 1));
+        season.setFontScale(1f);
+        hero.add(season).left().expandX();
+        hero.add(ScreenUI.createBoldValue(game.skin, club.getName().toUpperCase(Locale.ROOT), StyleFactory.SOFT_YELLOW, Align.right)).right().row();
+        hero.add(ScreenUI.createSubtitle(game.skin, "Prepare o elenco, organize suas escolhas e defina o próximo ciclo do clube."))
+            .colspan(2).left().padTop(7).row();
+        hero.add(createFranchiseSummary()).colspan(2).growX().height(85).padTop(14);
+        page.add(hero).growX().height(180).padBottom(12).row();
         Table body = new Table();
-        body.add(createCurrentPhasePanel(phase)).width(470f).growY().padRight(9f);
-        body.add(createNextPhasePanel(phase)).width(365f).growY().padRight(9f);
-        body.add(createFranchiseSituation()).width(330f).growY();
-        page.add(body).growX().height(350f).padBottom(8f).row();
-        page.add(createPhaseAgenda(phase)).growX().height(178f).padBottom(8f).row();
-        page.add(createAdvancePhasePanel(phase)).growX().height(68f).row();
+        body.add(createChronologicalTasks(phase)).grow().minWidth(0).padRight(12);
+        Table right = new Table();
+        right.add(createExpiringPlayers()).grow().padBottom(10).row();
+        right.add(createRosterNeeds()).growX();
+        body.add(right).width(490).growY();
+        page.add(body).grow().padBottom(10).row();
+        page.add(createSeasonRecap()).growX().height(65);
+        NavigationDrawer.attach(stage, game, club, "OFF SEASON", true);
+        io.github.some_example_name.utils.ScrollPositionMemory.restore(stage, getClass().getName());
+    }
 
-        root.add(page);
+    private Table createChronologicalTasks(OffseasonPhase active) {
+        Table panel = ScreenUI.createPanel(); panel.top();
+        panel.add(ScreenUI.createSectionTitle(game.skin, "PRINCIPAIS TAREFAS • ORDEM CRONOLÓGICA")).growX().left().padBottom(12).row();
+        Table list = new Table(); list.top();
+        for (OffseasonPhase phase : OffseasonPhase.values()) {
+            if (phase == OffseasonPhase.EXPANSION && !LeagueExpansionService.isExpansionYear(game.league.getCurrentSeason() + 1)) continue;
+            boolean current = phase == active;
+            Table row = new Table(); row.pad(10);
+            row.background(StyleFactory.createRoundedPanel(Color.valueOf("0D1B16"), current ? StyleFactory.GOLD : Color.valueOf("304137")));
+            row.add(ScreenUI.createBoldValue(game.skin, phase.date, StyleFactory.SOFT_YELLOW, Align.center)).width(118).padRight(12);
+            Table copy = new Table(); copy.left();
+            copy.add(ScreenUI.createBoldValue(game.skin, phase.title, current ? StyleFactory.SOFT_YELLOW : Color.WHITE, Align.left)).left().row();
+            Label description = ScreenUI.createSubtitle(game.skin, phase.description); description.setWrap(true);
+            copy.add(description).growX().left().padTop(4);
+            row.add(copy).growX().minWidth(0).padRight(12);
+            TextButton action = ScreenUI.createSecondaryButton(game.skin, current ? actionLabel(phase)
+                : phase.ordinal() < active.ordinal() ? "ETAPA ANTERIOR" : "EM BREVE");
+            action.getLabel().setFontScale(.43f);
+            action.setDisabled(!current || phase == OffseasonPhase.NEW_SEASON || !phaseAvailable(phase));
+            action.addListener(new ClickListener() { public void clicked(InputEvent e, float x, float y) {
+                if (!action.isDisabled()) openPhase(phase);
+            } });
+            row.add(action).width(225).height(40);
+            list.add(row).growX().height(82).padBottom(6).row();
+        }
+        com.badlogic.gdx.scenes.scene2d.ui.ScrollPane scroll = new com.badlogic.gdx.scenes.scene2d.ui.ScrollPane(list, game.skin);
+        scroll.setScrollingDisabled(true, false); scroll.setFadeScrollBars(false);
+        panel.add(scroll).grow().minWidth(0);
+        return panel;
+    }
+
+    private Table createExpiringPlayers() {
+        Table panel = ScreenUI.createPanel(); panel.top().left();
+        java.util.List<Player> players = new java.util.ArrayList<>();
+        for (Player p : club.getSquad()) if (p.getRemainingContractYears(game.league.getCurrentSeason()) <= 1) players.add(p);
+        players.sort(java.util.Comparator.comparingInt(Player::getOverall).reversed());
+        panel.add(ScreenUI.createSectionTitle(game.skin, "CONTRATOS A REVISAR (" + players.size() + ")")).growX().left().padBottom(10).row();
+        Table list = new Table(); list.top();
+        for (Player p : players) {
+            Table row = new Table();
+            Label name = ScreenUI.createSubtitle(game.skin, p.getName()); name.setEllipsis(true);
+            row.add(name).growX().minWidth(0);
+            row.add(ScreenUI.createSubtitle(game.skin, p.getPosition() + "  •  " + p.getOverall())).width(95);
+            row.add(ScreenUI.createSubtitle(game.skin, compactMoney(p.getAnnualSalary()) + "/ano")).width(125);
+            list.add(row).growX().height(33).row();
+        }
+        if (players.isEmpty()) list.add(ScreenUI.createSubtitle(game.skin, "Nenhum contrato próximo do fim.")).left();
+        com.badlogic.gdx.scenes.scene2d.ui.ScrollPane scroll = new com.badlogic.gdx.scenes.scene2d.ui.ScrollPane(list, game.skin);
+        scroll.setScrollingDisabled(true, false); scroll.setFadeScrollBars(false);
+        panel.add(scroll).grow().row();
+        TextButton contracts = ScreenUI.createSecondaryButton(game.skin, "GERENCIAR CONTRATOS");
+        contracts.getLabel().setFontScale(.48f);
+        contracts.addListener(new ClickListener() { public void clicked(InputEvent e, float x, float y) {
+            game.setScreen(new ContractRenewalScreen(game, club));
+        } });
+        panel.add(contracts).growX().height(38).padTop(10);
+        return panel;
+    }
+
+    private Table createRosterNeeds() {
+        Table panel = ScreenUI.createPanel(); panel.top().left();
+        panel.add(ScreenUI.createSectionTitle(game.skin, "COBERTURA DO ELENCO")).growX().left().padBottom(8).row();
+        String[] groups = {"GK", "DEF", "MEI", "ATA"};
+        int[] targets = {2, 7, 6, 5};
+        for (int i = 0; i < groups.length; i++) {
+            int count = 0;
+            for (Player p : club.getSquad()) {
+                String pos = p.getPrimaryPosition().name();
+                String group = pos.equals("GK") ? "GK" : pos.endsWith("B") || pos.equals("SW") ? "DEF" : pos.contains("M") ? "MEI" : "ATA";
+                if (group.equals(groups[i]) && p.canPlay()) count++;
+            }
+            Table row = new Table();
+            row.add(ScreenUI.createSubtitle(game.skin, groups[i] + "  •  " + count + " disponíveis")).left().expandX();
+            row.add(ScreenUI.createBoldValue(game.skin, count < targets[i] ? "REFORÇAR" : "COBERTO",
+                count < targets[i] ? ScreenUI.WARNING : ScreenUI.SUCCESS, Align.right)).right();
+            panel.add(row).growX().height(30).row();
+        }
+        return panel;
     }
 
     private Table createPhaseTimeline(OffseasonPhase active) {
@@ -318,7 +414,9 @@ public class OffSeasonScreen implements Screen {
         panel.add(ScreenUI.createStatusBox(game.skin, "SALDO", formatMoney(finance.getBalance()), ScreenUI.SUCCESS)).growX().uniformX().padRight(7f);
         panel.add(ScreenUI.createStatusBox(game.skin, "SALARY CAP", formatMoney(finance.getAnnualPayroll()) + " / " + formatMoney(finance.getSalaryCap()), StyleFactory.SOFT_YELLOW)).growX().uniformX().padRight(7f);
         panel.add(ScreenUI.createStatusBox(game.skin, "ELENCO", club.getSquad().size() + "/" + 26, StyleFactory.CREME_AGED)).growX().uniformX().padRight(7f);
-        panel.add(ScreenUI.createStatusBox(game.skin, "PICKS", String.valueOf(club.getDraftPicks().size()), Color.valueOf("9DC8F0"))).growX().uniformX().padRight(7f);
+        long firstRound = club.getDraftPicks().stream().filter(p -> p.getYear() == game.league.getCurrentSeason() + 1 && p.getRound() == 1 && p.isAvailableForTrade(game.league)).count();
+        long secondRound = club.getDraftPicks().stream().filter(p -> p.getYear() == game.league.getCurrentSeason() + 1 && p.getRound() == 2 && p.isAvailableForTrade(game.league)).count();
+        panel.add(ScreenUI.createStatusBox(game.skin, "ESCOLHAS NO DRAFT", "R1: " + firstRound + "  •  R2: " + secondRound, Color.valueOf("9DC8F0"))).growX().uniformX().padRight(7f);
         panel.add(ScreenUI.createStatusBox(game.skin, "REPUTAÇÃO", String.valueOf(club.getReputation()), StyleFactory.SOFT_YELLOW)).growX().uniformX();
         return panel;
     }
@@ -616,6 +714,6 @@ public class OffSeasonScreen implements Screen {
     @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause() { }
     @Override public void resume() { }
-    @Override public void hide() { }
+    @Override public void hide() { io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName()); }
     @Override public void dispose() { stage.dispose(); backgroundTexture.dispose(); }
 }

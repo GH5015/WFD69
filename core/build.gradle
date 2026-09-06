@@ -69,6 +69,18 @@ tasks.register('matchMoraleRegression', JavaExec) {
   mainClass = 'io.github.some_example_name.MatchMoraleRegressionTest'
 }
 
+tasks.register('automaticInjurySubstitutionRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.AutomaticInjurySubstitutionRegressionTest'
+}
+
+tasks.register('aiFreeAgencyRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.AiFreeAgencyRegressionTest'
+}
+
 tasks.register('aiRenewalRegression', JavaExec) {
   dependsOn testClasses
   classpath = sourceSets.test.runtimeClasspath
@@ -81,10 +93,22 @@ tasks.register('attendanceRegression', JavaExec) {
   mainClass = 'io.github.some_example_name.AttendanceRegressionTest'
 }
 
+tasks.register('aiStadiumRenovationRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.AiStadiumRenovationRegressionTest'
+}
+
 tasks.register('draftPickAvailabilityRegression', JavaExec) {
   dependsOn testClasses
   classpath = sourceSets.test.runtimeClasspath
   mainClass = 'io.github.some_example_name.DraftPickAvailabilityRegressionTest'
+}
+
+tasks.register('incomingDraftTradeRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.IncomingDraftTradeRegressionTest'
 }
 
 tasks.register('playerSalaryGrowthRegression', JavaExec) {
@@ -109,6 +133,18 @@ tasks.register('playerNegotiationRegression', JavaExec) {
   dependsOn testClasses
   classpath = sourceSets.test.runtimeClasspath
   mainClass = 'io.github.some_example_name.PlayerNegotiationRegressionTest'
+}
+
+tasks.register('contractExtensionRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.ContractExtensionRegressionTest'
+}
+
+tasks.register('tradeMarketSearchRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.TradeMarketSearchRegressionTest'
 }
 
 tasks.register('draftClass1987Regression', JavaExec) {
@@ -139,4 +175,136 @@ tasks.register('draftClass1991Regression', JavaExec) {
   dependsOn testClasses
   classpath = sourceSets.test.runtimeClasspath
   mainClass = 'io.github.some_example_name.DraftClass1991RegressionTest'
+}
+
+tasks.register('draftClass1992Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass1992RegressionTest'
+}
+
+tasks.register('draftClass1993Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass1993RegressionTest'
+}
+
+tasks.register('draftClass1994Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass1994RegressionTest'
+}
+
+tasks.register('draftClass1995Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass1995RegressionTest'
+}
+
+tasks.register('draftClass1996Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass1996RegressionTest'
+}
+
+tasks.register('draftClass1997Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass1997RegressionTest'
+}
+
+tasks.register('draftClass1998Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass1998RegressionTest'
+}
+
+tasks.register('draftClass1999Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass1999RegressionTest'
+}
+
+tasks.register('draftClass2000Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass2000RegressionTest'
+}
+
+tasks.register('draftClass2001Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass2001RegressionTest'
+}
+
+tasks.register('draftClass2002Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass2002RegressionTest'
+}
+
+tasks.register('draftPotentialBalanceRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftPotentialBalanceRegressionTest'
+}
+
+tasks.register('draftClass2003Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass2003RegressionTest'
+}
+
+tasks.register('draftClass2004Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass2004RegressionTest'
+}
+
+tasks.register('draftClass2005Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass2005RegressionTest'
+}
+
+tasks.register('draftClass2006Regression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.DraftClass2006RegressionTest'
+}
+
+tasks.register('saveGameSerializationRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.SaveGameSerializationRegressionTest'
+}
+
+tasks.register('positionOverallRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.PositionOverallRegressionTest'
+}
+
+tasks.register('fastSimulationInjuryRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.engine.FastSimulationInjuryRegressionTest'
+}
+
+tasks.register('formationCatalogRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.FormationCatalogRegressionTest'
+}
+
+tasks.register('clubHistoryLeadersRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.ClubHistoryLeadersRegressionTest'
+}
+
+tasks.register('playoffPenaltyShootoutRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.PlayoffPenaltyShootoutRegressionTest'
 }

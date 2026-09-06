@@ -181,6 +181,14 @@ public final class TradeFinderService {
             - Math.abs(1d - Math.min(1.6d, partnerRatio)) * 34d;
         score += Math.min(8d, Math.max(0d, (userRatio - 1d) * 20d));
 
+        // Uma proposta matematicamente equilibrada nem sempre resolve o que os
+        // clubes precisam. O ranking final combina equilíbrio com encaixe dos
+        // atletas recebidos por cada lado; picks recebem valor neutro.
+        double userFit = packageFit(userClub, offer.getTargetPlayers(), offer.getTargetPicks());
+        double partnerFit = packageFit(partner, offer.getUserPlayers(), offer.getUserPicks());
+        double strategicFit = userFit * .58d + partnerFit * .42d;
+        score = score * .78d + strategicFit * .22d;
+
         matches.add(new Result(
             offer,
             partner,
@@ -188,8 +196,26 @@ public final class TradeFinderService {
             userSends,
             userReceives,
             partnerReceives,
-            partnerSends
+            partnerSends,
+            strategicFit
         ));
+    }
+
+    private static double packageFit(Club receiver, List<Player> players, List<DraftPick> picks) {
+        if (receiver == null) return 0d;
+        double total = 0d;
+        int assets = 0;
+        for (Player player : players) {
+            total += TradeMarketSearchEvaluator.fitScore(receiver, player);
+            assets++;
+        }
+        for (DraftPick ignored : picks) {
+            ClubNeedEvaluator.TeamPhase phase = ClubNeedEvaluator.getTeamPhase(receiver);
+            total += phase == ClubNeedEvaluator.TeamPhase.REBUILDING ? 76d
+                : phase == ClubNeedEvaluator.TeamPhase.SELLER ? 68d : 52d;
+            assets++;
+        }
+        return assets == 0 ? 0d : total / assets;
     }
 
     private static void addSelectedAsset(
@@ -291,6 +317,7 @@ public final class TradeFinderService {
         private final long userValueReceived;
         private final long partnerValueReceived;
         private final long partnerValueSent;
+        private final double strategicFit;
 
         private Result(
             TradeOffer offer,
@@ -299,7 +326,8 @@ public final class TradeFinderService {
             long userValueSent,
             long userValueReceived,
             long partnerValueReceived,
-            long partnerValueSent
+            long partnerValueSent,
+            double strategicFit
         ) {
             this.offer = offer;
             this.partner = partner;
@@ -308,6 +336,7 @@ public final class TradeFinderService {
             this.userValueReceived = userValueReceived;
             this.partnerValueReceived = partnerValueReceived;
             this.partnerValueSent = partnerValueSent;
+            this.strategicFit = strategicFit;
         }
 
         public TradeOffer getOffer() { return offer; }
@@ -317,6 +346,7 @@ public final class TradeFinderService {
         public long getUserValueReceived() { return userValueReceived; }
         public long getPartnerValueReceived() { return partnerValueReceived; }
         public long getPartnerValueSent() { return partnerValueSent; }
+        public double getStrategicFit() { return strategicFit; }
 
         public String getBalanceLabel() {
             double ratio = userValueSent <= 0L ? 0d : (double) userValueReceived / userValueSent;

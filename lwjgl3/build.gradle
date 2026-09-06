@@ -259,6 +259,15 @@ tasks.register('draftLotteryLayoutRegression', JavaExec) {
   jvmArgs '--enable-native-access=ALL-UNNAMED'
 }
 
+tasks.register('draftLayoutPreview', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.DraftLayoutPreview'
+  workingDir = rootProject.file('assets')
+  args rootProject.file('build/reports/draft-preview.png').absolutePath
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
 tasks.register('benchSelectionLayoutRegression', JavaExec) {
   dependsOn testClasses
   classpath = sourceSets.test.runtimeClasspath
@@ -271,6 +280,14 @@ tasks.register('matchTacticsLayoutRegression', JavaExec) {
   dependsOn testClasses
   classpath = sourceSets.test.runtimeClasspath
   mainClass = 'io.github.some_example_name.lwjgl3.MatchTacticsLayoutRegression'
+  workingDir = rootProject.file('assets')
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.register('navigationPreview', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.lwjgl3.NavigationPreview'
   workingDir = rootProject.file('assets')
   jvmArgs '--enable-native-access=ALL-UNNAMED'
 }

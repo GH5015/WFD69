@@ -30,6 +30,7 @@ import io.github.some_example_name.screens.NavigationDrawer;
 import io.github.some_example_name.simulation.PlayoffSimulator;
 import io.github.some_example_name.simulation.SeasonSimulator;
 import io.github.some_example_name.utils.IconTextButton;
+import io.github.some_example_name.utils.GameSettings;
 import io.github.some_example_name.utils.StyleFactory;
 
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public class Main extends Game {
     public FreeAgencyService freeAgencyService;
 
     public Club playerClub;
-    public final ManagerCareer managerCareer = new ManagerCareer();
+    public ManagerCareer managerCareer = new ManagerCareer();
     public Drawable background;
 
     /**
@@ -132,6 +133,15 @@ public class Main extends Game {
             : pendingSquadAlerts.remove(0);
     }
 
+    public List<MatchEvent> snapshotPendingSquadAlerts() {
+        return new ArrayList<>(pendingSquadAlerts);
+    }
+
+    public void restorePendingSquadAlerts(List<MatchEvent> alerts) {
+        pendingSquadAlerts.clear();
+        if (alerts != null) pendingSquadAlerts.addAll(alerts);
+    }
+
     @Override
     public void create() {
 
@@ -139,6 +149,7 @@ public class Main extends Game {
         // VISUAL
         // ==============================
 
+        GameSettings.applySaved();
         background = StyleFactory.createCheckerboard();
         setupSkin();
         transitionRenderer = new ShapeRenderer();

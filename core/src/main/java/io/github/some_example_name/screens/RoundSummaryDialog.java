@@ -4,10 +4,12 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 
 import io.github.some_example_name.Main;
@@ -468,6 +470,8 @@ public final class RoundSummaryDialog extends Dialog {
         Match surprise = getBiggestSurprise();
 
         panel.add(createHighlightCard(
+            "Icons8/icons8-em-alta-50.png",
+            StyleFactory.GOLD,
             "MELHOR JOGO",
             bestMatch != null
                 ? getMatchResult(bestMatch)
@@ -486,6 +490,8 @@ public final class RoundSummaryDialog extends Dialog {
             : "Nenhuma bola na rede nesta rodada.";
 
         panel.add(createHighlightCard(
+            "Icons8/icons8-estrela-48.png",
+            StyleFactory.GOLD,
             "CRAQUE DA RODADA",
             scorerText,
             scorerDetail
@@ -499,6 +505,8 @@ public final class RoundSummaryDialog extends Dialog {
             : "Os favoritos confirmaram seus resultados.";
 
         panel.add(createHighlightCard(
+            "Icons8/icons8-alta-prioridade-50.png",
+            Color.valueOf("E5A84B"),
             "MAIOR SURPRESA",
             surpriseText,
             surpriseDetail
@@ -508,6 +516,8 @@ public final class RoundSummaryDialog extends Dialog {
     }
 
     private Table createHighlightCard(
+        String iconPath,
+        Color iconColor,
         String title,
         String mainText,
         String detail
@@ -536,9 +546,21 @@ public final class RoundSummaryDialog extends Dialog {
             0.44f
         );
 
-        card.add(titleLabel).left().row();
-        card.add(mainLabel).left().padTop(2f).row();
-        card.add(detailLabel).left().padTop(2f);
+        Image icon = new Image(new TextureRegionDrawable(
+            ScreenUI.loadTintableIcon(iconPath)
+        ));
+        icon.setColor(iconColor);
+
+        Table text = new Table();
+        text.top().left();
+        text.add(titleLabel).left().growX().row();
+        text.add(mainLabel).left().growX().padTop(2f).row();
+        text.add(detailLabel).left().growX().padTop(2f);
+
+        // A coluna de ícone tem largura fixa nos três cards. Assim o título
+        // do craque e os demais textos começam exatamente na mesma posição.
+        card.add(icon).size(36f).left().top().padRight(11f);
+        card.add(text).grow().left().top();
 
         return card;
     }
