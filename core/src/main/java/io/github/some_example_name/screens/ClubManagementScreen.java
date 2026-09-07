@@ -178,7 +178,7 @@ public class ClubManagementScreen implements Screen {
 
         Label title = new Label(
             injury
-                ? "LESÃO NO ELENCO"
+                ? "DIAGNÓSTICO MÉDICO"
                 : "EXPULSÃO CONFIRMADA",
             game.skin,
             "font-title"
@@ -196,10 +196,19 @@ public class ClubManagementScreen implements Screen {
         minute.setColor(StyleFactory.SOFT_YELLOW);
         minute.setAlignment(Align.center);
 
-        Label description = new Label(
-            alert.description != null
+        String injuredName = injury && alert.getInjuredPlayer() != null
+            ? alert.getInjuredPlayer().getName().toUpperCase()
+            : "JOGADOR DO ELENCO";
+        String diagnosis = injury && alert.hasInjuryDiagnosis()
+            ? injuredName + "\n\nDIAGNÓSTICO: " + alert.getDiagnosedInjury()
+                + "\nPREVISÃO DE RETORNO: " + alert.getDiagnosedDaysOut()
+                + (alert.getDiagnosedDaysOut() == 1 ? " DIA" : " DIAS")
+            : alert.description != null
                 ? alert.description
-                : "Um jogador do seu clube sofreu uma ocorrência grave.",
+                : "Um jogador do seu clube sofreu uma ocorrência grave.";
+
+        Label description = new Label(
+            diagnosis,
             game.skin
         );
         description.setFontScale(0.55f);
@@ -209,7 +218,7 @@ public class ClubManagementScreen implements Screen {
 
         Label nextStep = new Label(
             injury
-                ? "O jogador ficará indisponível; ajuste escalação e elenco se necessário."
+                ? "O laudo foi concluído após a partida. Ajuste a escalação se necessário."
                 : "O jogador cumprirá suspensão; revise sua escalação antes da próxima partida.",
             game.skin
         );
@@ -262,6 +271,7 @@ public class ClubManagementScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
+        club.ensureSquadNumbers();
         io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
         stage.clear();
         Table page = ScreenUI.createPage(true);
@@ -997,6 +1007,13 @@ public class ClubManagementScreen implements Screen {
 
         addSortHeader(
             header,
+            "#",
+            "NUMBER",
+            48f
+        );
+
+        addSortHeader(
+            header,
             "POS",
             "POS",
             65f
@@ -1136,6 +1153,17 @@ public class ClubManagementScreen implements Screen {
 
         boolean available =
             player.canPlay();
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    String.valueOf(player.getSquadNumber()),
+                    StyleFactory.SOFT_YELLOW,
+                    Align.center
+                )
+            )
+            .width(48f);
 
         // =====================================================
         // POS
@@ -1387,7 +1415,7 @@ public class ClubManagementScreen implements Screen {
             .center().padBottom(12f).row();
 
         Table overview = new Table();
-        overview.add(ScreenUI.createStatusBox(game.skin, "POSIÇÃO", player.getPosition(), StyleFactory.getPositionColor(player.getPosition())))
+        overview.add(ScreenUI.createStatusBox(game.skin, "CAMISA / POSIÇÃO", "#" + player.getSquadNumber() + "  •  " + player.getPosition(), StyleFactory.getPositionColor(player.getPosition())))
             .width(220f).height(62f).padRight(7f);
         overview.add(ScreenUI.createStatusBox(game.skin, "OVERALL", String.valueOf(player.getOverall()), StyleFactory.SOFT_YELLOW))
             .width(220f).height(62f).padRight(7f);
@@ -1409,6 +1437,18 @@ public class ClubManagementScreen implements Screen {
         addAttributeRow(attributes, "FÍSICO", values.getFisico(), "DEFESA", values.getDefesa(), "GOLEIRO", values.getGoleiro());
         content.add(attributes).width(910f).height(112f).padBottom(6f).row();
 
+        TextButton squadNumber = ScreenUI.createSecondaryButton(
+            game.skin,
+            "ALTERAR NÚMERO  #" + player.getSquadNumber()
+        );
+        squadNumber.getLabel().setFontScale(0.48f);
+        squadNumber.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                showSquadNumberEditor(player, dialog);
+            }
+        });
+        dialog.getButtonTable().add(squadNumber).width(220f).height(44f).pad(6f);
+
         TextButton development = ScreenUI.createSecondaryButton(game.skin, "DESENVOLVIMENTO");
         development.getLabel().setFontScale(0.48f);
         development.addListener(new ClickListener() {
@@ -1423,6 +1463,80 @@ public class ClubManagementScreen implements Screen {
         close.getLabel().setFontScale(0.55f);
         dialog.button(close, true);
         dialog.show(stage);
+    }
+
+    private void showSquadNumberEditor(Player player, Dialog profileDialog) {
+        Dialog editor = new Dialog("", game.skin);
+        editor.setModal(true);
+        editor.setMovable(false);
+        editor.getContentTable().background(
+            StyleFactory.createMetallicBoard(520, 280, Color.valueOf("141A16"))
+        );
+        editor.getContentTable().pad(20f, 28f, 16f, 28f);
+
+        Table content = editor.getContentTable();
+        content.add(ScreenUI.createSectionTitle(game.skin, "ALTERAR NÚMERO DA CAMISA"))
+            .colspan(2).center().padBottom(8f).row();
+        content.add(ScreenUI.createSubtitle(game.skin, player.getName()))
+            .colspan(2).center().padBottom(14f).row();
+
+        TextField numberField = new TextField(String.valueOf(player.getSquadNumber()), game.skin);
+        numberField.setTextFieldFilter(new TextField.TextFieldFilter.DigitsOnlyFilter());
+        numberField.setMaxLength(2);
+        numberField.setAlignment(Align.center);
+        content.add(ScreenUI.createSubtitle(game.skin, "NOVO NÚMERO (1–99)"))
+            .left().padRight(12f);
+        content.add(numberField).width(120f).height(42f).row();
+
+        Label feedback = ScreenUI.createSubtitle(game.skin, "O número deve estar livre no elenco.");
+        feedback.setColor(ScreenUI.MUTED_TEXT);
+        feedback.setAlignment(Align.center);
+        content.add(feedback).colspan(2).width(430f).center().padTop(12f).row();
+
+        TextButton cancel = ScreenUI.createSecondaryButton(game.skin, "CANCELAR");
+        cancel.getLabel().setFontScale(0.50f);
+        cancel.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                editor.hide();
+            }
+        });
+
+        TextButton confirm = ScreenUI.createPrimaryButton(game.skin, "CONFIRMAR");
+        confirm.getLabel().setFontScale(0.52f);
+        confirm.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                int number;
+                try {
+                    number = Integer.parseInt(numberField.getText());
+                } catch (NumberFormatException ignored) {
+                    number = 0;
+                }
+
+                if (number < 1 || number > 99) {
+                    feedback.setText("Informe um número entre 1 e 99.");
+                    feedback.setColor(ScreenUI.DANGER);
+                    return;
+                }
+                if (!club.changeSquadNumber(player, number)) {
+                    feedback.setText("O número #" + number + " já pertence a outro jogador.");
+                    feedback.setColor(ScreenUI.DANGER);
+                    return;
+                }
+
+                editor.hide();
+                profileDialog.hide();
+                Gdx.app.postRunnable(() -> {
+                    refreshUI();
+                    showPlayerProfileDialog(player);
+                });
+            }
+        });
+
+        editor.getButtonTable().add(cancel).width(170f).height(42f).pad(8f);
+        editor.getButtonTable().add(confirm).width(190f).height(42f).pad(8f);
+        editor.show(stage);
+        stage.setKeyboardFocus(numberField);
+        numberField.selectAll();
     }
 
     private Table createSeasonStatsPanel(Player player) {
@@ -1697,10 +1811,10 @@ public class ClubManagementScreen implements Screen {
         Label name =
             new Label(
                 player != null
-                    ? ScreenUI.shorten(
-                    player.getName(),
-                    12
-                )
+                    ? "#" + player.getSquadNumber() + "  " + ScreenUI.shorten(
+                        player.getName(),
+                        10
+                    )
                     : "VAZIO",
                 game.skin,
                 "font-bold"
@@ -1933,6 +2047,15 @@ public class ClubManagementScreen implements Screen {
                 comparator =
                     Comparator.comparing(
                         Player::getName
+                    );
+
+                break;
+
+            case "NUMBER":
+
+                comparator =
+                    Comparator.comparingInt(
+                        Player::getSquadNumber
                     );
 
                 break;

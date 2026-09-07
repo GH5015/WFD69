@@ -8,6 +8,9 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Interpolation;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
@@ -27,7 +30,9 @@ import io.github.some_example_name.model.Club;
 import io.github.some_example_name.model.AutomaticInjurySubstitutionService;
 import io.github.some_example_name.model.Match;
 import io.github.some_example_name.model.MatchEvent;
+import io.github.some_example_name.model.NarrativeCategory;
 import io.github.some_example_name.model.Player;
+import io.github.some_example_name.model.PossessionSequence;
 import io.github.some_example_name.utils.IconTextButton;
 import io.github.some_example_name.utils.MatchNarrator;
 import io.github.some_example_name.utils.SaveGameService;
@@ -92,8 +97,14 @@ public class MatchScreen implements Screen {
     private boolean simulateAfterHalftime =
         false;
 
+    private static final float AUTO_CRUISE_SPEED = 2.5f;
+    private static final float AUTO_DANGER_SPEED = 1.0f;
+
+    private boolean automaticSpeed =
+        true;
+
     private float timeScale =
-        1.0f;
+        AUTO_CRUISE_SPEED;
 
     private final float baseInterval =
         0.5f;
@@ -136,6 +147,10 @@ public class MatchScreen implements Screen {
 
     private Table goalOverlay;
     private Table tacticalFeedbackHost;
+    private Group dangerFocusLayer;
+    private final Image[] dangerFocusShades = new Image[4];
+    private Table dangerFocusBanner;
+    private boolean dangerFocusVisible = false;
 
     private int lastTacticalFeedbackMinute = -20;
     private int playerHighRegains = 0;
@@ -148,6 +163,7 @@ public class MatchScreen implements Screen {
     private TextButton pauseButton;
     private TextButton speed1xButton;
     private TextButton speed2xButton;
+    private TextButton speedAutoButton;
 
     private Texture homeLogoTexture;
     private Texture awayLogoTexture;
@@ -327,6 +343,8 @@ public class MatchScreen implements Screen {
         tacticalFeedbackHost.top().left();
         feedbackLayer.add(tacticalFeedbackHost).width(405f).top().left();
         root.add(feedbackLayer);
+
+        buildDangerFocusOverlay();
     }
 
     // =========================================================
@@ -725,6 +743,107 @@ public class MatchScreen implements Screen {
             .height(74f);
 
         return panel;
+    }
+
+    /**
+     * Escurece somente a área fora do campo. Quatro faixas deixam uma janela
+     * transparente ao redor do gramado, preservando a leitura da jogada.
+     */
+    private void buildDangerFocusOverlay() {
+        dangerFocusLayer = new Group();
+        dangerFocusLayer.setTouchable(Touchable.disabled);
+        dangerFocusLayer.setVisible(false);
+        dangerFocusLayer.getColor().a = 0f;
+
+        for (int index = 0; index < dangerFocusShades.length; index++) {
+            dangerFocusShades[index] = new Image(
+                StyleFactory.createSolid(new Color(0f, 0.015f, 0.01f, 0.74f))
+            );
+            dangerFocusLayer.addActor(dangerFocusShades[index]);
+        }
+
+        dangerFocusBanner = new Table();
+        dangerFocusBanner.setBackground(
+            StyleFactory.createRoundedPanel(
+                new Color(0.035f, 0.10f, 0.065f, 0.98f),
+                StyleFactory.PLAYOFF_GOLD
+            )
+        );
+        Label warning = ScreenUI.createBoldValue(
+            game.skin,
+            "⚠  ATAQUE PERIGOSO",
+            StyleFactory.SOFT_YELLOW,
+            Align.center
+        );
+        warning.setFontScale(0.62f);
+        dangerFocusBanner.add(warning).pad(9f, 22f, 9f, 22f);
+        dangerFocusLayer.addActor(dangerFocusBanner);
+
+        stage.addActor(dangerFocusLayer);
+        layoutDangerFocusOverlay();
+    }
+
+    private void showDangerFocus() {
+        if (dangerFocusLayer == null || tacticalField == null) return;
+
+        layoutDangerFocusOverlay();
+        tacticalField.setDangerFocus(true);
+        if (dangerFocusVisible) return;
+
+        dangerFocusVisible = true;
+        dangerFocusLayer.clearActions();
+        dangerFocusLayer.setVisible(true);
+        dangerFocusLayer.getColor().a = 0f;
+        dangerFocusLayer.addAction(Actions.fadeIn(0.20f, Interpolation.fade));
+    }
+
+    private void hideDangerFocus() {
+        if (tacticalField != null) tacticalField.setDangerFocus(false);
+        if (dangerFocusLayer == null || !dangerFocusVisible) return;
+
+        dangerFocusVisible = false;
+        dangerFocusLayer.clearActions();
+        dangerFocusLayer.addAction(
+            Actions.sequence(
+                Actions.fadeOut(0.16f, Interpolation.fade),
+                Actions.visible(false)
+            )
+        );
+    }
+
+    private void layoutDangerFocusOverlay() {
+        if (dangerFocusLayer == null || tacticalField == null) return;
+
+        float worldWidth = stage.getViewport().getWorldWidth();
+        float worldHeight = stage.getViewport().getWorldHeight();
+        dangerFocusLayer.setBounds(0f, 0f, worldWidth, worldHeight);
+
+        Vector2 fieldOrigin = tacticalField.localToStageCoordinates(new Vector2(0f, 0f));
+        float margin = 34f;
+        float fieldX = MathUtils.clamp(fieldOrigin.x - margin, 0f, worldWidth);
+        float fieldY = MathUtils.clamp(fieldOrigin.y - margin, 0f, worldHeight);
+        float fieldRight = MathUtils.clamp(
+            fieldOrigin.x + tacticalField.getWidth() + margin,
+            0f,
+            worldWidth
+        );
+        float fieldTop = MathUtils.clamp(
+            fieldOrigin.y + tacticalField.getHeight() + margin,
+            0f,
+            worldHeight
+        );
+        float fieldWidth = Math.max(0f, fieldRight - fieldX);
+        float fieldHeight = Math.max(0f, fieldTop - fieldY);
+
+        dangerFocusShades[0].setBounds(0f, 0f, worldWidth, fieldY);
+        dangerFocusShades[1].setBounds(0f, fieldTop, worldWidth, Math.max(0f, worldHeight - fieldTop));
+        dangerFocusShades[2].setBounds(0f, fieldY, fieldX, fieldHeight);
+        dangerFocusShades[3].setBounds(fieldRight, fieldY, Math.max(0f, worldWidth - fieldRight), fieldHeight);
+
+        dangerFocusBanner.pack();
+        float bannerX = fieldX + (fieldWidth - dangerFocusBanner.getWidth()) * 0.5f;
+        float bannerY = Math.max(fieldY + 10f, fieldTop - dangerFocusBanner.getHeight() - 12f);
+        dangerFocusBanner.setPosition(bannerX, bannerY);
     }
 
     private Table createMatchMomentumPanel() {
@@ -1138,6 +1257,12 @@ public class MatchScreen implements Screen {
                             ? ScreenUI.WARNING
                             : ScreenUI.SUCCESS
                     );
+
+                    if (paused) {
+                        showAutomaticPauseStatus();
+                    } else {
+                        applyAutomaticPace(false);
+                    }
                 }
             }
         );
@@ -1160,6 +1285,12 @@ public class MatchScreen implements Screen {
                 game.skin
             );
 
+        speedAutoButton =
+            ScreenUI.createInteractiveButton(
+                "AUTO 2.5x",
+                game.skin
+            );
+
         speed1xButton
             .getLabel()
             .setFontScale(
@@ -1172,7 +1303,13 @@ public class MatchScreen implements Screen {
                 0.54f
             );
 
-        speed1xButton.setColor(
+        speedAutoButton
+            .getLabel()
+            .setFontScale(
+                0.50f
+            );
+
+        speedAutoButton.setColor(
             StyleFactory.GOLD
         );
 
@@ -1186,8 +1323,9 @@ public class MatchScreen implements Screen {
                     float y
                 ) {
 
-                    timeScale =
-                        1f;
+                    automaticSpeed = false;
+                    timeScale = 1f;
+                    syncTacticalFieldSpeed();
 
                     updateSpeedButtons(
                         speed1xButton
@@ -1206,12 +1344,31 @@ public class MatchScreen implements Screen {
                     float y
                 ) {
 
-                    timeScale =
-                        2.5f;
+                    automaticSpeed = false;
+                    timeScale = 2.5f;
+                    syncTacticalFieldSpeed();
 
                     updateSpeedButtons(
                         speed2xButton
                     );
+                }
+            }
+        );
+
+        speedAutoButton.addListener(
+            new ClickListener() {
+
+                @Override
+                public void clicked(
+                    InputEvent event,
+                    float x,
+                    float y
+                ) {
+
+                    automaticSpeed = true;
+                    applyAutomaticPace(dangerFocusVisible);
+                    if (paused || goalFrozen) showAutomaticPauseStatus();
+                    updateSpeedButtons(speedAutoButton);
                 }
             }
         );
@@ -1225,6 +1382,12 @@ public class MatchScreen implements Screen {
         bar
             .add(speed2xButton)
             .width(68f)
+            .height(42f)
+            .padRight(4f);
+
+        bar
+            .add(speedAutoButton)
+            .width(92f)
             .height(42f);
 
         bar
@@ -1288,6 +1451,8 @@ public class MatchScreen implements Screen {
         paused =
             true;
 
+        showAutomaticPauseStatus();
+
         if (
             pauseButton != null
         ) {
@@ -1325,6 +1490,8 @@ public class MatchScreen implements Screen {
 
                     paused =
                         false;
+
+                    applyAutomaticPace(false);
 
                     pauseButton.setText(
                         "PAUSAR"
@@ -1470,6 +1637,8 @@ public class MatchScreen implements Screen {
 
         paused =
             true;
+
+        showAutomaticPauseStatus();
 
         refreshMatchStats();
 
@@ -2007,8 +2176,11 @@ public class MatchScreen implements Screen {
 
     private void startTimer() {
 
+        applyAutomaticPace(false);
+
         scheduleNextMinute(
-            baseInterval
+            baseInterval /
+                timeScale
         );
     }
 
@@ -2053,6 +2225,9 @@ public class MatchScreen implements Screen {
                                 !goalFrozen
                         ) {
 
+                            hideDangerFocus();
+                            applyAutomaticPace(false);
+
                             currentMinute++;
 
                             minuteLabel.setText(
@@ -2073,6 +2248,10 @@ public class MatchScreen implements Screen {
                                         event.type
                                     );
 
+                            boolean possessionSequenceEvent =
+                                event != null &&
+                                    event.getPossessionSequence() != null;
+
                             /*
                              * O motor atualiza o resultado no instante em
                              * que gera o evento. Na transmissão, porém, o
@@ -2090,7 +2269,7 @@ public class MatchScreen implements Screen {
                                 event != null
                             ) {
 
-                                if (goalEvent) {
+                                if (goalEvent || possessionSequenceEvent) {
                                     processVisualEvent(
                                         event
                                     );
@@ -2252,6 +2431,7 @@ public class MatchScreen implements Screen {
     ) {
         paused = true;
         goalFrozen = false;
+        showAutomaticPauseStatus();
 
         if (pauseButton != null) {
             pauseButton.setText(
@@ -2311,19 +2491,23 @@ public class MatchScreen implements Screen {
         );
         content.pad(20f, 30f, 16f, 30f);
 
+        String injuredName = injury && event.getInjuredPlayer() != null
+            ? event.getInjuredPlayer().getName().toUpperCase()
+            : "JOGADOR";
+
         Label title = new Label(
             injury
-                ? "LESÃO!"
+                ? injuredName + " CAI NO GRAMADO"
                 : "CARTÃO VERMELHO!",
             game.skin,
             "font-title"
         );
-        title.setFontScale(0.96f);
+        title.setFontScale(injury ? 0.72f : 0.96f);
         title.setColor(accent);
         title.setAlignment(Align.center);
 
         Label minute = new Label(
-            "MINUTO " + event.minute + "'",
+            injury ? event.minute + "'" : "MINUTO " + event.minute + "'",
             game.skin,
             "font-bold"
         );
@@ -2347,9 +2531,11 @@ public class MatchScreen implements Screen {
         club.setAlignment(Align.center);
 
         Label description = new Label(
-            event.description != null
-                ? event.description
-                : "Ocorrência grave durante a partida.",
+            injury
+                ? "Não parece conseguir continuar."
+                : event.description != null
+                    ? event.description
+                    : "Ocorrência grave durante a partida.",
             game.skin
         );
         description.setFontScale(0.55f);
@@ -2378,12 +2564,45 @@ public class MatchScreen implements Screen {
         content.add(description)
             .width(610f)
             .center()
-            .padBottom(needsTactics ? 13f : 6f)
+            .padBottom(injury ? 8f : needsTactics ? 13f : 6f)
             .row();
+
+        if (injury) {
+            Label conditionLabel = new Label(
+                "CONDIÇÃO",
+                game.skin,
+                "font-bold"
+            );
+            conditionLabel.setFontScale(0.48f);
+            conditionLabel.setColor(ScreenUI.MUTED_TEXT);
+            conditionLabel.setAlignment(Align.center);
+
+            Label condition = new Label(
+                event.getSuspectedInjury(),
+                game.skin,
+                "font-bold"
+            );
+            condition.setFontScale(0.58f);
+            condition.setColor(accent);
+            condition.setAlignment(Align.center);
+
+            content.add(conditionLabel)
+                .width(610f)
+                .center()
+                .padBottom(3f)
+                .row();
+            content.add(condition)
+                .width(610f)
+                .center()
+                .padBottom(needsTactics ? 10f : 4f)
+                .row();
+        }
 
         if (needsTactics) {
             Label hint = new Label(
-                "Seu time pode precisar de uma alteração na escalação.",
+                injury
+                    ? "A equipe médica recomenda avaliar uma substituição."
+                    : "Seu time pode precisar de uma alteração na escalação.",
                 game.skin
             );
             hint.setFontScale(0.48f);
@@ -2396,6 +2615,16 @@ public class MatchScreen implements Screen {
                 .padBottom(4f);
         }
 
+        if (needsTactics && injury) {
+            TextButton tacticsButton =
+                ScreenUI.createPrimaryButton(
+                    game.skin,
+                    "SUBSTITUIR"
+                );
+            tacticsButton.getLabel().setFontScale(0.55f);
+            dialog.button(tacticsButton, true);
+        }
+
         TextButton continueButton =
             ScreenUI.createInteractiveButton(
                 "CONTINUAR",
@@ -2404,7 +2633,7 @@ public class MatchScreen implements Screen {
         continueButton.getLabel().setFontScale(0.56f);
         dialog.button(continueButton, false);
 
-        if (needsTactics) {
+        if (needsTactics && !injury) {
             TextButton tacticsButton =
                 ScreenUI.createPrimaryButton(
                     game.skin,
@@ -2421,6 +2650,7 @@ public class MatchScreen implements Screen {
         awaitingInjurySubstitution = false;
         awaitingRedCardTactics = false;
         paused = false;
+        applyAutomaticPace(false);
 
         if (pauseButton != null) {
             pauseButton.setText(
@@ -2450,6 +2680,24 @@ public class MatchScreen implements Screen {
     private void processVisualEvent(
         MatchEvent event
     ) {
+
+        if (event != null && event.getPossessionSequence() != null) {
+            goalFrozen = true;
+            currentInterval = 1.4f;
+
+            if (tacticalField == null) {
+                finishPossessionSequence(event);
+                return;
+            }
+
+            tacticalField.setAnimationSpeed(0.92f * timeScale);
+            tacticalField.onPossessionSequence(
+                event,
+                this::updatePossessionStep,
+                () -> finishPossessionSequence(event)
+            );
+            return;
+        }
 
         if (
             "GOL".equals(
@@ -2507,6 +2755,9 @@ public class MatchScreen implements Screen {
             )
         ) {
 
+            applyAutomaticPace(true);
+            showDangerFocus();
+
             currentInterval =
                 1.4f;
 
@@ -2524,8 +2775,10 @@ public class MatchScreen implements Screen {
 
         } else {
 
+            applyAutomaticPace(false);
+
             currentInterval =
-                0.3f;
+                0.22f;
 
             tacticalField
                     .setAnimationSpeed(
@@ -2538,6 +2791,31 @@ public class MatchScreen implements Screen {
                     event,
                     null
                 );
+        }
+    }
+
+    private void finishPossessionSequence(MatchEvent event) {
+        minuteLabel.setText(currentMinute + "'");
+        hideDangerFocus();
+
+        if ("GOL".equals(event.type)) {
+            triggerGoalFreeze(event);
+            return;
+        }
+
+        refreshMatchStats();
+        updateTacticalCounters();
+        maybeShowTacticalFeedback();
+        goalFrozen = false;
+        currentInterval = baseInterval;
+        applyAutomaticPace(false);
+        matchStateLabel.setText("●  EM JOGO");
+        matchStateLabel.setColor(ScreenUI.SUCCESS);
+
+        if (currentMinute >= 90) {
+            finishMatch();
+        } else {
+            scheduleNextMinute(baseInterval / timeScale);
         }
     }
 
@@ -2647,7 +2925,7 @@ public class MatchScreen implements Screen {
 
         Color eventColor =
             getEventColor(
-                event.type
+                event
             );
 
         Label minute =
@@ -2718,56 +2996,103 @@ public class MatchScreen implements Screen {
         );
     }
 
+    private void updatePossessionStep(PossessionSequence.Step step) {
+        if (step == null || eventTable == null) return;
+
+        String timestamp = String.format(
+            Locale.ROOT,
+            "%d:%02d",
+            currentMinute,
+            step.getSecond()
+        );
+        String phase = getSequencePhaseTitle(step.getPhase());
+        NarrativeCategory category = step.getNarrativeCategory();
+
+        boolean decisive = isDecisiveSequencePhase(step.getPhase());
+        applyAutomaticPace(decisive);
+
+        if (decisive) {
+            showDangerFocus();
+        } else {
+            hideDangerFocus();
+        }
+
+        minuteLabel.setText(timestamp);
+        matchStateLabel.setText("●  " + category.getLabel());
+        matchStateLabel.setColor(StyleFactory.SOFT_YELLOW);
+
+        Table block = ScreenUI.createSubtlePanel();
+        block.pad(5f, 7f, 5f, 7f);
+
+        Label minute = new Label(timestamp, game.skin, "font-bold");
+        minute.setFontScale(0.47f);
+        minute.setColor(StyleFactory.SOFT_YELLOW);
+
+        Table minuteBadge = new Table();
+        minuteBadge.background(
+            StyleFactory.createRoundedPanel(
+                Color.valueOf("18231C"),
+                StyleFactory.DARK_GOLD
+            )
+        );
+        minuteBadge.add(minute).pad(4f, 4f, 4f, 4f);
+        block.add(minuteBadge).width(52f).height(29f).top().left().padRight(7f);
+
+        Label text = new Label(
+            category.getIcon() + "  " + category.getLabel() + " / " + phase
+                + "  •  " + step.getDescription(),
+            game.skin
+        );
+        text.setFontScale(0.46f);
+        text.setWrap(true);
+        text.setColor(Color.WHITE);
+        block.add(text).growX().left();
+
+        eventTable.add(block).growX().padBottom(4f).row();
+        eventScroll.layout();
+        eventScroll.setScrollPercentY(1f);
+    }
+
+    private boolean isDecisiveSequencePhase(PossessionSequence.Phase phase) {
+        return phase == PossessionSequence.Phase.ULTIMO_TERCO
+            || phase == PossessionSequence.Phase.CRIACAO
+            || phase == PossessionSequence.Phase.FINALIZACAO
+            || phase == PossessionSequence.Phase.RESULTADO;
+    }
+
+    private String getSequencePhaseTitle(PossessionSequence.Phase phase) {
+        if (phase == null) return "JOGADA";
+        switch (phase) {
+            case RECUPERACAO: return "RECUPERAÇÃO";
+            case CONSTRUCAO: return "CONSTRUÇÃO";
+            case PROGRESSAO: return "PROGRESSÃO";
+            case ULTIMO_TERCO: return "ÚLTIMO TERÇO";
+            case CRIACAO: return "CRIAÇÃO";
+            case FINALIZACAO: return "FINALIZAÇÃO";
+            case RESULTADO: return "DESFECHO";
+            default: return "JOGADA";
+        }
+    }
+
     private Color getEventColor(
-        String type
+        MatchEvent event
     ) {
-
-        if (
-            "GOL".equals(
-                type
-            )
-        ) {
-
-            return StyleFactory.SOFT_YELLOW;
+        NarrativeCategory category = event != null
+            ? event.getNarrativeCategory()
+            : NarrativeCategory.CONSTRUCAO;
+        switch (category) {
+            case GOL: return StyleFactory.SOFT_YELLOW;
+            case FALTA: return Color.YELLOW;
+            case LESAO: return ScreenUI.DANGER;
+            case CHANCE: return StyleFactory.CREME_AGED;
+            case PRESSAO: return ScreenUI.SUCCESS;
+            case TRANSICAO:
+            case SUBSTITUICAO: return Color.CYAN;
+            case DUELO: return Color.valueOf("F0A448");
+            case DEFESA: return Color.valueOf("75B9FF");
+            case ERRO: return ScreenUI.WARNING;
+            default: return Color.WHITE;
         }
-
-        if (
-            "CARTAO".equals(
-                type
-            )
-        ) {
-
-            return Color.YELLOW;
-        }
-
-        if (
-            "SUBSTITUICAO".equals(
-                type
-            )
-        ) {
-
-            return Color.CYAN;
-        }
-
-        if (
-            "LESIONADO".equals(
-                type
-            )
-        ) {
-
-            return ScreenUI.DANGER;
-        }
-
-        if (
-            "CHUTE".equals(
-                type
-            )
-        ) {
-
-            return StyleFactory.CREME_AGED;
-        }
-
-        return Color.WHITE;
     }
 
     // =========================================================
@@ -2791,6 +3116,10 @@ public class MatchScreen implements Screen {
             true
         );
 
+        goalOverlay.setBackground(
+            StyleFactory.createSolid(new Color(0.005f, 0.018f, 0.012f, 0.82f))
+        );
+
         stage.addActor(
             goalOverlay
         );
@@ -2802,12 +3131,30 @@ public class MatchScreen implements Screen {
 
         goalFrozen =
             true;
+        showAutomaticPauseStatus();
+        hideDangerFocus();
 
         // A transmissão só confirma o gol depois de a animação terminar.
         // Assim placar e narração nunca antecipam o desfecho visual.
         showGoalBanner(
             event,
-            () -> confirmGoalAfterAnimation(event)
+            () -> {
+                confirmGoalAfterAnimation(event);
+
+                if (tacticalField != null) {
+                    tacticalField.resumeFromGoal();
+                }
+
+                goalFrozen = false;
+                currentInterval = baseInterval;
+                applyAutomaticPace(false);
+
+                if (currentMinute >= 90) {
+                    finishMatch();
+                } else {
+                    scheduleNextMinute(baseInterval / timeScale);
+                }
+            }
         );
 
         if (
@@ -2818,35 +3165,6 @@ public class MatchScreen implements Screen {
                 .triggerGoalCelebration();
         }
 
-        Timer.schedule(
-            new Timer.Task() {
-
-                @Override
-                public void run() {
-
-                    if (
-                        tacticalField !=
-                            null
-                    ) {
-
-                        tacticalField
-                            .resumeFromGoal();
-                    }
-
-                    goalFrozen =
-                        false;
-
-                    currentInterval =
-                        baseInterval;
-
-                    scheduleNextMinute(
-                        baseInterval /
-                            timeScale
-                    );
-                }
-            },
-            4.5f
-        );
     }
 
     private void confirmGoalAfterAnimation(
@@ -2871,7 +3189,17 @@ public class MatchScreen implements Screen {
         MatchEvent event,
         final Runnable onFinished
     ) {
+        Player scorer = event.getGoalScorer();
+        if (scorer == null && !match.getGoalScorers().isEmpty()) {
+            scorer = match.getGoalScorers().get(match.getGoalScorers().size() - 1);
+        }
+        Club scoringClub = event.isHomeTeam ? match.getHomeTeam() : match.getAwayTeam();
+        String scorerName = scorer != null ? scorer.getName() : scoringClub.getName();
+        int seasonGoals = event.getScorerSeasonGoals() > 0
+            ? event.getScorerSeasonGoals()
+            : scorer != null ? scorer.getSeasonGoals() : 0;
 
+        goalOverlay.clearActions();
         goalOverlay.clear();
 
         goalOverlay.setVisible(
@@ -2884,32 +3212,40 @@ public class MatchScreen implements Screen {
             0f;
 
         goalOverlay.setScale(
-            0.55f
+            0.82f
         );
 
         goalOverlay.setOrigin(
             Align.center
         );
 
-        Table banner =
-            ScreenUI.createPanel();
+        Table banner = new Table();
+        banner.setBackground(
+            StyleFactory.createRoundedPanel(
+                Color.valueOf("07150F"),
+                StyleFactory.PLAYOFF_GOLD
+            )
+        );
 
         banner.pad(
-            22f,
-            52f,
-            22f,
-            52f
+            18f,
+            58f,
+            20f,
+            58f
         );
+
+        Image topLine = new Image(StyleFactory.createSolid(StyleFactory.PLAYOFF_GOLD));
+        banner.add(topLine).width(650f).height(2f).padBottom(12f).row();
 
         Label goal =
             new Label(
-                "GOL!",
+                "GOOOOOL",
                 game.skin,
                 "font-title"
             );
 
         goal.setFontScale(
-            1.55f
+            1.36f
         );
 
         goal.setColor(
@@ -2919,36 +3255,87 @@ public class MatchScreen implements Screen {
         banner
             .add(goal)
             .center()
-            .padBottom(8f)
+            .padBottom(5f)
             .row();
 
-        Label description =
-            new Label(
-                event.description,
+        Label scorerLabel = new Label(scorerName.toUpperCase(Locale.ROOT), game.skin, "font-title");
+        scorerLabel.setFontScale(1.02f);
+        scorerLabel.setColor(Color.WHITE);
+        scorerLabel.setAlignment(Align.center);
+        banner.add(scorerLabel).width(700f).center().row();
+
+        Label goalMinute = new Label(event.minute + "'", game.skin, "font-bold");
+        goalMinute.setFontScale(0.70f);
+        goalMinute.setColor(StyleFactory.SOFT_YELLOW);
+        banner.add(goalMinute).center().padTop(2f).padBottom(10f).row();
+
+        String scoreText = match.getHomeTeam().getName().toUpperCase(Locale.ROOT)
+            + "  " + match.getHomeGoals() + "  -  " + match.getAwayGoals() + "  "
+            + match.getAwayTeam().getName().toUpperCase(Locale.ROOT);
+        Label score = new Label(scoreText, game.skin, "font-bold");
+        score.setFontScale(0.66f);
+        score.setColor(StyleFactory.PLAYOFF_GOLD);
+        score.setAlignment(Align.center);
+        score.setWrap(true);
+        banner.add(score).width(740f).center().padBottom(8f).row();
+
+        Player assister = event.getGoalAssister();
+        String assistText = assister != null
+            ? "Assistência: " + assister.getName()
+            : "Gol sem assistência";
+        Label assist = new Label(assistText, game.skin);
+        assist.setFontScale(0.52f);
+        assist.setColor(StyleFactory.TEXT_SECONDARY);
+        assist.setAlignment(Align.center);
+        banner.add(assist).center().padBottom(11f).row();
+
+        Image middleLine = new Image(StyleFactory.createSolid(Color.valueOf("7C6421")));
+        banner.add(middleLine).width(520f).height(1f).padBottom(10f).row();
+
+        Table scorerStat = new Table();
+        scorerStat.getColor().a = 0f;
+        Label scorerStatName = new Label(scorerName, game.skin, "font-bold");
+        scorerStatName.setFontScale(0.56f);
+        scorerStatName.setColor(Color.WHITE);
+        Label scorerStatValue = new Label(
+            seasonGoals + (seasonGoals == 1 ? " gol na temporada" : " gols na temporada"),
+            game.skin
+        );
+        scorerStatValue.setFontScale(0.53f);
+        scorerStatValue.setColor(ScreenUI.SUCCESS);
+        scorerStat.add(scorerStatName).center().row();
+        scorerStat.add(scorerStatValue).center().padTop(2f).row();
+
+        if (event.hasCareerGoalMilestone()) {
+            Label milestone = new Label(
+                "⚽  " + event.getScorerCareerGoals() + "º GOL NA WFL",
                 game.skin,
                 "font-bold"
             );
+            milestone.setFontScale(0.62f);
+            milestone.setColor(StyleFactory.PLAYOFF_GOLD);
+            scorerStat.add(milestone).center().padTop(8f).row();
+            milestone.addAction(
+                Actions.forever(
+                    Actions.sequence(
+                        Actions.alpha(0.58f, 0.40f),
+                        Actions.alpha(1f, 0.40f)
+                    )
+                )
+            );
+        }
 
-        description.setFontScale(
-            0.70f
+        banner.add(scorerStat).center().padBottom(11f).row();
+
+        Image bottomLine = new Image(StyleFactory.createSolid(StyleFactory.PLAYOFF_GOLD));
+        banner.add(bottomLine).width(650f).height(2f).row();
+
+        scorerStat.addAction(
+            Actions.sequence(
+                Actions.delay(0.85f),
+                Actions.fadeIn(0.24f, Interpolation.fade)
+            )
         );
-
-        description.setColor(
-            Color.WHITE
-        );
-
-        description.setWrap(
-            true
-        );
-
-        description.setAlignment(
-            Align.center
-        );
-
-        banner
-            .add(description)
-            .width(600f)
-            .center();
 
         goalOverlay
             .add(banner)
@@ -2959,28 +3346,28 @@ public class MatchScreen implements Screen {
 
                 Actions.parallel(
                     Actions.fadeIn(
-                        0.35f
+                        0.25f
                     ),
                     Actions.scaleTo(
                         1f,
                         1f,
-                        0.35f,
+                        0.25f,
                         Interpolation.swingOut
                     )
                 ),
 
                 Actions.delay(
-                    2.8f
+                    2.15f
                 ),
 
                 Actions.parallel(
                     Actions.fadeOut(
-                        0.35f
+                        0.30f
                     ),
                     Actions.scaleTo(
-                        0.75f,
-                        0.75f,
-                        0.35f
+                        0.90f,
+                        0.90f,
+                        0.30f
                     )
                 ),
 
@@ -3262,9 +3649,49 @@ public class MatchScreen implements Screen {
             Color.WHITE
         );
 
+        speedAutoButton.setColor(
+            Color.WHITE
+        );
+
         active.setColor(
             StyleFactory.GOLD
         );
+    }
+
+    /**
+     * No modo AUTO, trechos de circulação avançam em 2.5x e a jogada volta
+     * para 1x ao alcançar o último terço. Gols e ocorrências críticas usam a
+     * pausa já existente e apenas atualizam o estado visível do seletor.
+     */
+    private void applyAutomaticPace(boolean dangerousMoment) {
+        if (!automaticSpeed) return;
+
+        timeScale = dangerousMoment
+            ? AUTO_DANGER_SPEED
+            : AUTO_CRUISE_SPEED;
+
+        if (speedAutoButton != null) {
+            speedAutoButton.setText(
+                dangerousMoment
+                    ? "AUTO 1x"
+                    : "AUTO 2.5x"
+            );
+        }
+
+        syncTacticalFieldSpeed();
+    }
+
+    private void showAutomaticPauseStatus() {
+        if (automaticSpeed && speedAutoButton != null) {
+            speedAutoButton.setText("AUTO PAUSA");
+        }
+    }
+
+    private void syncTacticalFieldSpeed() {
+        if (tacticalField == null) return;
+
+        float editorialMultiplier = dangerFocusVisible ? 0.92f : 1f;
+        tacticalField.setAnimationSpeed(editorialMultiplier * timeScale);
     }
 
     private String getFormationName(
@@ -3411,6 +3838,10 @@ public class MatchScreen implements Screen {
                 height,
                 true
             );
+
+        if (dangerFocusVisible) {
+            layoutDangerFocusOverlay();
+        }
     }
 
     @Override

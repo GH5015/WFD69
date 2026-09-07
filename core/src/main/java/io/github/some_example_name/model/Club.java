@@ -708,10 +708,76 @@ public class Club implements java.io.Serializable {
     public void addPlayerToSquad(Player player) {
         if (player == null) return;
         this.squad.add(player);
+        assignAvailableSquadNumber(player);
         if (this.startingXI.size() < 11) {
             this.startingXI.add(player);
             this.tacticsMap.put(this.startingXI.size() - 1, player);
         }
+    }
+
+    /**
+     * Preenche números ausentes de saves anteriores e elimina eventuais conflitos
+     * trazidos por Draft, Free Agency ou transferências entre clubes.
+     */
+    public void ensureSquadNumbers() {
+        if (squad == null) return;
+        Set<Integer> used = new HashSet<>();
+        List<Player> pending = new ArrayList<>();
+
+        for (Player player : squad) {
+            if (player == null) continue;
+            int number = player.getSquadNumber();
+            if (number >= 1 && number <= 99 && used.add(number)) {
+                continue;
+            }
+            player.setSquadNumber(0);
+            pending.add(player);
+        }
+
+        for (Player player : pending) {
+            int number = firstAvailableSquadNumber(used);
+            player.setSquadNumber(number);
+            used.add(number);
+        }
+    }
+
+    public boolean isSquadNumberAvailable(int number, Player except) {
+        if (number < 1 || number > 99 || squad == null) return false;
+        for (Player player : squad) {
+            if (player != null && player != except && player.getSquadNumber() == number) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean changeSquadNumber(Player player, int number) {
+        if (player == null || squad == null || !squad.contains(player)) return false;
+        ensureSquadNumbers();
+        if (!isSquadNumberAvailable(number, player)) return false;
+        player.setSquadNumber(number);
+        return true;
+    }
+
+    private void assignAvailableSquadNumber(Player player) {
+        if (player == null) return;
+        Set<Integer> used = new HashSet<>();
+        for (Player squadPlayer : squad) {
+            if (squadPlayer == null || squadPlayer == player) continue;
+            int number = squadPlayer.getSquadNumber();
+            if (number >= 1 && number <= 99) used.add(number);
+        }
+        int requested = player.getSquadNumber();
+        if (requested < 1 || requested > 99 || used.contains(requested)) {
+            player.setSquadNumber(firstAvailableSquadNumber(used));
+        }
+    }
+
+    private int firstAvailableSquadNumber(Set<Integer> used) {
+        for (int number = 1; number <= 99; number++) {
+            if (!used.contains(number)) return number;
+        }
+        return 99;
     }
 
     public void assignPlayerToSlot(int targetSlot, Player player) {

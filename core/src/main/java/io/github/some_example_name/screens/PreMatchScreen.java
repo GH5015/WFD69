@@ -126,6 +126,8 @@ public class PreMatchScreen implements Screen {
          * campo. Antes, a recomposição da IA ocorria apenas na MatchScreen e
          * esta tela ainda mostrava os buracos deixados por indisponíveis. */
         game.matchEngine.prepareLineupsForPreview(match);
+        match.getHomeTeam().ensureSquadNumbers();
+        match.getAwayTeam().ensureSquadNumbers();
         AttendanceService.ensureAttendance(game.league, match);
 
         buildUI();
@@ -900,6 +902,16 @@ public class PreMatchScreen implements Screen {
             .add(
                 ScreenUI.createTableHeaderLabel(
                     game.skin,
+                    "#",
+                    Align.center
+                )
+            )
+            .width(42f);
+
+        header
+            .add(
+                ScreenUI.createTableHeaderLabel(
+                    game.skin,
                     "POS",
                     Align.center
                 )
@@ -980,6 +992,17 @@ public class PreMatchScreen implements Screen {
                 ScreenUI.createRow(
                     i
                 );
+
+            row
+                .add(
+                    ScreenUI.createBoldValue(
+                        game.skin,
+                        player != null ? String.valueOf(player.getSquadNumber()) : "-",
+                        player != null ? StyleFactory.SOFT_YELLOW : ScreenUI.DANGER,
+                        Align.center
+                    )
+                )
+                .width(42f);
 
             // =================================================
             // POSITION
@@ -1877,6 +1900,12 @@ public class PreMatchScreen implements Screen {
         // =====================================================
         // INFO
         // =====================================================
+
+        addPlayerDetail(
+            content,
+            "NÚMERO",
+            "#" + player.getSquadNumber()
+        );
 
         addPlayerDetail(
             content,

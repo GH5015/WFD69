@@ -103,6 +103,7 @@ public class TacticsScreen implements Screen {
     // =========================================================
 
     private void refreshUI() {
+        club.ensureSquadNumbers();
         io.github.some_example_name.utils.ScrollPositionMemory.capture(stage, getClass().getName());
 
         stage.clear();
@@ -852,9 +853,9 @@ public class TacticsScreen implements Screen {
 
             Label name =
                 new Label(
-                    ScreenUI.shorten(
+                    "#" + player.getSquadNumber() + "  " + ScreenUI.shorten(
                         player.getName(),
-                        11
+                        9
                     ),
                     game.skin,
                     "font-bold"
@@ -1193,9 +1194,8 @@ public class TacticsScreen implements Screen {
 
         Label name =
             new Label(
-                selectedPlayer
-                    .getName()
-                    .toUpperCase(),
+                "#" + selectedPlayer.getSquadNumber() + "  " +
+                    selectedPlayer.getName().toUpperCase(),
                 game.skin,
                 "font-bold"
             );
@@ -1601,6 +1601,18 @@ public class TacticsScreen implements Screen {
                 )
             );
         }
+
+        row
+            .add(
+                ScreenUI.createBoldValue(
+                    game.skin,
+                    "#" + player.getSquadNumber(),
+                    StyleFactory.SOFT_YELLOW,
+                    Align.center
+                )
+            )
+            .width(38f)
+            .padLeft(3f);
 
         Table badge =
             ScreenUI.createBadge(

@@ -17,6 +17,8 @@ public class Player implements java.io.Serializable {
     private String nationality;
     private Position primaryPosition;
     private Position secondaryPosition;
+    /** Número de camisa no clube atual. Zero identifica saves antigos ainda não normalizados. */
+    private int squadNumber;
     private int age;
     private double height = 1.80;
     private TechnicalAttributes technicalAttributes;
@@ -307,6 +309,7 @@ public class Player implements java.io.Serializable {
         this.currentClub = newClub;
         if (newClub != null && !newClub.getSquad().contains(this)) {
             newClub.getSquad().add(this);
+            newClub.ensureSquadNumbers();
         }
     }
 
@@ -685,6 +688,12 @@ public class Player implements java.io.Serializable {
     public String getNationality() { return nationality; }
     public Position getPrimaryPosition() { return primaryPosition; }
     public Position getSecondaryPosition() { return secondaryPosition; }
+    public int getSquadNumber() { return squadNumber; }
+    public void setSquadNumber(int squadNumber) {
+        this.squadNumber = squadNumber >= 1 && squadNumber <= 99
+            ? squadNumber
+            : 0;
+    }
     public int getOverall() { return overall; }
     public int getEffectiveOverall() { return getEffectiveOverallForPosition(primaryPosition); }
     public int getPotential() {

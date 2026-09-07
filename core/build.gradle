@@ -308,3 +308,15 @@ tasks.register('playoffPenaltyShootoutRegression', JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
   mainClass = 'io.github.some_example_name.PlayoffPenaltyShootoutRegressionTest'
 }
+
+tasks.register('possessionSequenceRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.engine.PossessionSequenceRegressionTest'
+}
+
+tasks.register('squadNumberRegression', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'io.github.some_example_name.SquadNumberRegressionTest'
+}
